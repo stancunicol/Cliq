@@ -13,6 +13,7 @@ from app.schemas import (
     SimulateRequest,
     SimulateResponse,
 )
+from app.page_object_storage import save_page_object
 from engine.browser_context import BrowserContext
 from engine.page import Page
 from engine.page_object_generator import ElementDescriptor, extract_elements, generate_page_object
@@ -50,6 +51,7 @@ async def run_flow(body: RunFlowRequest) -> RunFlowResponse:
     generated_code = None
     if body.generate_page_object:
         generated_code = generate_page_object(body.class_name, elements)
+        await save_page_object(body.class_name, generated_code)
 
     return RunFlowResponse(
         session_id=body.session_id,

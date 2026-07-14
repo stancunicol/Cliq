@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
+from app.request_logging import RequestLoggingMiddleware
 from app.routers import contexts, pages, sessions, workflows
 
 app = FastAPI(title="UI Testing Engine")
+app.add_middleware(RequestLoggingMiddleware)
 
 app.include_router(sessions.router)
 app.include_router(contexts.router)

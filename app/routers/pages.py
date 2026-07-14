@@ -13,6 +13,7 @@ from app.schemas import (
     PageResponse,
     PageSummary,
 )
+from app.page_object_storage import save_page_object
 from engine.page_object_generator import extract_elements, generate_page_object
 
 router = APIRouter(prefix="/contexts/{context_id}/pages", tags=["pages"]) #create
@@ -105,4 +106,5 @@ async def generate_page_object_endpoint(
     entry = _get_page(page_id)
     elements = await extract_elements(entry.page)
     code = generate_page_object(body.class_name, elements)
+    await save_page_object(body.class_name, code)
     return GeneratePageObjectResponse(code=code)
