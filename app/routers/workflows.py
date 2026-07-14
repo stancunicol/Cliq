@@ -136,10 +136,8 @@ async def simulate(page_id: str, body: SimulateRequest) -> SimulateResponse:
             break
 
     if body.close_session:
+        registry.pop_session_cascade(entry.session_id)
         await session.conn.close()
         session.browser.terminate()
-        registry.sessions.pop(entry.session_id, None)
-        registry.contexts.pop(entry.context_id, None)
-        registry.pages.pop(page_id, None)
 
     return SimulateResponse(action_results=results)

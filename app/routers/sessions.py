@@ -43,7 +43,7 @@ async def get_session(session_id: str) -> SessionSummary:
 
 @router.delete("/{session_id}", status_code=204, response_model=None)
 async def close_session(session_id: str) -> None:
-    session = registry.sessions.pop(session_id, None)
+    session = registry.pop_session_cascade(session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
 

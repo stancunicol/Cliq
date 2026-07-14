@@ -51,5 +51,21 @@ class Registry:
     def new_id(self) -> str:
         return uuid.uuid4().hex
 
+    def pop_session_cascade(self, session_id: str) -> SessionEntry | None:
+        """Removes a session along with every context/page that belongs to
+        it, so closing a session never leaves orphaned registry entries
+        pointing at a browser process that's about to be terminated."""
+        session = self.sessions.pop(session_id, None)
+        if session is None:
+            return None
+
+        for context_id in [cid for cid, entry in self.contexts.items() if entry.session_id == session_id]:
+            self.contexts.pop(context_id, None)
+
+        for page_id in [pid for pid, entry in self.pages.items() if entry.session_id == session_id]:
+            self.pages.pop(page_id, None)
+
+        return session
+
 
 registry = Registry() #singleton instance of the registry, used to store all sessions, contexts, and pages
