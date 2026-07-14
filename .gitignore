@@ -1,0 +1,25 @@
+# Python bytecode / cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Packaging
+*.egg-info/
+build/
+dist/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Tooling caches
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+
+# Runtime logs (created when running uvicorn during local testing)
+*.log
+
+# Environment secrets
+.env
