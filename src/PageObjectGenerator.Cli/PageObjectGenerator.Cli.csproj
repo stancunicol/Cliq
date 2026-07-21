@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\PageObjectGenerator.Core\PageObjectGenerator.Core.csproj" />
+  </ItemGroup>
+
+  <!-- If this project's CWD default ever lands a GeneratedPages/ output folder
+       under its own directory, don't let the SDK's implicit **/*.cs glob try
+       to compile that runtime-generated code as part of the CLI itself. -->
+  <ItemGroup>
+    <Compile Remove="GeneratedPages\**\*.cs" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>
