@@ -3,6 +3,9 @@ using System.Text.Json.Serialization;
 
 namespace PageObjectGenerator.Core;
 
+public sealed record WriteResult(
+    string PageObjectPath, string TestPath, string MetadataPath, string CustomPath, bool CustomFileCreated);
+
 public static class PageObjectFileWriter
 {
     private static readonly JsonSerializerOptions MetadataJsonOptions = new()
@@ -11,7 +14,7 @@ public static class PageObjectFileWriter
         Converters = { new JsonStringEnumConverter() },
     };
 
-    public static (string PageObjectPath, string TestPath, string MetadataPath) Write(string outDir, GenerationResult result)
+    public static WriteResult Write(string outDir, GenerationResult result)
     {
         // Defense in depth: PageObjectWorkflow.Generate already rejects an unsafe
         // ClassName, but this is the one place that actually touches the
@@ -25,6 +28,7 @@ public static class PageObjectFileWriter
         var pageObjectPath = Path.Combine(outDir, $"{result.ClassName}.cs");
         var testPath = Path.Combine(outDir, $"{result.ClassName}Tests.cs");
         var metadataPath = Path.Combine(outDir, $"{result.ClassName}.meta.json");
+        var customPath = Path.Combine(outDir, $"{result.ClassName}.Custom.cs");
 
         File.WriteAllText(pageObjectPath, result.PageObjectCode);
         File.WriteAllText(testPath, result.TestCode);
@@ -32,7 +36,17 @@ public static class PageObjectFileWriter
         var metadata = new GenerationMetadata(result.ClassName, result.Url, result.Browser, result.Namespace, result.Elements);
         File.WriteAllText(metadataPath, JsonSerializer.Serialize(metadata, MetadataJsonOptions));
 
-        return (pageObjectPath, testPath, metadataPath);
+        // Written once, on first generation, then left alone forever - this is
+        // the file a developer is meant to add hand-written methods to. If it
+        // already exists (from a previous generation, possibly hand-edited
+        // since), regenerating must never touch it.
+        var customFileCreated = !File.Exists(customPath);
+        if (customFileCreated)
+        {
+            File.WriteAllText(customPath, PageObjectCodeGenerator.GenerateCustomStub(result.ClassName, result.Namespace));
+        }
+
+        return new WriteResult(pageObjectPath, testPath, metadataPath, customPath, customFileCreated);
     }
 
     /// <summary>Base class names (e.g. "LoginPage") that have a generated pair in <paramref name="outDir"/>.</summary>
@@ -45,7 +59,7 @@ public static class PageObjectFileWriter
 
         return Directory.EnumerateFiles(outDir, "*.cs")
             .Select(Path.GetFileNameWithoutExtension)
-            .Where(name => name is not null && !name.EndsWith("Tests", StringComparison.Ordinal))
+            .Where(name => name is not null && !name.EndsWith("Tests", StringComparison.Ordinal) && !name.EndsWith(".Custom", StringComparison.Ordinal))
             .Select(name => name!)
             .OrderBy(name => name, StringComparer.OrdinalIgnoreCase);
     }
@@ -55,22 +69,24 @@ public static class PageObjectFileWriter
     // validated before it can touch Path.Combine, or a value like "../../secrets"
     // (or a rooted path, which Path.Combine will happily switch to entirely) lets
     // a caller read or overwrite arbitrary files outside outDir.
-    public static (string? PageObjectCode, string? TestCode) TryRead(string outDir, string className)
+    public static (string? PageObjectCode, string? TestCode, string? CustomCode) TryRead(string outDir, string className)
     {
         if (!IdentifierNaming.IsSafeIdentifier(className))
         {
-            return (null, null);
+            return (null, null, null);
         }
 
         var pageObjectPath = Path.Combine(outDir, $"{className}.cs");
         var testPath = Path.Combine(outDir, $"{className}Tests.cs");
+        var customPath = Path.Combine(outDir, $"{className}.Custom.cs");
         if (!File.Exists(pageObjectPath))
         {
-            return (null, null);
+            return (null, null, null);
         }
 
         var testCode = File.Exists(testPath) ? File.ReadAllText(testPath) : null;
-        return (File.ReadAllText(pageObjectPath), testCode);
+        var customCode = File.Exists(customPath) ? File.ReadAllText(customPath) : null;
+        return (File.ReadAllText(pageObjectPath), testCode, customCode);
     }
 
     public static GenerationMetadata? TryReadMetadata(string outDir, string className)
@@ -110,7 +126,13 @@ public static class PageObjectFileWriter
         return metadata;
     }
 
-    /// <summary>Deletes a previously generated class's .cs/Tests.cs/.meta.json. Returns false if it didn't exist.</summary>
+    /// <summary>
+    /// Deletes a previously generated class's .cs/Tests.cs/.meta.json. Returns
+    /// false if it didn't exist. Deliberately leaves {className}.Custom.cs
+    /// alone - deleting a developer's hand-written code because the generated
+    /// counterpart was removed would be exactly the kind of silent data loss
+    /// the whole partial-class split exists to prevent.
+    /// </summary>
     public static bool Delete(string outDir, string className)
     {
         if (!IdentifierNaming.IsSafeIdentifier(className))

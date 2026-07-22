@@ -10,6 +10,11 @@ namespace PageObjectGenerator.Core;
 /// invoking a submit button would navigate the page out from under the other
 /// generated tests. For Assert elements (headings) it instead asserts the text
 /// equals the value captured at generation time - a real snapshot check.
+///
+/// A [OneTimeSetUp] verifies the whole Page Object once, before any individual
+/// [Test] runs: if the page has drifted and three elements are now missing,
+/// this fails once with all three named, instead of three separate, less
+/// informative per-test failures further down the same run.
 /// </summary>
 public static class NUnitTestCodeGenerator
 {
@@ -24,6 +29,7 @@ public static class NUnitTestCodeGenerator
         var driverUsing = browser == BrowserKind.Edge ? "OpenQA.Selenium.Edge" : "OpenQA.Selenium.Chrome";
 
         var sb = new StringBuilder();
+        sb.AppendLine("using System.Collections.Generic;");
         sb.AppendLine("using NUnit.Framework;");
         sb.AppendLine("using OpenQA.Selenium;");
         sb.AppendLine($"using {driverUsing};");
@@ -34,6 +40,8 @@ public static class NUnitTestCodeGenerator
         sb.AppendLine($"public sealed class {className}Tests");
         sb.AppendLine("{");
         sb.AppendLine("    private IWebDriver _driver = null!;");
+        sb.AppendLine();
+        AppendOneTimeSetUp(sb, className, url, driverType, elements);
         sb.AppendLine();
         sb.AppendLine("    [SetUp]");
         sb.AppendLine("    public void SetUp()");
@@ -58,6 +66,46 @@ public static class NUnitTestCodeGenerator
 
         sb.AppendLine("}");
         return sb.ToString();
+    }
+
+    private static void AppendOneTimeSetUp(
+        StringBuilder sb, string className, string url, string driverType, IReadOnlyList<ElementDescriptor> elements)
+    {
+        sb.AppendLine("    [OneTimeSetUp]");
+        sb.AppendLine($"    public void Verify{className}()");
+        sb.AppendLine("    {");
+        sb.AppendLine($"        using var driver = new {driverType}();");
+        sb.AppendLine($"        driver.Navigate().GoToUrl({PageObjectCodeGenerator.ToCSharpStringLiteral(url)});");
+        sb.AppendLine("        var missing = new List<string>();");
+        sb.AppendLine();
+
+        foreach (var element in elements)
+        {
+            var by = PageObjectCodeGenerator.ByExpression(element);
+            var label = PageObjectCodeGenerator.ToCSharpStringLiteral($"{element.SuggestedName} ({element.Selector})");
+            sb.AppendLine($"        if (!TryFind(driver, {by})) missing.Add({label});");
+        }
+
+        sb.AppendLine();
+        sb.AppendLine("        if (missing.Count > 0)");
+        sb.AppendLine("        {");
+        sb.AppendLine(
+            "            Assert.Fail(\"Page Object verification failed - missing element(s): \" + string.Join(\", \", missing));");
+        sb.AppendLine("        }");
+        sb.AppendLine("    }");
+        sb.AppendLine();
+        sb.AppendLine("    private static bool TryFind(IWebDriver driver, By by)");
+        sb.AppendLine("    {");
+        sb.AppendLine("        try");
+        sb.AppendLine("        {");
+        sb.AppendLine("            driver.FindElement(by);");
+        sb.AppendLine("            return true;");
+        sb.AppendLine("        }");
+        sb.AppendLine("        catch (NoSuchElementException)");
+        sb.AppendLine("        {");
+        sb.AppendLine("            return false;");
+        sb.AppendLine("        }");
+        sb.AppendLine("    }");
     }
 
     private static void AppendTest(StringBuilder sb, ElementDescriptor element, Dictionary<string, int> usedTestNames)

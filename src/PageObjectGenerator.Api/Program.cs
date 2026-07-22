@@ -44,10 +44,11 @@ app.MapPost("/api/page-objects", (GeneratePageObjectRequest request) =>
         try
         {
             var result = PageObjectWorkflow.Generate(request.Url, browser, request.Headless, className, @namespace);
-            var (pageObjectPath, testPath, _) = PageObjectFileWriter.Write(outDir, result);
+            var written = PageObjectFileWriter.Write(outDir, result);
 
             return Results.Created($"/api/page-objects/{result.ClassName}", new GeneratePageObjectResponse(
-                result.ClassName, result.ElementCount, result.PageObjectCode, result.TestCode, pageObjectPath, testPath,
+                result.ClassName, result.ElementCount, result.PageObjectCode, result.TestCode,
+                written.PageObjectPath, written.TestPath, written.CustomPath, written.CustomFileCreated,
                 ResponseMapping.ToScreenshotUrl(result.ScreenshotPath)));
         }
         catch (Exception ex)
@@ -68,13 +69,13 @@ app.MapGet("/api/page-objects", () =>
 
 app.MapGet("/api/page-objects/{className}", (string className) =>
     {
-        var (pageObjectCode, testCode) = PageObjectFileWriter.TryRead(outDir, className);
+        var (pageObjectCode, testCode, customCode) = PageObjectFileWriter.TryRead(outDir, className);
         if (pageObjectCode is null)
         {
             return Results.NotFound();
         }
 
-        return Results.Ok(new GeneratedPageDetail(className, pageObjectCode, testCode));
+        return Results.Ok(new GeneratedPageDetail(className, pageObjectCode, testCode, customCode));
     })
     .WithName("GetPageObject")
     .WithSummary("Fetch the source of a previously generated Page Object and its test.");

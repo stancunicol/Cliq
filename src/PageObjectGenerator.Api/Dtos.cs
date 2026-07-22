@@ -12,11 +12,13 @@ public sealed record GeneratePageObjectResponse(
     string TestCode,
     string PageObjectPath,
     string TestPath,
+    string CustomPath,
+    bool CustomFileCreated,
     string? ScreenshotUrl);
 
 public sealed record GeneratedPageSummary(string ClassName);
 
-public sealed record GeneratedPageDetail(string ClassName, string PageObjectCode, string? TestCode);
+public sealed record GeneratedPageDetail(string ClassName, string PageObjectCode, string? TestCode, string? CustomCode);
 
 public sealed record RunPageObjectRequest(
     bool Headless = false,

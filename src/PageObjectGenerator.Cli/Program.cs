@@ -67,9 +67,12 @@ if (result.ScreenshotPath is not null)
     Console.WriteLine($"Baseline screenshot: {result.ScreenshotPath}");
 }
 
-var (pageObjectPath, testPath, metadataPath) = PageObjectFileWriter.Write(outDir, result);
-Console.WriteLine($"Wrote {pageObjectPath}");
-Console.WriteLine($"Wrote {testPath}");
-Console.WriteLine($"Wrote {metadataPath}");
+var written = PageObjectFileWriter.Write(outDir, result);
+Console.WriteLine($"Wrote {written.PageObjectPath}");
+Console.WriteLine($"Wrote {written.TestPath}");
+Console.WriteLine($"Wrote {written.MetadataPath}");
+Console.WriteLine(written.CustomFileCreated
+    ? $"Wrote {written.CustomPath} (safe to add your own methods here - never regenerated)"
+    : $"Kept {written.CustomPath} (already existed, left untouched)");
 
 return 0;

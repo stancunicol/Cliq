@@ -101,7 +101,25 @@ public class PageObjectCodeGeneratorTests
     {
         var code = PageObjectCodeGenerator.Generate("EmptyPage", "Generated", new List<ElementDescriptor>());
 
-        Assert.That(code, Does.Contain("public sealed class EmptyPage"));
+        Assert.That(code, Does.Contain("public sealed partial class EmptyPage"));
         Assert.That(code, Does.Not.Contain("public void"));
+    }
+
+    [Test]
+    public void Generate_ClassDeclaration_IsPartial()
+    {
+        var code = PageObjectCodeGenerator.Generate("LoginPage", "Generated", new List<ElementDescriptor>());
+
+        Assert.That(code, Does.Contain("public sealed partial class LoginPage"));
+    }
+
+    [Test]
+    public void GenerateCustomStub_ProducesEmptyMatchingPartialClass()
+    {
+        var stub = PageObjectCodeGenerator.GenerateCustomStub("LoginPage", "Generated");
+
+        Assert.That(stub, Does.Contain("namespace Generated;"));
+        Assert.That(stub, Does.Contain("public sealed partial class LoginPage"));
+        Assert.That(stub, Does.Not.Contain("public void"));
     }
 }

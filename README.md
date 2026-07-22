@@ -3,39 +3,44 @@
 Proof of Concept: automatic generation of Page Object classes and NUnit smoke
 tests, for Selenium WebDriver, C#, Chrome and Edge.
 
-For the Stage 1 project deliverable (technical direction, rationale, known
-limitations, what's deliberately not implemented) see
-[ARHITECTURA.md](ARHITECTURA.md). This file covers usage, not the "why".
+This file covers both usage (how to run it) and the Stage 1 project
+deliverable — technical direction, rationale, implementation details, known
+limitations.
 
 ## What it does
 
-Given a URL, the tool:
+Given a URL:
 
-1. launches Chrome or Edge through Selenium WebDriver, and waits for
-   `document.readyState === "complete"` before doing anything else;
-2. scans the page's live DOM (`input`, `textarea`, `select`, `button`, `a[href]`,
-   `h1`-`h6`), skipping anything a human tester couldn't actually see or click
-   (zero rendered size, `display:none`, `visibility:hidden`);
-3. picks a locator for each surviving element, in priority order `data-testid` >
-   `id` > `name` > structural (`nth-child`) fallback — each candidate is
-   verified to uniquely match only that element before being accepted, so a
-   duplicate `id`/`name` in broken markup falls through to the next candidate
-   instead of silently resolving to the wrong element later;
-4. generates a C# Page Object class, with one method per discovered element,
-   using Selenium's own `By.Id`/`By.Name` where the locator allows it, and
-   `By.CssSelector` only where there's no native strategy (`data-testid`,
-   structural paths);
-5. generates an NUnit test class (`[TestFixture]`) with one `[Test]` per element.
+1. Launch Chrome or Edge through Selenium WebDriver.
+2. Wait for `document.readyState === "complete"`.
+3. Scan the live DOM (`input`, `textarea`, `select`, `button`, `a[href]`,
+   `h1`-`h6`), skipping anything a human tester couldn't see or click (zero
+   rendered size, `display:none`, `visibility:hidden`).
+4. Pick a locator per element, priority order: `data-testid` > `id` > `name` >
+   structural (`nth-child`) fallback. Each candidate is verified to uniquely
+   match only that element before being accepted.
+5. Generate a C# Page Object class (one method per element), using
+   `By.Id`/`By.Name` where the locator allows it, `By.CssSelector` only where
+   there's no native strategy.
+6. Generate an NUnit test class (`[TestFixture]`, one `[Test]` per element).
 
-Generation is entirely rule-based (DOM parsing + code templates) — there is no
-AI component in the pipeline yet.
+Generation is entirely rule-based (DOM parsing + code templates).
 
-Element discovery happens by injecting and running JavaScript directly in the
-rendered page (`IJavaScriptExecutor.ExecuteScript`), the same way Puppeteer or a
-live UI Spy tool would inspect a running app — not by parsing the raw HTML
-source as static text. That matters for anything rendered client-side (React,
-Angular, Vue): the raw HTML response often doesn't contain the real elements at
-all, only the live, rendered DOM does.
+Element discovery injects and runs JavaScript in the rendered page
+(`IJavaScriptExecutor.ExecuteScript`) — the same way Puppeteer or a live UI
+Spy tool inspects a running app — not by parsing raw HTML as static text.
+Required for client-rendered apps (React/Angular/Vue), where the raw HTML
+response often doesn't contain the real elements at all.
+
+### Why these choices — against the original proposal
+
+| Dimension | Decision | Why |
+|---|---|---|
+| Language/platform | C# / .NET 8 | Explicitly requested |
+| Browser automation | Selenium WebDriver 4.46 | Explicitly requested; replaces the earlier PoC's own CDP engine |
+| Browsers | Chrome, Edge | Explicitly requested; driver resolution automatic via Selenium Manager |
+| Test framework | NUnit 3 | Explicitly requested |
+| Element discovery | Live DOM scan via injected JS | Not static HTML parsing — required for client-rendered apps; aligned with Puppeteer/UI Spy examples in the proposal |
 
 ### Recognized element types
 
@@ -44,31 +49,124 @@ all, only the live, rendered DOM does.
 | text `input`/`textarea` | `Fill{Name}(string value)` | checks `Displayed`/`Enabled` |
 | `button`, `a[href]`, `input[submit\|button\|reset]` | `Click{Name}()` + `Hover{Name}()` | checks `Displayed`/`Enabled` |
 | `input[checkbox]` | `Set{Name}(bool isChecked)` | checks `Displayed`/`Enabled` |
-| `input[radio]` (grouped by `name`) | `Select{Name}(string value)` — one method per group, not per option | checks `Displayed`/`Enabled` on the first option |
+| `input[radio]` (grouped by `name`) | `Select{Name}(string value)` — one method per group | checks `Displayed`/`Enabled` on the first option |
 | `select` | `Select{Name}(string value)` | checks `Displayed`/`Enabled` |
 | `select[multiple]` | `Select{Name}Multiple(IEnumerable<string> values)` | checks `Displayed`/`Enabled` |
-| `h1`-`h6` | `Get{Name}Text()` | **snapshot assertion** — the text captured at generation time becomes the expected value (`Assert.That(element.Text, Is.EqualTo("Login Page"))`) |
+| `h1`-`h6` | `Get{Name}Text()` | **snapshot assertion** — text captured at generation time becomes the expected value |
 
-Every `Click`-kind element also gets a `Hover{Name}()` method (via
-`Actions.MoveToElement`) — useful for hover-triggered menus/tooltips, but not
-exercised automatically by the generated tests or by `/run`.
+Notes:
 
-## Structure
+- Every `Click`-kind element also gets `Hover{Name}()` (via
+  `Actions.MoveToElement`) — not exercised automatically by tests or `/run`.
+- Headings are the only kind that verifies page *content*; everything else
+  only asserts `Displayed`/`Enabled` — the generator has no domain knowledge
+  of what a "valid" login/order is, and a made-up submit would navigate the
+  page out from under the rest of the tests.
+- Real, value-driven execution is a separate concern — see `POST .../run`.
+
+## Architecture
 
 ```
 src/
-  PageObjectGenerator.Core/        library: DOM scanning, naming, code generators
+  PageObjectGenerator.Core/        library: DOM scanning, naming, code generators, live execution
   PageObjectGenerator.Core.Tests/  unit tests for Core (no browser, no network)
   PageObjectGenerator.Cli/         command line entry point wiring it all together
-  PageObjectGenerator.Api/         HTTP API over the same library, for an external client
+  PageObjectGenerator.Api/         HTTP API (REST + WebSocket) over the same library
   PageObjectGenerator.Demo.Tests/  NUnit project that compiles and runs the generated example
 GeneratedPages/                    CLI/API output (Page Objects + NUnit tests + metadata)
 Screenshots/                       screenshots taken during generation and /run (gitignored)
 ```
 
-`PageObjectWorkflow` and `PageObjectFileWriter` in Core hold the shared
-generate-and-save flow used identically by both the CLI and the API, so the two
-hosts can't drift apart.
+Central decision: **one `Core` reused by two clients** (CLI, API), not two
+parallel implementations.
+
+- `PageObjectWorkflow` (generation) and `PageObjectRunner` (live execution)
+  are the single source of truth.
+- CLI and API are thin layers on top.
+
+### Component responsibilities
+
+| Component | Responsibility |
+|---|---|
+| `PageObjectWorkflow` | Orchestrates generation. Validates `className`/`namespace` *before* launching a browser. |
+| `PageObjectRunner` | Orchestrates live execution (`/run`). Optional `onStep` callback for progress. |
+| `ElementScanner` | JS extraction script + turns its JSON result into `ElementDescriptor`s, including name dedup. |
+| `PageObjectCodeGenerator` / `NUnitTestCodeGenerator` | Text generators, switch on `ElementActionKind`. No real Selenium dependency — build strings. |
+| `PageObjectFileWriter` | Only place that touches the filesystem. Validates `className` on every read/write. |
+| `IdentifierNaming` | Identifier sanitization + strict validation used as a security gate. |
+| `BrowserFactory` | Creates `IWebDriver` for Chrome/Edge; driver resolution via Selenium Manager. |
+| `ScreenshotCapture`, `PageReadiness`, `SolutionPaths` | Single-purpose utilities: screenshot capture, DOM-ready wait, CWD-independent paths. |
+
+### Key algorithms
+
+- **Selector uniqueness** — `locatorFor` tries `data-testid` → `id` → `name`
+  against `document.querySelectorAll`, accepting a candidate only if it
+  matches *exactly* the current element. Falls back to structural
+  (`nth-child`), unique by construction. Protects against duplicate
+  `id`/`name` in broken markup resolving to the wrong element.
+- **Naming and deduplication** — `IdentifierNaming.Sanitize` turns source
+  text into a valid C# identifier (fallback if empty/reserved word).
+  `ElementScanner.Scan` separately dedups names with a numeric suffix
+  (`_2`, `_3`...) — independent of selector uniqueness; two elements can
+  share a name with completely different selectors.
+- **`ElementDescriptor` / `LocatorStrategy`** — `Strategy`
+  (`Id`/`Name`/`CssSelector`) + `LocatorValue`, split apart instead of one
+  CSS string, so the generator can emit native `By.Id`/`By.Name`. A computed
+  `Selector` property is display-only (JSON/metadata); actual lookup always
+  uses `Strategy`+`LocatorValue`.
+- **Live progress over WebSocket** — `PageObjectRunner.Run` is synchronous
+  (blocking Selenium calls). The WebSocket endpoint runs it on a thread-pool
+  thread; `onStep` writes each step into a `Channel<T>`; a separate async
+  loop forwards each step over the socket without blocking the browser
+  thread.
+- **CWD-independent paths** — ASP.NET Core resets the working directory at
+  startup, a console app doesn't. `SolutionPaths` walks up to the `.sln` file
+  and anchors `GeneratedPages/`/`Screenshots/` there, for every host.
+- **`/run` continues past failures, stops only on navigation** — stopping at
+  the first failure used to block the whole run on one cosmetic element that
+  reports `Displayed: true` but isn't really clickable. Now it only stops
+  when a `Click` succeeds *and* the URL changes afterward.
+- **Radio buttons are grouped, not enumerated** — `<input type="radio">`
+  sharing a `name` collapse into one descriptor/method per group. Value
+  selector built at runtime with single quotes (avoids escaping double
+  quotes inside generated C# string literals).
+- **Invisible elements are skipped entirely** — zero size or CSS-hidden
+  elements never become part of the Page Object, excluded during scanning.
+  A `disabled`-but-visible element is still included (a human can see and
+  verify it, just not act on it).
+- **Stale metadata is rejected** — a `.meta.json` from an older schema can
+  deserialize "successfully" with new fields left `null` (`By.Id(null)` →
+  confusing failure). `TryReadMetadata` checks every element has a non-empty
+  `LocatorValue`, treats a failure as "not found."
+- **The whole Page Object is verified once, before any test runs** — every
+  generated test class has a `[OneTimeSetUp]` that opens its own browser,
+  checks every element's locator can still be found, and fails once with all
+  missing elements named if any can't — instead of the page having drifted
+  and each individual `[Test]` failing separately, less informatively,
+  further down the same run.
+- **Generated classes are `partial`, so hand-written code survives
+  regeneration** — `{ClassName}.cs` is fully regenerable and gets overwritten
+  every time; a sibling `{ClassName}.Custom.cs` (same `partial class`) is
+  written once, on first generation, and never touched again. A developer
+  adds their own methods there (e.g. a `LoginAs` combining `FillUsername` +
+  `FillPassword` + `ClickLogin`) without risking losing them the next time
+  the page is rescanned.
+
+## Comparison to the reference tools named in the proposal
+
+Four tools/approaches named as inspiration, not requirements:
+
+- **Ranorex** — adopted the locator-priority hierarchy idea; not adopted its
+  recorder workflow / proprietary object-repository format (this project
+  generates plain C#/Selenium source instead).
+- **SikuliX** — not adopted at all; no pixel-based element identification.
+  Screenshots exist only as reference images for a human, never for
+  matching. Standard web UI already exposes a structured DOM.
+- **Puppeteer** — adopted the live-DOM-via-injected-JS approach
+  (`page.evaluate`-style).
+- **UI Spy / Object Spy** — adopted "inspect the live, rendered UI"; not
+  adopted the interactive/manual exploration model — discovery here is a
+  single automated pass, no human-in-the-loop.
 
 ## Running (CLI)
 
@@ -83,15 +181,14 @@ Options:
   --out <dir>             Output directory (default: GeneratedPages)
 ```
 
-Example, the one used as the end-to-end demo:
+Example (the end-to-end demo):
 
 ```
 dotnet run --project src/PageObjectGenerator.Cli -- "https://the-internet.herokuapp.com/login" --browser edge --headless --class LoginPage --namespace GeneratedPages
 ```
 
-Generated files are overwritten on every run (no timestamped archive) — they
-are source code meant to be compiled and tracked in git, not throwaway
-artifacts.
+Generated files are overwritten on every run — source code meant to be
+compiled and tracked in git, not throwaway artifacts.
 
 ## Running (API)
 
@@ -99,24 +196,25 @@ artifacts.
 dotnet run --project src/PageObjectGenerator.Api
 ```
 
-Starts a local HTTP server (default `http://localhost:5034`, or any port given
-via `--urls`), with Swagger UI at `/swagger` for direct exploration/testing
-from a browser. Meant as the connection point for a future client (e.g. a
-Visual Studio extension) — the CORS policy is currently permissive
-(`AllowAnyOrigin`) and should be tightened once that client is known.
+- Local HTTP server, default `http://localhost:5034` (or `--urls`).
+- Swagger UI at `/swagger`.
+- Meant as the connection point for a future client (e.g. a Visual Studio
+  extension).
+- CORS is currently permissive (`AllowAnyOrigin`) — tighten once the client
+  is known.
 
-Endpoints:
+### Endpoints
 
 | Method | Route | Description |
 |---|---|---|
-| `POST` | `/api/page-objects` | Launches the browser, scans the given URL, generates and saves a Page Object + NUnit test; returns the generated code as JSON |
-| `GET` | `/api/page-objects` | Lists the names of previously generated classes |
-| `GET` | `/api/page-objects/{className}` | Returns the Page Object + test source for a previously generated class |
-| `GET` | `/api/page-objects/{className}/elements` | Returns the discovered elements (kind, locator, selector) as structured JSON, without the generated C# source |
-| `DELETE` | `/api/page-objects/{className}` | Deletes a generated class's `.cs`/`Tests.cs`/`.meta.json` |
-| `POST` | `/api/page-objects/{className}/run` | Reopens the page and actually performs every discovered action (fill/click/select/check/...), visibly; returns the full result after the whole sequence finishes |
-| `WS` | `/api/page-objects/{className}/run/ws` | Same execution as `/run`, but streams each step over a WebSocket as it completes, instead of one response at the end |
-| `GET` | `/api/screenshots/{fileName}` | Serves the actual PNG bytes for a screenshot referenced elsewhere by URL |
+| `POST` | `/api/page-objects` | Scan a URL, generate + save Page Object + NUnit test; returns the code as JSON |
+| `GET` | `/api/page-objects` | List previously generated class names |
+| `GET` | `/api/page-objects/{className}` | Return Page Object + test source |
+| `GET` | `/api/page-objects/{className}/elements` | Return discovered elements as structured JSON, no source |
+| `DELETE` | `/api/page-objects/{className}` | Delete a class's `.cs`/`Tests.cs`/`.meta.json` |
+| `POST` | `/api/page-objects/{className}/run` | Perform every discovered action visibly; full result at the end |
+| `WS` | `/api/page-objects/{className}/run/ws` | Same as `/run`, streams each step as it completes |
+| `GET` | `/api/screenshots/{fileName}` | Serve the actual PNG bytes for a screenshot |
 
 `POST /api/page-objects` request body:
 
@@ -128,57 +226,31 @@ Endpoints:
 }
 ```
 
-Only `url` is required (`browser` defaults to `"chrome"`, `headless` to
-`true`). The class name and namespace are **not** request fields — the class
-name is always derived from the URL and the namespace is always `"Generated"`.
-This is deliberate: a caller-supplied class name or namespace would be spliced
-directly into the generated C# source (`public sealed class {className}`) and
-into the output file path (`Path.Combine(outDir, $"{className}.cs")`), which
-is exactly the shape of two real vulnerabilities — C# source injection and
-path traversal (a value like `../../../secrets` or a rooted path escapes
-`GeneratedPages/` entirely, since `Path.Combine` treats a rooted second
-argument as an override, not a suffix). Removing the field closes that off at
-`POST /api/page-objects`; `GET /api/page-objects/{className}` and
-`POST .../run` still take a class name from the URL route (they have to, to
-know what to look up), so `PageObjectFileWriter` validates every class name
-against a strict identifier pattern before it touches the filesystem,
-regardless of where it came from.
-
-Each generation request synchronously launches a fresh browser and blocks
-until scanning finishes (a few seconds) — there are no persistent browser
-sessions across requests, unlike the previous Python API.
-
-Generation also writes a `{ClassName}.meta.json` file next to the generated
-code, with the URL, browser and the list of discovered elements — needed by
-`/run` and by `GET .../elements` so neither has to re-parse the generated C#
-to know what to re-test or report. It also saves one reference screenshot
-(`{ClassName}_generated_{timestamp}.png` in `Screenshots/`), included in the
-response as `screenshotUrl` — the page exactly as it looked when the DOM was
-scanned. This is the fixed baseline: because it is captured once, it stays
-usable as a point of comparison even if the page changes later — unlike a
-screenshot taken fresh at the start of every run, which would always match
-"now" and could never show drift on its own.
-
-All screenshot fields in every response (`screenshotUrl`, `baselineScreenshotUrl`,
-the per-step `screenshotUrl`) are fetchable URLs (`/api/screenshots/{fileName}`),
-not server filesystem paths — a remote client can `GET` them directly and get
-back real `image/png` bytes. The file name is validated against the exact
-shape the tool itself produces before it ever touches disk, the same way
-`className` is, so a crafted file name can't read anything outside
-`Screenshots/`.
-
-`DELETE /api/page-objects/{className}` removes the generated `.cs`, `Tests.cs`,
-and `.meta.json` for that class — `204` if something was actually deleted,
-`404` if there was nothing to delete. It doesn't touch any screenshots (those
-aren't attributable to a single class - per-step failure screenshots are named
-after the element, not the class).
+- Only `url` is required (`browser` defaults `"chrome"`, `headless` `true`).
+- `className`/`namespace` are **not** request fields — see "Security."
+- No persistent browser sessions across requests (unlike the previous Python
+  API) — each request launches and closes its own browser. Simpler server
+  state, higher per-request latency; acceptable for a PoC.
+- Generation also writes `{ClassName}.meta.json` (URL, browser, elements),
+  used by `/run` and `GET .../elements`, plus one reference screenshot
+  (`screenshotUrl`) — a fixed baseline, unlike a screenshot taken fresh every
+  run (which would always match "now" and show no drift).
+- Generation also writes `{ClassName}.Custom.cs` **once** — `customPath` +
+  `customFileCreated: true` the first time, `customFileCreated: false` on
+  every later regeneration (file left untouched). See "hand-written code
+  survives regeneration" above. `GET /api/page-objects/{className}` includes
+  its content as `customCode` (`null` if it doesn't exist yet).
+- All screenshot fields (`screenshotUrl`, `baselineScreenshotUrl`, per-step
+  `screenshotUrl`) are fetchable URLs (`/api/screenshots/{fileName}`), not
+  server filesystem paths.
+- `DELETE` removes `.cs`/`Tests.cs`/`.meta.json` — `204` if deleted, `404`
+  otherwise. Doesn't touch screenshots or `.Custom.cs` (hand-written code is
+  never deleted automatically).
 
 ### Visual test execution: `POST /api/page-objects/{className}/run`
 
-Unlike generation (which only reads the DOM), this endpoint **actually
-performs** the discovered actions — fills fields, clicks — in a visible
-browser (`headless: false` by default here, unlike `/generate`), with a short
-pause between steps so a human can follow along.
+Unlike generation, this **actually performs** the discovered actions in a
+visible browser (`headless: false` by default), with a pause between steps.
 
 ```json
 {
@@ -190,171 +262,152 @@ pause between steps so a human can follow along.
 }
 ```
 
-`values` is optional — it maps an element's name (the one baked into the
-generated method, e.g. `FillUsername` → key `"username"`) to a value to type;
-fields without a specified value get `"test"`. A step that fails (e.g. an
-element reported as `Displayed` but not actually interactable in Selenium)
-does not stop the rest of the sequence — every step is reported
-independently. Exception: if a `Click` actually navigates the page (the URL
-changes), execution stops there (`stoppedDueToNavigation: true` in the
-response), because every selector after that point was resolved against a DOM
-that no longer exists.
-
-For heading elements (`kind: "Assert"`), the step doesn't fill or click — it
-reads the current text and compares it against the value captured at
-generation time, exactly like the matching NUnit test; if the page's text has
-since changed, the step fails with an explicit
-`Expected text '...' but found '...'` message.
-
-For `Radio`, the value in `values` must be the `value` attribute of the
-desired option within the group (e.g. `"snack": "peas"`); with no value, the
-first option in the group is clicked. For `MultiSelect`, the value is a
-comma-separated list (e.g. `"multi": "eggs,cheese"`) — each value must match a
-real option `value`, otherwise the step fails with Selenium's own error.
-
-**Screenshots**: any step that fails (for any reason) automatically captures a
-screenshot, included in the response as a fetchable `screenshotUrl`; successful
-steps have `screenshotUrl: null`. These are full-page captures, not
-pixel-level comparisons — there is no automatic highlighting of changed
-regions (yet), just reference images saved at fixed moments (generation time,
-step failure).
+- `values` maps an element's name to a value to type; unspecified fields get
+  `"test"`.
+- A failed step doesn't stop the sequence — each step is reported
+  independently.
+- Exception: a `Click` that navigates the page (`stoppedDueToNavigation:
+  true`) stops execution, since later selectors target a DOM that's gone.
+- `Assert` (headings): reads current text, compares to the value captured at
+  generation; fails with `Expected text '...' but found '...'`.
+- `Radio`: value = the option's `value` attribute (e.g. `"snack": "peas"`);
+  no value → first option clicked.
+- `MultiSelect`: comma-separated values (e.g. `"multi": "eggs,cheese"`).
+- **Screenshots**: any failed step captures one (`screenshotUrl`); successful
+  steps get `null`. Full-page captures, not pixel diffs.
 
 ### Live progress: `WS /api/page-objects/{className}/run/ws`
 
-`POST /run` only responds once, after the entire sequence finishes - for a
-7-step run that's 20-30+ seconds of silence before anything comes back. The
-WebSocket variant runs the identical sequence but pushes a JSON message the
-moment each step completes, so a client can render progress instead of a
-static spinner.
+`POST /run` only responds once, after the whole sequence (20-30+ seconds of
+silence for a 7-step run). The WebSocket variant pushes progress instead:
 
-Protocol: connect, then send one JSON text message shaped like the `POST /run`
-body (`{"headless": false, "values": {...}}` - an empty message falls back to
-defaults). The server then sends a `{"type": "step", "step": {...}}` message
-per completed step, and finally one `{"type": "done", "result": {...}}`
-message (`result` has the same shape as the `POST /run` response) before
-closing the socket. If the class doesn't exist, it sends
-`{"type": "error", "message": "..."}` and closes immediately, without waiting
-for the client to send anything.
-
-`PageObjectRunner.Run` itself is synchronous (it's driving a real browser
-through blocking Selenium calls) - the endpoint runs it on a background thread
-and forwards each step through an in-memory `Channel` to the async loop that's
-actually allowed to `await` a socket send.
+- Connect, then send one JSON text message shaped like the `POST /run` body
+  (empty message → defaults).
+- Server sends `{"type": "step", "step": {...}}` per completed step.
+- Then one `{"type": "done", "result": {...}}` before closing.
+- If the class doesn't exist: `{"type": "error", "message": "..."}`, closes
+  immediately.
 
 ## Validation (Demo Selenium + NUnit)
-
-`src/PageObjectGenerator.Demo.Tests` includes `GeneratedPages/LoginPage.cs` and
-`GeneratedPages/LoginPageTests.cs` directly from the generation above, as a
-living example:
 
 ```
 dotnet test src/PageObjectGenerator.Demo.Tests
 ```
 
-Runs the 6 generated NUnit tests (4 interaction checks + 2 snapshot assertions
-on headings) against the real page, through Selenium + Edge. This is an
-end-to-end test: it launches a real browser and depends on the target site
-being reachable, so it takes ~25-60 seconds.
+- Compiles and runs `GeneratedPages/LoginPage.cs` + `LoginPageTests.cs`
+  directly, as a living example.
+- 6 tests (4 interaction checks + 2 snapshot assertions), real browser,
+  ~25-60 seconds.
 
 ## Unit tests (`PageObjectGenerator.Core.Tests`)
-
-Unlike `Demo.Tests` (E2E, real browser), these test the pure logic in `Core` —
-naming, selector escaping, code generation — with no Selenium, no network, no
-real page:
 
 ```
 dotnet test src/PageObjectGenerator.Core.Tests
 ```
 
-29 tests, under 5 seconds total. They cover `IdentifierNaming.Sanitize`/
-`ToPascalCase` (edge cases: empty text, C# reserved words, leading digits,
-special characters) and the output of `PageObjectCodeGenerator`/
-`NUnitTestCodeGenerator` for every element kind (`Fill`/`Click`+`Hover`/
-`Radio`/`MultiSelect`/`Assert`) and every locator strategy (`Id`/`Name`/
-`CssSelector`), built directly from hand-written `ElementDescriptor` values —
-without going through DOM scanning at all. An `InternalsVisibleTo` grant
-(`AssemblyInfo.cs` in Core) lets these tests reach the `internal`
-`ToCSharpStringLiteral`/`ByExpression` helpers directly.
+- 32 tests, under 5 seconds, no Selenium/network/real page.
+- Covers `IdentifierNaming.Sanitize`/`ToPascalCase` edge cases, generator
+  output per element kind and locator strategy, `DeriveClassName`.
+- Built from hand-written `ElementDescriptor` values — no DOM scanning.
+- `InternalsVisibleTo` (`AssemblyInfo.cs`) lets tests reach `internal`
+  helpers directly.
+- Does **not** cover `ElementScanner.Scan`, `BrowserFactory`, or
+  `PageObjectRunner`'s live execution — those depend on a real page and are
+  only exercised by `Demo.Tests` / manual `/run` calls.
+- Deliberately no mocked-`IWebDriver` integration tier — two tiers already
+  cover generation and execution correctness.
 
-These tests do **not** cover `ElementScanner.Scan` (the injected JS extraction
-script), `BrowserFactory`, or the live execution in `PageObjectRunner` — those
-still fundamentally depend on a real rendered page and are only exercised by
-`Demo.Tests` / manual `/run` calls.
+## AI integration — feature ideas
 
-## Notable implementation decisions
+Not implemented; captured here as the concrete direction for the AI work the
+team decided to explore, as opposed to a generic "add AI" placeholder.
 
-A few choices made along the way that aren't obvious from the code alone:
+### Fragility scoring — no AI needed for a first version
 
-- **CWD-independent paths.** ASP.NET Core resets the process's working
-  directory to the project's `ContentRootPath` at startup, while a plain
-  console app (the CLI) leaves it as whatever the shell's CWD was. A bare
-  relative `"GeneratedPages"` default would therefore resolve to two different
-  places depending on which host ran it. `SolutionPaths` fixes this by
-  walking up from `AppContext.BaseDirectory` to the `.sln` file and anchoring
-  both `GeneratedPages/` and `Screenshots/` there, for every host.
-- **`/run` continues past failures, but stops on navigation.** The first
-  version stopped at the first failed step; in practice, most real pages have
-  at least one cosmetic element that reports `Displayed: true` but isn't
-  truly clickable in Selenium (e.g. zero-size), which made the rule
-  effectively block the entire run on the very first element. The current
-  rule only stops the sequence when a `Click` step succeeds *and* the page's
-  URL actually changes afterward — everything else, passed or failed, is
-  recorded and the run continues.
-- **Radio buttons are grouped, not enumerated.** `<input type="radio">`
-  elements sharing a `name` are collapsed into a single descriptor per group
-  (keyed by `name`), producing one `Select{Group}(string value)` method that
-  picks among all options, instead of one method per individual radio button.
-- **Radio/value selectors use single quotes.** The generated selector for
-  picking a specific radio option is built at runtime as
-  `groupSelector + "[value='" + value + "']"`. Using single quotes for the
-  CSS attribute value (valid per the CSS spec) avoids embedding escaped
-  double quotes inside a C# string literal inside *generated* C# source —
-  simpler than it sounds, but easy to get wrong by hand.
-- **Headings are treated as verification targets, not interactions.** `h1`-`h6`
-  elements are the one kind that doesn't do anything to the page — the text
-  captured when the Page Object was generated becomes a fixed expected value,
-  baked into both the generated NUnit test and the `/run` step for that
-  element. This is the one place the tool produces an actual assertion about
-  page *content*, not just presence.
-- **Locators use Selenium's own `By.Id`/`By.Name` where possible.** Only
-  `data-testid` (no native strategy for arbitrary attributes) and the
-  structural fallback (no native strategy for a DOM path) actually need
-  `By.CssSelector`. Each candidate locator is also verified to match *only*
-  its own element (`document.querySelectorAll(selector).length === 1 &&
-  matches[0] === el`) before being accepted, so a duplicate `id`/`name` in
-  broken markup falls through to the next candidate rather than silently
-  producing a selector that resolves to the wrong element.
-- **Invisible elements are skipped entirely, not just flagged.** An element
-  with zero rendered size, or hidden via `display:none`/`visibility:hidden`,
-  never becomes part of the Page Object at all - it's excluded during DOM
-  scanning, not included-then-failed. The alternative (include it, let its
-  generated test fail) produces a test that fails on every single run for a
-  reason that has nothing to do with the page's actual behavior: nobody -
-  human or automated - could ever have interacted with it. A `disabled`-but-visible
-  element is still included, since a human tester can see it and verify its
-  state, just not act on it.
-- **Stale metadata is rejected, not silently misused.** `{ClassName}.meta.json`
-  written by an older version of the tool can deserialize "successfully" but
-  leave newer fields (like `LocatorValue`) at their CLR default - which for a
-  non-nullable `string` is still `null` at runtime, since the compiler's
-  nullability annotations aren't enforced by the runtime. `/run`ning against
-  that would call `By.Id(null)` and fail with a confusing Selenium error deep
-  in the stack. `PageObjectFileWriter.TryReadMetadata` now checks every
-  element has a non-empty `LocatorValue` after deserializing and treats a
-  failure as "not found" (prompting a regeneration) instead of returning
-  corrupt data.
+Every element already carries a `LocatorStrategy`, which is itself a
+fragility signal:
 
-## Status against the original solution proposal
+| Strategy | Fragility |
+|---|---|
+| `Id` / `Name` | Low — stable, developer-controlled attributes |
+| `CssSelector` via `data-testid` | Low — attribute added specifically for testing |
+| `CssSelector` structural (`nth-child` fallback) | High — breaks on any DOM reordering |
 
-Implemented: automatic element identification, locator and Page Object class
-generation, NUnit test generation (including real content assertions, not
-just presence checks), Chrome and Edge support, reusable/maintainable
-generated code, an HTTP API for an external client, live visual test
-execution with failure screenshots, and a fast unit test suite for the core
-logic.
+A report of "which generated elements are most likely to break next" falls
+out of data already computed during generation — no model call required.
+Where AI could add value *on top* of this: recognizing framework-specific
+fragility patterns (e.g. a page whose classes are regenerated on every build)
+that a flat strategy-based score can't see.
 
-Not implemented yet: Visual Studio integration (Add-in/Extension), an AI
-component in the generation pipeline, and persistent/multi-step browser
-sessions through the API. See [ARHITECTURA.md](ARHITECTURA.md) — the Stage 1
-("Arhitectură și analiză") deliverable — for the full rationale behind these
-gaps and the plan for Stage 2.
+### Self-healing — three separate pieces
+
+1. **Detection** — already exists: `/run` catches `NoSuchElementException`
+   per step today, it just reports the failure instead of acting on it.
+2. **Re-identification** — the actual gap. `ElementScanner` collects
+   `testId`/`id`/`name`/`placeholder`/`text` for every element during
+   scanning, but only the *winning* selector is persisted
+   (`ElementDescriptor`/`.meta.json`); the runner-up signals are discarded.
+   Self-healing needs a richer stored fingerprint per element, so that when
+   the primary locator fails, the page can be rescanned and the best-matching
+   candidate found by comparing against that fingerprint (tag + text/attribute
+   similarity + structural proximity) — classic fuzzy matching, not
+   inherently an AI task.
+3. **What to do with a match**, from safest to most aggressive:
+   - Report only: "selector X broke, likely replacement is Y" — no code or
+     behavior changes.
+   - Heal the current `/run` only: substitute the new candidate for this
+     execution, leave the generated `.cs` file untouched.
+   - Rewrite the generated file with the new selector — changes already
+     committed code, should require explicit human approval.
+
+AI's plausible edge in this flow: disambiguating cases with several
+similarly-plausible candidates, or explaining in natural language why a
+given replacement was chosen — not the core matching itself.
+
+## Risks
+
+| Risk | Impact | Mitigation |
+|---|---|---|
+| Sending scanned page data (URLs, element text, ids) to an external AI service | High if the page under test contains internal/proprietary content | Prefer a local model or an enterprise zero-retention agreement for anything beyond generic structural metadata |
+| Non-deterministic AI output breaking reproducible generation (same page → different names on every regeneration) | Medium — undermines the "regenerating is safe" property the tool has today | Validate all AI output through the existing `IdentifierNaming` gate before accepting it |
+| Single DOM snapshot misses dynamically-revealed elements | Medium — incomplete Page Objects on menu/modal-heavy pages | Documented as a known limitation; would need interactive exploration to fix |
+| Vendor dependency if using an external LLM API (pricing, rate limits, availability) | Medium, only if that option is chosen | Keep the AI integration point isolated (e.g. behind an interface) so the provider can be swapped without touching `Core`'s generation logic |
+
+## Changes made
+
+The arc from the original Python PoC to the current state:
+
+- **Full rewrite**: Python + a hand-rolled Chrome DevTools Protocol engine →
+  C# / .NET 8 / Selenium WebDriver, matching the proposal's explicit stack
+  requirement.
+- **Shared `Core` library** used by both a CLI and a new HTTP API (REST +
+  WebSocket), instead of duplicating generation logic per client.
+- **Element model grew from a flat click/fill list to seven kinds**: `Fill`,
+  `Click` (+`Hover`), `Select`, `MultiSelect`, `Check`, `Radio` (grouped by
+  `name`, not enumerated), `Assert` (content verification via snapshot).
+- **Locator model** changed from one CSS-string-per-element to `Strategy`
+  (`Id`/`Name`/`CssSelector`) + `LocatorValue`, so generated code uses native
+  `By.Id`/`By.Name` instead of always `By.CssSelector`.
+- **Selector uniqueness verification**, `document.readyState` waiting, and
+  visibility filtering (skip elements a human tester couldn't interact with)
+  added to the extraction script.
+- **Screenshots**: a fixed baseline captured at generation time, plus a
+  screenshot on every failed `/run` step; later exposed as fetchable URLs via
+  a dedicated `GET /api/screenshots/{fileName}` endpoint.
+- **Two real security vulnerabilities found and fixed**: C# source injection
+  and path traversal, both via an unsanitized `className`/`namespace` —
+  those fields were removed from the API request entirely, and every route
+  that still takes a class name from outside now validates it.
+- **Class-name collision fix**: the derived name now includes the host, not
+  just the last URL path segment, so two different domains sharing a page
+  path (e.g. both `/login`) no longer overwrite each other.
+- **`[OneTimeSetUp]` verification gate** added to every generated NUnit test
+  class — the whole Page Object is checked once, before any individual test
+  runs.
+- **Generated classes made `partial`**, with a `{ClassName}.Custom.cs`
+  companion written once and never touched again, so hand-written additions
+  survive regeneration.
+- **Unit test suite added** (`Core.Tests`) alongside the existing E2E suite
+  (`Demo.Tests`), for fast, browser-free coverage of the generation logic.
+- **API expanded**: `DELETE`, `GET .../elements`, `GET /api/screenshots/{fileName}`,
+  and a WebSocket variant of `/run` for live per-step progress.

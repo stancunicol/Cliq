@@ -60,11 +60,16 @@ public static class PageObjectWorkflow
         }
     }
 
+    /// <summary>
+    /// Includes the host, not just the last path segment - two different
+    /// domains that both happen to have a "/login" page would otherwise derive
+    /// the same class name and silently overwrite each other's generated files.
+    /// </summary>
     public static string DeriveClassName(string url)
     {
         var uri = new Uri(url);
         var lastSegment = uri.Segments.LastOrDefault(s => s != "/")?.Trim('/');
-        var basis = string.IsNullOrEmpty(lastSegment) ? uri.Host : lastSegment;
+        var basis = string.IsNullOrEmpty(lastSegment) ? uri.Host : $"{uri.Host}_{lastSegment}";
         var sanitized = IdentifierNaming.Sanitize(basis, "generated");
         return IdentifierNaming.ToPascalCase(sanitized) + "Page";
     }

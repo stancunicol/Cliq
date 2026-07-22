@@ -68,4 +68,26 @@ public class NUnitTestCodeGeneratorTests
         Assert.That(code, Does.Contain("using OpenQA.Selenium.Chrome;"));
         Assert.That(code, Does.Contain("_driver = new ChromeDriver();"));
     }
+
+    [Test]
+    public void Generate_ProducesOneTimeSetUpThatVerifiesEveryElementBeforeAnyTestRuns()
+    {
+        var elements = new List<ElementDescriptor>
+        {
+            new("input", ElementActionKind.Fill, LocatorStrategy.Id, "username", "username"),
+            new("input", ElementActionKind.Fill, LocatorStrategy.Id, "password", "password"),
+        };
+
+        var code = NUnitTestCodeGenerator.Generate("LoginPage", "Generated", "https://example.com", BrowserKind.Chrome, elements);
+
+        Assert.That(code, Does.Contain("[OneTimeSetUp]"));
+        Assert.That(code, Does.Contain("public void VerifyLoginPage()"));
+        Assert.That(code, Does.Contain("if (!TryFind(driver, By.Id(\"username\"))) missing.Add(\"username (#username)\");"));
+        Assert.That(code, Does.Contain("if (!TryFind(driver, By.Id(\"password\"))) missing.Add(\"password (#password)\");"));
+        Assert.That(code, Does.Contain("Page Object verification failed"));
+
+        var oneTimeSetUpIndex = code.IndexOf("[OneTimeSetUp]", StringComparison.Ordinal);
+        var firstTestIndex = code.IndexOf("[Test]", StringComparison.Ordinal);
+        Assert.That(oneTimeSetUpIndex, Is.LessThan(firstTestIndex), "OneTimeSetUp must be generated before the individual [Test] methods.");
+    }
 }

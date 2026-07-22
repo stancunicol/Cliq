@@ -24,9 +24,12 @@
   </ItemGroup>
 
   <!-- Compiles the CLI's own output as a live example: proves the generated
-       Page Object + NUnit test actually build and pass against a real page. -->
+       Page Object + NUnit test actually build and pass against a real page.
+       LoginPage.Custom.cs proves the partial-class split actually compiles
+       together: a hand-written method there calling generated methods here. -->
   <ItemGroup>
     <Compile Include="..\..\GeneratedPages\LoginPage.cs" Link="Generated\LoginPage.cs" />
+    <Compile Include="..\..\GeneratedPages\LoginPage.Custom.cs" Link="Generated\LoginPage.Custom.cs" />
     <Compile Include="..\..\GeneratedPages\LoginPageTests.cs" Link="Generated\LoginPageTests.cs" />
   </ItemGroup>
 

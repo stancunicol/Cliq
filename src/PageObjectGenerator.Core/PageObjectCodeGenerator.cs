@@ -14,7 +14,7 @@ public static class PageObjectCodeGenerator
         sb.AppendLine();
         sb.AppendLine($"namespace {@namespace};");
         sb.AppendLine();
-        sb.AppendLine($"public sealed class {className}");
+        sb.AppendLine($"public sealed partial class {className}");
         sb.AppendLine("{");
         sb.AppendLine("    private readonly IWebDriver _driver;");
         sb.AppendLine("    private readonly WebDriverWait _wait;");
@@ -121,6 +121,24 @@ public static class PageObjectCodeGenerator
             default:
                 throw new ArgumentOutOfRangeException(nameof(element));
         }
+    }
+
+    /// <summary>
+    /// The other half of the "{className}.cs" partial class - written only once
+    /// (see PageObjectFileWriter.Write) and never touched again, so a developer
+    /// can add hand-written methods here without losing them on regeneration.
+    /// </summary>
+    public static string GenerateCustomStub(string className, string @namespace)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"namespace {@namespace};");
+        sb.AppendLine();
+        sb.AppendLine($"// Hand-written additions to {className} - this file is never regenerated");
+        sb.AppendLine("// or overwritten by the tool, so it's safe to add your own methods here.");
+        sb.AppendLine($"public sealed partial class {className}");
+        sb.AppendLine("{");
+        sb.AppendLine("}");
+        return sb.ToString();
     }
 
     /// <summary>Emits the Selenium locator call as C# source text - By.Id/By.Name where a native strategy applies, By.CssSelector otherwise.</summary>
