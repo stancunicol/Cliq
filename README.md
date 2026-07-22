@@ -148,7 +148,9 @@ parallel implementations.
 
 Four tools/approaches named as inspiration, not requirements:
 
-- **Ranorex** — adopted the locator-priority hierarchy idea.
+- **Ranorex** — adopted the locator-priority hierarchy idea; the "shared
+  components across pages" next step (see below) extends that toward a
+  reusable element repository, the way Ranorex's own repository works.
 - **Puppeteer** — adopted the live-DOM-via-injected-JS approach
   (`page.evaluate`-style).
 - **UI Spy / Object Spy** — adopted "inspect the live, rendered UI"; not
