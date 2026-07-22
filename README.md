@@ -3,10 +3,6 @@
 Proof of Concept: automatic generation of Page Object classes and NUnit smoke
 tests, for Selenium WebDriver, C#, Chrome and Edge.
 
-This file covers both usage (how to run it) and the Stage 1 project
-deliverable — technical direction, rationale, implementation details, known
-limitations.
-
 ## What it does
 
 Given a URL:
@@ -29,18 +25,16 @@ Generation is entirely rule-based (DOM parsing + code templates).
 Element discovery injects and runs JavaScript in the rendered page
 (`IJavaScriptExecutor.ExecuteScript`) — the same way Puppeteer or a live UI
 Spy tool inspects a running app — not by parsing raw HTML as static text.
-Required for client-rendered apps (React/Angular/Vue), where the raw HTML
-response often doesn't contain the real elements at all.
 
 ### Why these choices — against the original proposal
 
-| Dimension | Decision | Why |
-|---|---|---|
-| Language/platform | C# / .NET 8 | Explicitly requested |
-| Browser automation | Selenium WebDriver 4.46 | Explicitly requested; replaces the earlier PoC's own CDP engine |
-| Browsers | Chrome, Edge | Explicitly requested; driver resolution automatic via Selenium Manager |
-| Test framework | NUnit 3 | Explicitly requested |
-| Element discovery | Live DOM scan via injected JS | Not static HTML parsing — required for client-rendered apps; aligned with Puppeteer/UI Spy examples in the proposal |
+| Dimension | Decision |
+|---|---|
+| Language/platform | C# / .NET 8 |
+| Browser automation | Selenium WebDriver 4.46 |
+| Browsers | Chrome, Edge |
+| Test framework | NUnit 3 |
+| Element discovery | Live DOM scan via injected JS |
 
 ### Recognized element types
 
@@ -53,16 +47,6 @@ response often doesn't contain the real elements at all.
 | `select` | `Select{Name}(string value)` | checks `Displayed`/`Enabled` |
 | `select[multiple]` | `Select{Name}Multiple(IEnumerable<string> values)` | checks `Displayed`/`Enabled` |
 | `h1`-`h6` | `Get{Name}Text()` | **snapshot assertion** — text captured at generation time becomes the expected value |
-
-Notes:
-
-- Every `Click`-kind element also gets `Hover{Name}()` (via
-  `Actions.MoveToElement`) — not exercised automatically by tests or `/run`.
-- Headings are the only kind that verifies page *content*; everything else
-  only asserts `Displayed`/`Enabled` — the generator has no domain knowledge
-  of what a "valid" login/order is, and a made-up submit would navigate the
-  page out from under the rest of the tests.
-- Real, value-driven execution is a separate concern — see `POST .../run`.
 
 ## Architecture
 
@@ -156,17 +140,11 @@ parallel implementations.
 
 Four tools/approaches named as inspiration, not requirements:
 
-- **Ranorex** — adopted the locator-priority hierarchy idea; not adopted its
-  recorder workflow / proprietary object-repository format (this project
-  generates plain C#/Selenium source instead).
-- **SikuliX** — not adopted at all; no pixel-based element identification.
-  Screenshots exist only as reference images for a human, never for
-  matching. Standard web UI already exposes a structured DOM.
+- **Ranorex** — adopted the locator-priority hierarchy idea.
 - **Puppeteer** — adopted the live-DOM-via-injected-JS approach
   (`page.evaluate`-style).
 - **UI Spy / Object Spy** — adopted "inspect the live, rendered UI"; not
-  adopted the interactive/manual exploration model — discovery here is a
-  single automated pass, no human-in-the-loop.
+  adopted the interactive/manual exploration model.
 
 ## Running (CLI)
 
@@ -314,13 +292,8 @@ dotnet test src/PageObjectGenerator.Core.Tests
 - Does **not** cover `ElementScanner.Scan`, `BrowserFactory`, or
   `PageObjectRunner`'s live execution — those depend on a real page and are
   only exercised by `Demo.Tests` / manual `/run` calls.
-- Deliberately no mocked-`IWebDriver` integration tier — two tiers already
-  cover generation and execution correctness.
 
 ## AI integration — feature ideas
-
-Not implemented; captured here as the concrete direction for the AI work the
-team decided to explore, as opposed to a generic "add AI" placeholder.
 
 ### Fragility scoring — no AI needed for a first version
 
@@ -372,42 +345,3 @@ given replacement was chosen — not the core matching itself.
 | Non-deterministic AI output breaking reproducible generation (same page → different names on every regeneration) | Medium — undermines the "regenerating is safe" property the tool has today | Validate all AI output through the existing `IdentifierNaming` gate before accepting it |
 | Single DOM snapshot misses dynamically-revealed elements | Medium — incomplete Page Objects on menu/modal-heavy pages | Documented as a known limitation; would need interactive exploration to fix |
 | Vendor dependency if using an external LLM API (pricing, rate limits, availability) | Medium, only if that option is chosen | Keep the AI integration point isolated (e.g. behind an interface) so the provider can be swapped without touching `Core`'s generation logic |
-
-## Changes made
-
-The arc from the original Python PoC to the current state:
-
-- **Full rewrite**: Python + a hand-rolled Chrome DevTools Protocol engine →
-  C# / .NET 8 / Selenium WebDriver, matching the proposal's explicit stack
-  requirement.
-- **Shared `Core` library** used by both a CLI and a new HTTP API (REST +
-  WebSocket), instead of duplicating generation logic per client.
-- **Element model grew from a flat click/fill list to seven kinds**: `Fill`,
-  `Click` (+`Hover`), `Select`, `MultiSelect`, `Check`, `Radio` (grouped by
-  `name`, not enumerated), `Assert` (content verification via snapshot).
-- **Locator model** changed from one CSS-string-per-element to `Strategy`
-  (`Id`/`Name`/`CssSelector`) + `LocatorValue`, so generated code uses native
-  `By.Id`/`By.Name` instead of always `By.CssSelector`.
-- **Selector uniqueness verification**, `document.readyState` waiting, and
-  visibility filtering (skip elements a human tester couldn't interact with)
-  added to the extraction script.
-- **Screenshots**: a fixed baseline captured at generation time, plus a
-  screenshot on every failed `/run` step; later exposed as fetchable URLs via
-  a dedicated `GET /api/screenshots/{fileName}` endpoint.
-- **Two real security vulnerabilities found and fixed**: C# source injection
-  and path traversal, both via an unsanitized `className`/`namespace` —
-  those fields were removed from the API request entirely, and every route
-  that still takes a class name from outside now validates it.
-- **Class-name collision fix**: the derived name now includes the host, not
-  just the last URL path segment, so two different domains sharing a page
-  path (e.g. both `/login`) no longer overwrite each other.
-- **`[OneTimeSetUp]` verification gate** added to every generated NUnit test
-  class — the whole Page Object is checked once, before any individual test
-  runs.
-- **Generated classes made `partial`**, with a `{ClassName}.Custom.cs`
-  companion written once and never touched again, so hand-written additions
-  survive regeneration.
-- **Unit test suite added** (`Core.Tests`) alongside the existing E2E suite
-  (`Demo.Tests`), for fast, browser-free coverage of the generation logic.
-- **API expanded**: `DELETE`, `GET .../elements`, `GET /api/screenshots/{fileName}`,
-  and a WebSocket variant of `/run` for live per-step progress.
