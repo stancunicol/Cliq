@@ -13,6 +13,28 @@ public class PageObjectCodeGeneratorTests
         Assert.That(literal, Is.EqualTo("\"a\\\"b\\\\c\""));
     }
 
+    [Test]
+    public void ToCSharpStringLiteral_EscapesEmbeddedNewlinesAndTabs()
+    {
+        // A real page's visible text (e.g. an <h2> snapshot) can carry a literal
+        // newline from the source HTML's own formatting. Embedding that raw
+        // would split the generated string literal across two physical lines,
+        // which doesn't compile - this is exactly the bug that produced it.
+        var literal = PageObjectCodeGenerator.ToCSharpStringLiteral("speedlight -\n                Jacheta pentru femei");
+
+        Assert.That(literal, Does.Not.Contain("\n"));
+        Assert.That(literal, Does.Contain("\\n"));
+        Assert.That(literal, Is.EqualTo("\"speedlight -\\n                Jacheta pentru femei\""));
+    }
+
+    [Test]
+    public void ToCSharpStringLiteral_EscapesOtherControlCharactersAsUnicode()
+    {
+        var literal = PageObjectCodeGenerator.ToCSharpStringLiteral("ab");
+
+        Assert.That(literal, Is.EqualTo("\"a\\u0007b\""));
+    }
+
     [TestCase(LocatorStrategy.Id, "username", "By.Id(\"username\")")]
     [TestCase(LocatorStrategy.Name, "username", "By.Name(\"username\")")]
     [TestCase(LocatorStrategy.CssSelector, "div > a", "By.CssSelector(\"div > a\")")]

@@ -135,6 +135,14 @@ parallel implementations.
   adds their own methods there (e.g. a `LoginAs` combining `FillUsername` +
   `FillPassword` + `ClickLogin`) without risking losing them the next time
   the page is rescanned.
+- **Captured text can't break the generated source** — a real page's text
+  (e.g. an `<h2>` used for an `Assert` snapshot) can contain literal
+  newlines/tabs from the source HTML's own formatting. `ToCSharpStringLiteral`
+  escapes every character a regular C# string literal can't contain raw
+  (`\n`, `\r`, `\t`, other control chars as `\uXXXX`), and `ElementScanner`
+  collapses whitespace in captured text the same way a browser collapses it
+  when rendering — so the snapshot also matches what Selenium's `element.Text`
+  actually returns later, not just the raw `textContent`.
 
 ## Comparison to the reference tools named in the proposal
 
@@ -293,50 +301,6 @@ dotnet test src/PageObjectGenerator.Core.Tests
   `PageObjectRunner`'s live execution — those depend on a real page and are
   only exercised by `Demo.Tests` / manual `/run` calls.
 
-## AI integration — feature ideas
-
-### Fragility scoring — no AI needed for a first version
-
-Every element already carries a `LocatorStrategy`, which is itself a
-fragility signal:
-
-| Strategy | Fragility |
-|---|---|
-| `Id` / `Name` | Low — stable, developer-controlled attributes |
-| `CssSelector` via `data-testid` | Low — attribute added specifically for testing |
-| `CssSelector` structural (`nth-child` fallback) | High — breaks on any DOM reordering |
-
-A report of "which generated elements are most likely to break next" falls
-out of data already computed during generation — no model call required.
-Where AI could add value *on top* of this: recognizing framework-specific
-fragility patterns (e.g. a page whose classes are regenerated on every build)
-that a flat strategy-based score can't see.
-
-### Self-healing — three separate pieces
-
-1. **Detection** — already exists: `/run` catches `NoSuchElementException`
-   per step today, it just reports the failure instead of acting on it.
-2. **Re-identification** — the actual gap. `ElementScanner` collects
-   `testId`/`id`/`name`/`placeholder`/`text` for every element during
-   scanning, but only the *winning* selector is persisted
-   (`ElementDescriptor`/`.meta.json`); the runner-up signals are discarded.
-   Self-healing needs a richer stored fingerprint per element, so that when
-   the primary locator fails, the page can be rescanned and the best-matching
-   candidate found by comparing against that fingerprint (tag + text/attribute
-   similarity + structural proximity) — classic fuzzy matching, not
-   inherently an AI task.
-3. **What to do with a match**, from safest to most aggressive:
-   - Report only: "selector X broke, likely replacement is Y" — no code or
-     behavior changes.
-   - Heal the current `/run` only: substitute the new candidate for this
-     execution, leave the generated `.cs` file untouched.
-   - Rewrite the generated file with the new selector — changes already
-     committed code, should require explicit human approval.
-
-AI's plausible edge in this flow: disambiguating cases with several
-similarly-plausible candidates, or explaining in natural language why a
-given replacement was chosen — not the core matching itself.
-
 ## Risks
 
 | Risk | Impact | Mitigation |
@@ -345,3 +309,38 @@ given replacement was chosen — not the core matching itself.
 | Non-deterministic AI output breaking reproducible generation (same page → different names on every regeneration) | Medium — undermines the "regenerating is safe" property the tool has today | Validate all AI output through the existing `IdentifierNaming` gate before accepting it |
 | Single DOM snapshot misses dynamically-revealed elements | Medium — incomplete Page Objects on menu/modal-heavy pages | Documented as a known limitation; would need interactive exploration to fix |
 | Vendor dependency if using an external LLM API (pricing, rate limits, availability) | Medium, only if that option is chosen | Keep the AI integration point isolated (e.g. behind an interface) so the provider can be swapped without touching `Core`'s generation logic |
+| VS extension depends on the REST/WebSocket API being reachable and version-compatible | Medium — extension is unusable if the host isn't running or has drifted from what the extension expects | Extension owns starting/stopping the API host itself instead of assuming it's already running, and version-checks the API on connect |
+| Shared components across pages change the current one-class-per-page model; an existing generated page shouldn't break if it doesn't opt in | Medium — regressions in Page Objects nobody meant to touch | Opt-in only: a page references a shared component explicitly; the single-page generation flow already in use stays untouched by default |
+
+## Next steps
+
+Four directions agreed as the near-term scope, roughly in the order they'd
+naturally build on each other:
+
+1. **Visual Studio extension (VSIX)** — the tool's primary IDE integration.
+   Consumes the existing REST/WebSocket API as a client (the reason that API
+   was built in the first place — see "Running (API)") rather than calling
+   `Core` in-process, so it becomes the first real client of that API instead
+   of a second, parallel execution path. Scope for a first version: trigger
+   generation from Solution Explorer, list generated Page Objects, run one
+   with live progress shown inside Visual Studio instead of a raw JSON
+   response.
+2. **Pre-test failure-risk analysis** — a report of which generated elements
+   are most likely to break, based on `LocatorStrategy` (`Id`/`Name`/
+   `data-testid` = low risk, structural `nth-child` fallback = high risk) —
+   data already computed during generation, no AI needed for a first
+   version.
+3. **Self-healing** — detection exists (`/run` already catches a failed
+   locator, just reports instead of acting); the actual gap is
+   re-identification, which needs a stored fingerprint per element beyond
+   just the winning selector so a broken locator can be matched against a
+   rescan. Start with the safest action level (report only), before any
+   auto-healing or rewriting generated files.
+4. **Shared components across pages** — for an application with several
+   pages, common chrome (nav bar, header, footer) shouldn't be regenerated
+   and duplicated per page. Scope: an explicit, tester-provided list of
+   URLs, each generated and referencing a shared component Page Object for
+   the parts they have in common — not automatic crawling/discovery of
+   pages, which doesn't fit a real multi-page site (unbounded surface, e.g.
+   thousands of product pages) and breaks down further for SPA navigation
+   that doesn't change the URL at all.

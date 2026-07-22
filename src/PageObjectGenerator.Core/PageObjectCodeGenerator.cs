@@ -154,8 +154,49 @@ public static class PageObjectCodeGenerator
         };
     }
 
+    // Must escape everything a normal (non-verbatim) C# string literal can't
+    // contain literally - not just backslash/quote. A page's visible text
+    // (e.g. an <h2> snapshot) can carry a real newline from the source HTML's
+    // own formatting; embedding that raw would split the generated string
+    // literal across two physical lines, which doesn't compile.
     internal static string ToCSharpStringLiteral(string value)
     {
-        return "\"" + value.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
+        var sb = new StringBuilder(value.Length + 2);
+        sb.Append('"');
+        foreach (var c in value)
+        {
+            switch (c)
+            {
+                case '\\':
+                    sb.Append("\\\\");
+                    break;
+                case '"':
+                    sb.Append("\\\"");
+                    break;
+                case '\r':
+                    sb.Append("\\r");
+                    break;
+                case '\n':
+                    sb.Append("\\n");
+                    break;
+                case '\t':
+                    sb.Append("\\t");
+                    break;
+                default:
+                    if (char.IsControl(c))
+                    {
+                        sb.Append("\\u").Append(((int)c).ToString("x4"));
+                    }
+                    else
+                    {
+                        sb.Append(c);
+                    }
+
+                    break;
+            }
+        }
+
+        sb.Append('"');
+        return sb.ToString();
     }
 }

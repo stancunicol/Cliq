@@ -113,7 +113,12 @@ public static class ElementScanner
                     seenRadioGroups.add(groupName);
                 }
 
-                const text = (el.textContent || '').trim();
+                // Collapse whitespace (including any real newlines/tabs from the
+                // source HTML's own formatting) into single spaces, the same way
+                // a browser collapses it when rendering - textContent alone keeps
+                // it raw, which both looks wrong as a naming hint and would not
+                // match what Selenium's element.Text actually returns later.
+                const text = (el.textContent || '').replace(/\s+/g, ' ').trim();
                 if (kind === 'assert' && !text) return null;
 
                 const locator = kind === 'radio'
