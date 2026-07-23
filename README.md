@@ -220,29 +220,6 @@ visible browser (`headless: false` by default), with a pause between steps.
 - **Screenshots**: any failed step captures one (`screenshotUrl`); successful
   steps get `null`. Full-page captures, not pixel diffs.
 
-### Live progress: `WS /api/page-objects/{className}/run/ws`
-
-`POST /run` only responds once, after the whole sequence (20-30+ seconds of
-silence for a 7-step run). The WebSocket variant pushes progress instead:
-
-- Connect, then send one JSON text message shaped like the `POST /run` body
-  (empty message → defaults).
-- Server sends `{"type": "step", "step": {...}}` per completed step.
-- Then one `{"type": "done", "result": {...}}` before closing.
-- If the class doesn't exist: `{"type": "error", "message": "..."}`, closes
-  immediately.
-
-## Validation (Demo Selenium + NUnit)
-
-```
-dotnet test src/PageObjectGenerator.Demo.Tests
-```
-
-- Compiles and runs `GeneratedPages/LoginPage.cs` + `LoginPageTests.cs`
-  directly, as a living example.
-- 6 tests (4 interaction checks + 2 snapshot assertions), real browser,
-  ~25-60 seconds.
-
 ## Unit tests (`PageObjectGenerator.Core.Tests`)
 
 ```

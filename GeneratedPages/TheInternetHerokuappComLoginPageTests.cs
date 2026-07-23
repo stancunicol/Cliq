@@ -3,15 +3,15 @@ using NUnit.Framework;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Edge;
 
-namespace GeneratedPages;
+namespace Generated;
 
 [TestFixture]
-public sealed class LoginPageTests
+public sealed class TheInternetHerokuappComLoginPageTests
 {
     private IWebDriver _driver = null!;
 
     [OneTimeSetUp]
-    public void VerifyLoginPage()
+    public void VerifyTheInternetHerokuappComLoginPage()
     {
         using var driver = new EdgeDriver();
         driver.Navigate().GoToUrl("https://the-internet.herokuapp.com/login");

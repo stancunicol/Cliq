@@ -11,14 +11,13 @@ obj/
 # /run failure screenshots (debugging artifacts, not source)
 /Screenshots/
 
-# GeneratedPages/ is otherwise ignored - it's regenerable output, not source
-# a human wrote. LoginPage is the one exception: Demo.Tests compiles and runs
-# it directly (see PageObjectGenerator.Demo.Tests.csproj), and LoginPage.Custom.cs
-# holds a hand-written method that can't be regenerated. Everything else
-# (WwwEmagRoPage, IqcenterComIqPage, ...) can always be reproduced by running
+# TheInternetHerokuappComLoginPage (the-internet.herokuapp.com/login) is the
+# one exception: Demo.Tests compiles it, and its .Custom.cs holds a
+# hand-written method that can't be regenerated. Everything else
+# (WwwEmagRoPage, IqcenterComIqPage, ...) is always reproducible by running
 # the generator again, so it doesn't need to live in git.
 /GeneratedPages/*
-!/GeneratedPages/LoginPage.cs
-!/GeneratedPages/LoginPage.Custom.cs
-!/GeneratedPages/LoginPage.meta.json
-!/GeneratedPages/LoginPageTests.cs
+!/GeneratedPages/TheInternetHerokuappComLoginPage.cs
+!/GeneratedPages/TheInternetHerokuappComLoginPage.Custom.cs
+!/GeneratedPages/TheInternetHerokuappComLoginPage.meta.json
+!/GeneratedPages/TheInternetHerokuappComLoginPageTests.cs

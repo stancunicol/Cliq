@@ -3,14 +3,14 @@ using OpenQA.Selenium;
 using OpenQA.Selenium.Interactions;
 using OpenQA.Selenium.Support.UI;
 
-namespace GeneratedPages;
+namespace Generated;
 
-public sealed partial class LoginPage
+public sealed partial class TheInternetHerokuappComLoginPage
 {
     private readonly IWebDriver _driver;
     private readonly WebDriverWait _wait;
 
-    public LoginPage(IWebDriver driver)
+    public TheInternetHerokuappComLoginPage(IWebDriver driver)
     {
         _driver = driver;
         _wait = new WebDriverWait(driver, TimeSpan.FromSeconds(10));

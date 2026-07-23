@@ -1,8 +1,8 @@
 {
-  "ClassName": "LoginPage",
+  "ClassName": "TheInternetHerokuappComLoginPage",
   "Url": "https://the-internet.herokuapp.com/login",
   "Browser": "Edge",
-  "Namespace": "GeneratedPages",
+  "Namespace": "Generated",
   "Elements": [
     {
       "Tag": "h2",
