@@ -26,7 +26,7 @@ Element discovery injects and runs JavaScript in the rendered page
 (`IJavaScriptExecutor.ExecuteScript`) — the same way Puppeteer or a live UI
 Spy tool inspects a running app — not by parsing raw HTML as static text.
 
-### Why these choices — against the original proposal
+### Decisions
 
 | Dimension | Decision |
 |---|---|
@@ -83,66 +83,43 @@ parallel implementations.
 
 ### Key algorithms
 
-- **Selector uniqueness** — `locatorFor` tries `data-testid` → `id` → `name`
-  against `document.querySelectorAll`, accepting a candidate only if it
-  matches *exactly* the current element. Falls back to structural
-  (`nth-child`), unique by construction. Protects against duplicate
-  `id`/`name` in broken markup resolving to the wrong element.
-- **Naming and deduplication** — `IdentifierNaming.Sanitize` turns source
-  text into a valid C# identifier (fallback if empty/reserved word).
-  `ElementScanner.Scan` separately dedups names with a numeric suffix
-  (`_2`, `_3`...) — independent of selector uniqueness; two elements can
-  share a name with completely different selectors.
-- **`ElementDescriptor` / `LocatorStrategy`** — `Strategy`
-  (`Id`/`Name`/`CssSelector`) + `LocatorValue`, split apart instead of one
-  CSS string, so the generator can emit native `By.Id`/`By.Name`. A computed
-  `Selector` property is display-only (JSON/metadata); actual lookup always
-  uses `Strategy`+`LocatorValue`.
-- **Live progress over WebSocket** — `PageObjectRunner.Run` is synchronous
-  (blocking Selenium calls). The WebSocket endpoint runs it on a thread-pool
-  thread; `onStep` writes each step into a `Channel<T>`; a separate async
-  loop forwards each step over the socket without blocking the browser
-  thread.
-- **CWD-independent paths** — ASP.NET Core resets the working directory at
-  startup, a console app doesn't. `SolutionPaths` walks up to the `.sln` file
-  and anchors `GeneratedPages/`/`Screenshots/` there, for every host.
-- **`/run` continues past failures, stops only on navigation** — stopping at
-  the first failure used to block the whole run on one cosmetic element that
-  reports `Displayed: true` but isn't really clickable. Now it only stops
-  when a `Click` succeeds *and* the URL changes afterward.
+- **Selector uniqueness** — `locatorFor` tries `data-testid` → `id` → `name` →
+  structural `nth-child` fallback, each verified unique via
+  `document.querySelectorAll` before being accepted.
+- **Naming and deduplication** — `IdentifierNaming.Sanitize` builds valid C#
+  identifiers; `ElementScanner.Scan` separately deduplicates names with a
+  numeric suffix, independent of selector uniqueness.
+- **`ElementDescriptor` / `LocatorStrategy`** — `Strategy` + `LocatorValue`
+  are kept apart from the display-only `Selector`, so the generator can emit
+  native `By.Id`/`By.Name` instead of always `By.CssSelector`.
+- **Live progress over WebSocket** — `PageObjectRunner.Run` executes on a
+  thread-pool thread; `onStep` pushes each step through a `Channel<T>` to the
+  socket without blocking the browser thread.
+- **CWD-independent paths** — `SolutionPaths` walks up to the `.sln` file and
+  anchors `GeneratedPages/`/`Screenshots/` there, so CLI and API resolve the
+  same locations regardless of working directory.
+- **`/run` continues past failures, stops only on navigation** — a `Click`
+  that succeeds and changes the URL stops the run; every other failure just
+  gets reported and execution continues.
 - **Radio buttons are grouped, not enumerated** — `<input type="radio">`
-  sharing a `name` collapse into one descriptor/method per group. Value
-  selector built at runtime with single quotes (avoids escaping double
-  quotes inside generated C# string literals).
+  sharing a `name` collapse into one method per group.
 - **Invisible elements are skipped entirely** — zero size or CSS-hidden
-  elements never become part of the Page Object, excluded during scanning.
-  A `disabled`-but-visible element is still included (a human can see and
-  verify it, just not act on it).
-- **Stale metadata is rejected** — a `.meta.json` from an older schema can
-  deserialize "successfully" with new fields left `null` (`By.Id(null)` →
-  confusing failure). `TryReadMetadata` checks every element has a non-empty
-  `LocatorValue`, treats a failure as "not found."
-- **The whole Page Object is verified once, before any test runs** — every
-  generated test class has a `[OneTimeSetUp]` that opens its own browser,
-  checks every element's locator can still be found, and fails once with all
-  missing elements named if any can't — instead of the page having drifted
-  and each individual `[Test]` failing separately, less informatively,
-  further down the same run.
-- **Generated classes are `partial`, so hand-written code survives
-  regeneration** — `{ClassName}.cs` is fully regenerable and gets overwritten
-  every time; a sibling `{ClassName}.Custom.cs` (same `partial class`) is
-  written once, on first generation, and never touched again. A developer
-  adds their own methods there (e.g. a `LoginAs` combining `FillUsername` +
-  `FillPassword` + `ClickLogin`) without risking losing them the next time
-  the page is rescanned.
-- **Captured text can't break the generated source** — a real page's text
-  (e.g. an `<h2>` used for an `Assert` snapshot) can contain literal
-  newlines/tabs from the source HTML's own formatting. `ToCSharpStringLiteral`
-  escapes every character a regular C# string literal can't contain raw
-  (`\n`, `\r`, `\t`, other control chars as `\uXXXX`), and `ElementScanner`
-  collapses whitespace in captured text the same way a browser collapses it
-  when rendering — so the snapshot also matches what Selenium's `element.Text`
-  actually returns later, not just the raw `textContent`.
+  elements are excluded during scanning; a disabled-but-visible element is
+  still included.
+- **Stale metadata is rejected** — `TryReadMetadata` treats any element with
+  an empty `LocatorValue` as "not found," instead of crashing later on
+  `By.Id(null)`.
+- **The whole Page Object is verified once, before any test runs** — a
+  `[OneTimeSetUp]` opens its own browser, checks every locator, and fails
+  once with all missing elements named, instead of each `[Test]` failing
+  separately later.
+- **Generated classes are `partial`** — `{ClassName}.cs` is fully
+  regenerable; `{ClassName}.Custom.cs` is written once and never touched
+  again, so hand-written code survives regeneration.
+- **Captured text can't break the generated source** — `ToCSharpStringLiteral`
+  escapes control characters (`\n`, `\r`, `\t`, others as `\uXXXX`), and
+  `ElementScanner` collapses captured whitespace to match Selenium's
+  `element.Text`.
 
 ## Comparison to the reference tools named in the proposal
 
@@ -215,10 +192,8 @@ dotnet run --project src/PageObjectGenerator.Api
 ```
 
 - Only `url` is required (`browser` defaults `"chrome"`, `headless` `true`).
-- `className`/`namespace` are **not** request fields — see "Security."
-- No persistent browser sessions across requests (unlike the previous Python
-  API) — each request launches and closes its own browser. Simpler server
-  state, higher per-request latency; acceptable for a PoC.
+- No persistent browser sessions across requests — each request launches and closes its own browser. Simpler server
+  state, higher per-request latency.
 - Generation also writes `{ClassName}.meta.json` (URL, browser, elements),
   used by `/run` and `GET .../elements`, plus one reference screenshot
   (`screenshotUrl`) — a fixed baseline, unlike a screenshot taken fresh every
@@ -321,17 +296,12 @@ naturally build on each other:
 
 1. **Visual Studio extension (VSIX)** — the tool's primary IDE integration.
    Consumes the existing REST/WebSocket API as a client (the reason that API
-   was built in the first place — see "Running (API)") rather than calling
+   was built in the first place) rather than calling
    `Core` in-process, so it becomes the first real client of that API instead
-   of a second, parallel execution path. Scope for a first version: trigger
-   generation from Solution Explorer, list generated Page Objects, run one
-   with live progress shown inside Visual Studio instead of a raw JSON
-   response.
+   of a second, parallel execution path.
 2. **Pre-test failure-risk analysis** — a report of which generated elements
    are most likely to break, based on `LocatorStrategy` (`Id`/`Name`/
-   `data-testid` = low risk, structural `nth-child` fallback = high risk) —
-   data already computed during generation, no AI needed for a first
-   version.
+   `data-testid` = low risk, structural `nth-child` fallback = high risk).
 3. **Self-healing** — detection exists (`/run` already catches a failed
    locator, just reports instead of acting); the actual gap is
    re-identification, which needs a stored fingerprint per element beyond
