@@ -164,6 +164,7 @@ export interface CliqBridge {
 }
 
 export type RunEvent =
+  | { type: 'step-start'; stepId: string }
   | { type: 'step'; step: StepResult }
   | { type: 'done'; run: TestRun }
 

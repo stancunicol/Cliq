@@ -87,4 +87,44 @@ public sealed class WorkspaceCodeGenerationTests
                 Does.Contain("RequiredSecret(\"USERNAME\")"));
         });
     }
+
+    [Test]
+    public async Task GenerateAsync_EscapesQuotedTestIdInVisibilityAssertion()
+    {
+        var repository = new WorkspaceRepository();
+        var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
+        var page = new PageDefinition(
+            PageDefinition.CurrentSchemaVersion,
+            "quoted",
+            "Quoted",
+            "https://example.com",
+            [
+                new PageElement(
+                    "save",
+                    "save",
+                    "button",
+                    StepAction.AssertVisible,
+                    new Locator(LocatorStrategy.TestId, "save\"draft")),
+            ],
+            DateTimeOffset.UtcNow);
+        var test = new TestCase(
+            TestCase.CurrentSchemaVersion,
+            "visibility",
+            "Visibility",
+            null,
+            [],
+            [new TestStep("visible", StepAction.AssertVisible, "Visible", true, page.Id, "save")],
+            DateTimeOffset.UtcNow);
+        var generator = new WorkspaceCodeGeneration(repository);
+
+        var result = await generator.GenerateAsync(
+            snapshot.Project,
+            [page],
+            [test],
+            _root,
+            CancellationToken.None);
+        var code = await File.ReadAllTextAsync(result.Artifacts.Single(item => item.Kind == "test").Path);
+
+        Assert.That(code, Does.Contain("By.CssSelector(\"[data-testid=\\\"save\\\\\\\"draft\\\"]\")"));
+    }
 }

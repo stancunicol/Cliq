@@ -227,13 +227,16 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
 
     private static string ByExpression(PageElement element)
     {
-        var value = Literal(element.Locator.Value);
+        var locatorValue = element.Locator.Strategy == DomainLocator.TestId
+            ? $"[data-testid=\"{CssAttributeEscape(element.Locator.Value)}\"]"
+            : element.Locator.Value;
+        var value = Literal(locatorValue);
         return element.Locator.Strategy switch
         {
             DomainLocator.Id => $"By.Id({value})",
             DomainLocator.Name => $"By.Name({value})",
             DomainLocator.XPath => $"By.XPath({value})",
-            DomainLocator.TestId => $"By.CssSelector(\"[data-testid=\\\"\" + {value} + \"\\\"]\")",
+            DomainLocator.TestId => $"By.CssSelector({value})",
             _ => $"By.CssSelector({value})",
         };
     }

@@ -100,6 +100,7 @@ public sealed class RunCoordinator(
             var pages = snapshot.Pages.ToDictionary(page => page.Id, StringComparer.Ordinal);
             var progress = new InlineProgress<StepResult>(step => state.Events.Writer.TryWrite(step));
             var completed = await runner.RunAsync(
+                state.Run.Id,
                 test,
                 pages,
                 browser,

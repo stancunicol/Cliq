@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "recorder-fixture",
+  "name": "Recorder fixture",
+  "url": "http://127.0.0.1:4174/",
+  "elements": [
+    {
+      "id": "increment-counter",
+      "name": "increment counter",
+      "tag": "button",
+      "action": "click",
+      "locator": {
+        "strategy": "testId",
+        "value": "increment-counter",
+        "displayName": "Increment counter"
+      }
+    },
+    {
+      "id": "display-name",
+      "name": "display name",
+      "tag": "input",
+      "action": "fill",
+      "locator": {
+        "strategy": "id",
+        "value": "display-name",
+        "displayName": "Display name"
+      }
+    },
+    {
+      "id": "counter-output",
+      "name": "counter output",
+      "tag": "output",
+      "action": "assertText",
+      "locator": {
+        "strategy": "css",
+        "value": "output",
+        "displayName": "Counter output"
+      }
+    }
+  ],
+  "updatedAt": "2026-07-23T00:00:00Z"
+}

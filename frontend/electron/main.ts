@@ -7,10 +7,16 @@ import {
   session,
   WebContentsView,
 } from 'electron'
+import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { BackendSupervisor } from './backend-supervisor.js'
-import { BrowserController } from './browser-controller.js'
+import {
+  BrowserController,
+  type EmbeddedPage,
+  type EmbeddedTest,
+  type EmbeddedTestRun,
+} from './browser-controller.js'
 import {
   booleanSchema,
   boundsSchema,
@@ -30,6 +36,13 @@ const backend = new BackendSupervisor(repositoryRoot)
 let window: BaseWindow | undefined
 let shell: WebContentsView | undefined
 let browser: BrowserController | undefined
+let activeRun: { id: string; cancellation: AbortController } | undefined
+
+interface EmbeddedWorkspace {
+  rootPath: string
+  pages: EmbeddedPage[]
+  tests: EmbeddedTest[]
+}
 
 async function createWindow() {
   window = new BaseWindow({
@@ -125,32 +138,56 @@ function installIpc() {
     'workspace:start-run',
     async (_event, candidate) => {
       const request = startRunRequestSchema.parse(candidate)
-      const run = await backend.request<{ id: string }>(
-        `/api/v1/tests/${encodeURIComponent(request.testId)}/runs`,
-        {
-          method: 'POST',
-          body: JSON.stringify({ browser: request.browser }),
-        },
-      )
-      void backend
-        .streamRunEvents(run.id, (type, payload) => {
-          shell?.webContents.send(
-            'workspace:run-event',
-            type === 'done' ? { type, run: payload } : { type, step: payload },
-          )
+      if (activeRun) throw new Error('Another in-app browser run is already active.')
+      if (!browser) throw new Error('The in-app browser is not ready.')
+      const snapshot = await backend.request<EmbeddedWorkspace>('/api/v1/workspace')
+      const test = snapshot.tests.find((item) => item.id === request.testId)
+      if (!test) throw new Error(`Test '${request.testId}' was not found.`)
+      const secrets = await backend.request<Record<string, string>>('/api/v1/secrets')
+      const run: EmbeddedTestRun = {
+        id: randomUUID().replaceAll('-', ''),
+        testId: test.id,
+        status: 'queued',
+        startedAt: new Date().toISOString(),
+        steps: [],
+      }
+      const cancellation = new AbortController()
+      activeRun = { id: run.id, cancellation }
+      await persistRun(run)
+      void browser
+        .runTest(
+          run,
+          test,
+          snapshot.pages,
+          secrets,
+          snapshot.rootPath,
+          cancellation.signal,
+          (event) => shell?.webContents.send('workspace:run-event', event),
+        )
+        .then(async (completed) => {
+          await persistRun(completed)
+          shell?.webContents.send('workspace:run-event', { type: 'done', run: completed })
         })
-        .catch((error: Error) => {
-          shell?.webContents.send('workspace:run-event', {
-            type: 'done',
-            run: { ...run, status: 'failed', error: error.message, steps: [] },
-          })
+        .catch(async (error: Error) => {
+          const failed: EmbeddedTestRun = {
+            ...run,
+            status: 'failed',
+            completedAt: new Date().toISOString(),
+            error: error.message,
+          }
+          await persistRun(failed).catch(() => undefined)
+          shell?.webContents.send('workspace:run-event', { type: 'done', run: failed })
+        })
+        .finally(() => {
+          if (activeRun?.id === run.id) activeRun = undefined
         })
       return run
     },
   )
   ipcMain.handle('workspace:cancel-run', (_event, candidate) => {
     const runId = identifierSchema.parse(candidate)
-    return backend.request(`/api/v1/runs/${encodeURIComponent(runId)}/cancel`, { method: 'POST' })
+    if (!activeRun || activeRun.id !== runId) throw new Error(`Run '${runId}' is not active.`)
+    activeRun.cancellation.abort(new DOMException('Run cancelled.', 'AbortError'))
   })
   ipcMain.handle('workspace:save-secrets', (_event, candidate) => {
     const values = secretValuesSchema.parse(candidate)
@@ -173,6 +210,13 @@ function installIpc() {
   ipcMain.handle('browser:recording', (_event, candidate) =>
     browser?.setRecording(booleanSchema.parse(candidate)),
   )
+}
+
+function persistRun(run: EmbeddedTestRun) {
+  return backend.request(`/api/v1/runs/${encodeURIComponent(run.id)}`, {
+    method: 'PUT',
+    body: JSON.stringify(run),
+  })
 }
 
 function installMenu() {
@@ -206,9 +250,22 @@ app.whenReady().then(async () => {
   )
   session.defaultSession.setPermissionCheckHandler(() => false)
   await backend.start()
+  if (process.env.CLIQ_WORKSPACE_PATH) {
+    await backend.request('/api/v1/workspaces/open', {
+      method: 'POST',
+      body: JSON.stringify({ rootPath: process.env.CLIQ_WORKSPACE_PATH }),
+    })
+  }
   installIpc()
   installMenu()
   await createWindow()
+  if (process.env.CLIQ_E2E_AUTORUN === '1') {
+    setTimeout(() => {
+      void shell?.webContents.executeJavaScript(
+        `document.querySelector('.top-actions .run')?.click()`,
+      )
+    }, 1_000)
+  }
 }).catch((error: unknown) => {
   dialog.showErrorBox(
     'Cliq could not start',

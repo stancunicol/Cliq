@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { CirclePlay, Code2, LoaderCircle, Radio, ScanSearch, Square } from 'lucide-react'
 import { BrowserPane } from './features/browser/BrowserPane'
 import { RunResults } from './features/runs/RunResults'
@@ -8,6 +8,7 @@ import { workspaceService } from './services'
 import type {
   BrowserState,
   PageDefinition,
+  PageElement,
   RecordedInteraction,
   TestCase,
   TestRun,
@@ -33,11 +34,32 @@ export function App() {
   const [recording, setRecording] = useState(false)
   const [run, setRun] = useState<TestRun>()
   const [running, setRunning] = useState(false)
+  const [activeStepId, setActiveStepId] = useState<string>()
   const [working, setWorking] = useState<string>()
   const [error, setError] = useState<string>()
+  const snapshotRef = useRef<WorkspaceSnapshot | undefined>(undefined)
+  const selectedIdRef = useRef<string | undefined>(undefined)
+  const mutationQueue = useRef(Promise.resolve())
+  const saveRevisions = useRef(new Map<string, number>())
+  const navigatedWorkspace = useRef<string | undefined>(undefined)
   const selected = snapshot?.tests.find((test) => test.id === selectedId)
+  snapshotRef.current = snapshot
+  selectedIdRef.current = selectedId
+
+  const updateSnapshot = useCallback((
+    update: WorkspaceSnapshot | ((current: WorkspaceSnapshot) => WorkspaceSnapshot),
+  ) => {
+    setSnapshot((current) => {
+      const next = typeof update === 'function'
+        ? current && update(current)
+        : update
+      if (next) snapshotRef.current = next
+      return next
+    })
+  }, [])
 
   const applySnapshot = useCallback((next: WorkspaceSnapshot) => {
+    snapshotRef.current = next
     setSnapshot(next)
     setSelectedId((current) => current && next.tests.some((test) => test.id === current)
       ? current
@@ -57,20 +79,37 @@ export function App() {
     if (state.url && state.url !== 'about:blank') setUrl(state.url)
   }), [])
 
+  useEffect(() => {
+    if (!snapshot) return
+    const workspaceChanged = navigatedWorkspace.current !== snapshot.rootPath
+    if (!workspaceChanged && browser.url && browser.url !== 'about:blank') return
+    navigatedWorkspace.current = snapshot.rootPath
+    if (browser.url === snapshot.project.baseUrl) return
+    void window.cliq?.browser.navigate(snapshot.project.baseUrl).catch((cause) => {
+      setError(message(cause))
+    })
+  }, [snapshot, browser.url])
+
   useEffect(() => window.cliq?.workspace.onRunEvent((event) => {
-    if (event.type === 'step') {
+    if (event.type === 'step-start') {
+      setActiveStepId(event.stepId)
+    } else if (event.type === 'step') {
+      setActiveStepId((current) => current === event.step.stepId ? undefined : current)
       setRun((current) => current
         ? { ...current, status: 'running', steps: [...current.steps, event.step] }
         : current)
     } else {
+      setActiveStepId(undefined)
       setRun(event.run)
       setRunning(false)
     }
   }), [])
 
   useEffect(() => window.cliq?.browser.onRecordedInteraction((interaction) => {
-    void persistInteraction(interaction)
-  }), [snapshot, selectedId])
+    mutationQueue.current = mutationQueue.current
+      .then(() => persistInteraction(interaction))
+      .catch((cause) => setError(message(cause)))
+  }), [])
 
   useLayoutEffect(() => {
     const sync = () => {
@@ -97,52 +136,55 @@ export function App() {
   }, [snapshot])
 
   async function persistInteraction(interaction: RecordedInteraction) {
-    if (!snapshot || !selected) return
-    try {
-      if (interaction.value?.kind === 'secret' && interaction.secretValue !== undefined) {
-        await window.cliq?.workspace.saveSecrets({
-          [interaction.value.value]: interaction.secretValue,
-        })
-      }
-      const pageId = pageIdFor(interaction.pageUrl)
-      const existingPage = snapshot.pages.find((page) => page.id === pageId)
-      const existingElement = existingPage?.elements.find((element) =>
-        element.locator.strategy === interaction.element.locator.strategy
-        && element.locator.value === interaction.element.locator.value)
-      const element = existingElement ?? interaction.element
-      const page: PageDefinition = existingPage
-        ? { ...existingPage, elements: existingElement ? existingPage.elements : [...existingPage.elements, element] }
-        : {
-            schemaVersion: 1,
-            id: pageId,
-            name: pageNameFor(interaction.pageUrl),
-            url: interaction.pageUrl,
-            elements: [element],
-            updatedAt: new Date().toISOString(),
-          }
-      const savedPage = await workspaceService.savePage(page)
-      const updatedTest: TestCase = {
-        ...selected,
-        steps: [...selected.steps, {
-          id: interaction.id,
-          action: interaction.action,
-          label: interaction.label,
-          enabled: true,
-          pageId: savedPage.id,
-          elementId: element.id,
-          value: interaction.value,
-        }],
-        updatedAt: new Date().toISOString(),
-      }
-      const savedTest = await workspaceService.saveTest(updatedTest)
-      setSnapshot((current) => current && ({
-        ...current,
-        pages: upsert(current.pages, savedPage),
-        tests: upsert(current.tests, savedTest),
-      }))
-    } catch (cause) {
-      setError(message(cause))
+    const current = snapshotRef.current
+    const currentSelectedId = selectedIdRef.current
+    const currentTest = current?.tests.find((test) => test.id === currentSelectedId)
+    if (!current || !currentTest) return
+
+    if (interaction.value?.kind === 'secret' && interaction.secretValue !== undefined) {
+      await window.cliq?.workspace.saveSecrets({
+        [interaction.value.value]: interaction.secretValue,
+      })
     }
+    const pageId = pageIdFor(interaction.pageUrl)
+    const existingPage = current.pages.find((page) => page.id === pageId)
+    const existingElement = existingPage?.elements.find((element) =>
+      element.locator.strategy === interaction.element.locator.strategy
+      && element.locator.value === interaction.element.locator.value)
+    const element = existingElement ?? uniqueElementName(interaction.element, existingPage?.elements ?? [])
+    const page: PageDefinition = existingPage
+      ? { ...existingPage, elements: existingElement ? existingPage.elements : [...existingPage.elements, element] }
+      : {
+          schemaVersion: 1,
+          id: pageId,
+          name: pageNameFor(interaction.pageUrl),
+          url: interaction.pageUrl,
+          elements: [element],
+          updatedAt: new Date().toISOString(),
+        }
+    const savedPage = await workspaceService.savePage(page)
+    const latest = snapshotRef.current
+    const latestTest = latest?.tests.find((test) => test.id === currentSelectedId)
+    if (!latest || !latestTest) return
+    const updatedTest: TestCase = {
+      ...latestTest,
+      steps: [...latestTest.steps, {
+        id: interaction.id,
+        action: interaction.action,
+        label: interaction.label,
+        enabled: true,
+        pageId: savedPage.id,
+        elementId: element.id,
+        value: interaction.value,
+      }],
+      updatedAt: new Date().toISOString(),
+    }
+    const savedTest = await workspaceService.saveTest(updatedTest)
+    updateSnapshot((value) => ({
+      ...value,
+      pages: upsert(value.pages, savedPage),
+      tests: upsert(value.tests, savedTest),
+    }))
   }
 
   async function openWorkspace() {
@@ -154,15 +196,19 @@ export function App() {
     }
   }
 
-  async function saveTest(test: TestCase) {
-    if (!snapshot) return
-    setSnapshot({ ...snapshot, tests: upsert(snapshot.tests, test) })
-    try {
-      const saved = await workspaceService.saveTest({ ...test, updatedAt: new Date().toISOString() })
-      setSnapshot((current) => current && ({ ...current, tests: upsert(current.tests, saved) }))
-    } catch (cause) {
-      setError(message(cause))
-    }
+  function saveTest(test: TestCase) {
+    if (!snapshotRef.current) return
+    const revision = (saveRevisions.current.get(test.id) ?? 0) + 1
+    saveRevisions.current.set(test.id, revision)
+    updateSnapshot((current) => ({ ...current, tests: upsert(current.tests, test) }))
+    mutationQueue.current = mutationQueue.current
+      .then(async () => {
+        const saved = await workspaceService.saveTest({ ...test, updatedAt: new Date().toISOString() })
+        if (saveRevisions.current.get(test.id) === revision) {
+          updateSnapshot((current) => ({ ...current, tests: upsert(current.tests, saved) }))
+        }
+      })
+      .catch((cause) => setError(message(cause)))
   }
 
   async function createTest() {
@@ -176,7 +222,7 @@ export function App() {
       updatedAt: new Date().toISOString(),
     }
     const saved = await workspaceService.saveTest(test)
-    setSnapshot({ ...snapshot, tests: [...snapshot.tests, saved] })
+    updateSnapshot({ ...snapshot, tests: [...snapshot.tests, saved] })
     setSelectedId(saved.id)
     setActive('tests')
   }
@@ -187,8 +233,39 @@ export function App() {
       return
     }
     const next = !recording
-    setRecording(next)
-    await window.cliq?.browser.setRecording(next)
+    try {
+      if (next && isHttpUrl(browser.url)) appendNavigationStep(browser.url)
+      await window.cliq?.browser.setRecording(next)
+      setRecording(next)
+    } catch (cause) {
+      setError(message(cause))
+    }
+  }
+
+  function appendNavigationStep(targetUrl: string) {
+    const current = snapshotRef.current
+    const currentTest = current?.tests.find((test) => test.id === selectedIdRef.current)
+    if (!current || !currentTest) return
+    const normalized = normalizeUrl(targetUrl)
+    const previous = currentTest.steps.at(-1)
+    if (previous?.action === 'navigate' && previous.url === normalized) return
+    saveTest({
+      ...currentTest,
+      steps: [...currentTest.steps, {
+        id: crypto.randomUUID(),
+        action: 'navigate',
+        label: `Navigate to ${new URL(normalized).hostname}`,
+        enabled: true,
+        url: normalized,
+      }],
+      updatedAt: new Date().toISOString(),
+    })
+  }
+
+  function navigateBrowser() {
+    const target = normalizeUrl(url)
+    if (recording && selected) appendNavigationStep(target)
+    void window.cliq?.browser.navigate(target).catch((cause) => setError(message(cause)))
   }
 
   async function scanPage() {
@@ -196,7 +273,7 @@ export function App() {
     setWorking('Scanning')
     try {
       const page = await workspaceService.scanPage(url, pageNameFor(url), snapshot.project.defaultBrowser)
-      setSnapshot({ ...snapshot, pages: upsert(snapshot.pages, page) })
+      updateSnapshot({ ...snapshot, pages: upsert(snapshot.pages, page) })
     } catch (cause) {
       setError(message(cause))
     } finally {
@@ -222,14 +299,32 @@ export function App() {
 
   async function runTest() {
     if (!selected || !snapshot) return
+    if (selected.steps.filter((step) => step.enabled).length === 0) {
+      setError('Add or record at least one enabled step before running.')
+      return
+    }
     setActive('runs')
     setRunning(true)
+    setActiveStepId(undefined)
     setRun(undefined)
     try {
+      if (recording) {
+        await window.cliq?.browser.setRecording(false)
+        setRecording(false)
+      }
       const started = await workspaceService.startRun(selected.id, snapshot.project.defaultBrowser)
       setRun(started)
     } catch (cause) {
       setRunning(false)
+      setError(message(cause))
+    }
+  }
+
+  async function cancelRun() {
+    if (!run || !running) return
+    try {
+      await workspaceService.cancelRun(run.id)
+    } catch (cause) {
       setError(message(cause))
     }
   }
@@ -279,15 +374,21 @@ export function App() {
         {error && <button className="error-banner" onClick={() => setError(undefined)}>{error}</button>}
         {working && <div className="working-banner">{working}</div>}
         {active === 'tests'
-          ? <TestEditor test={selected} pages={snapshot.pages} onChange={(test) => void saveTest(test)} />
-          : <RunResults run={run} test={selected} running={running} />}
+          ? <TestEditor test={selected} pages={snapshot.pages} onChange={saveTest} />
+          : <RunResults
+              run={run}
+              test={selected}
+              running={running}
+              activeStepId={activeStepId}
+              onCancel={() => void cancelRun()}
+            />}
       </section>
       <BrowserPane
         state={browser}
         url={url}
         recording={recording}
         onUrl={setUrl}
-        onNavigate={() => void window.cliq?.browser.navigate(normalizeUrl(url))}
+        onNavigate={navigateBrowser}
         onStopRecording={() => void toggleRecording()}
       />
     </main>
@@ -296,6 +397,15 @@ export function App() {
 
 function normalizeUrl(value: string) {
   return /^https?:\/\//i.test(value) ? value : `https://${value}`
+}
+
+function isHttpUrl(value: string) {
+  try {
+    const protocol = new URL(value).protocol
+    return protocol === 'http:' || protocol === 'https:'
+  } catch {
+    return false
+  }
 }
 
 function pageIdFor(value: string) {
@@ -317,6 +427,14 @@ function pageNameFor(value: string) {
 function upsert<T extends { id: string }>(items: T[], item: T) {
   const index = items.findIndex((candidate) => candidate.id === item.id)
   return index < 0 ? [...items, item] : items.map((candidate) => candidate.id === item.id ? item : candidate)
+}
+
+function uniqueElementName(element: PageElement, existing: PageElement[]) {
+  const used = new Set(existing.map((candidate) => candidate.name.toLowerCase()))
+  if (!used.has(element.name.toLowerCase())) return element
+  let suffix = 2
+  while (used.has(`${element.name} ${suffix}`.toLowerCase())) suffix += 1
+  return { ...element, name: `${element.name} ${suffix}` }
 }
 
 function message(cause: unknown) {

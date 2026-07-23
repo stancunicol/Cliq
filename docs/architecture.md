@@ -22,8 +22,11 @@ permissions/downloads, sandboxing, context isolation, and restricted navigation.
   screenshots, and C#/NUnit generation.
 - `Cliq.Api` is a thin authenticated HTTP/SSE adapter with RFC Problem Details.
 
-Browser work never runs on an ASP.NET request thread. `RunCoordinator` allows one active Selenium
-run, persists state, supports cancellation, and streams step events over server-sent events.
+Page discovery remains a background Selenium operation. Interactive workflow runs execute inside
+Electron's isolated `WebContentsView`, allowing the user to watch every highlighted, paced action.
+The main process owns one active run, cancellation, failure screenshots, and persistence through
+the authenticated sidecar. Generated NUnit workflows continue to use Selenium for CI and external
+execution.
 
 ## Workspace model
 

@@ -42,6 +42,7 @@ public interface ICodeGeneration
 public interface ITestRunner
 {
     Task<TestRun> RunAsync(
+        string runId,
         TestCase test,
         IReadOnlyDictionary<string, PageDefinition> pages,
         BrowserKind browser,

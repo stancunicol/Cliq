@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "cliq-mock-project",
+  "name": "Cliq mock project",
+  "baseUrl": "http://127.0.0.1:4174/",
+  "defaultBrowser": "chrome",
+  "output": {
+    "pageObjectsDirectory": "Generated/PageObjects",
+    "testsDirectory": "Generated/Tests",
+    "pageObjectsNamespace": "Generated.PageObjects",
+    "testsNamespace": "Generated.Tests"
+  },
+  "updatedAt": "2026-07-23T00:00:00Z"
+}

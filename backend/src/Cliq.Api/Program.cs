@@ -27,6 +27,8 @@ builder.Services.AddSingleton<ITestRunner, SeleniumTestRunner>();
 builder.Services.AddSingleton<RunCoordinator>();
 
 var app = builder.Build();
+var eventJsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+eventJsonOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
 var apiToken = Environment.GetEnvironmentVariable("CLIQ_API_TOKEN");
 if (string.IsNullOrWhiteSpace(apiToken))
 {
@@ -212,6 +214,11 @@ api.MapPut("/secrets", async (
     return Results.NoContent();
 });
 
+api.MapGet("/secrets", async (
+    ISecretStore secretStore,
+    CancellationToken cancellationToken) =>
+    Results.Ok(await secretStore.ReadAsync(cancellationToken)));
+
 api.MapPost("/generation", async (
     GenerationRequest request,
     IWorkspaceRepository repository,
@@ -248,6 +255,21 @@ api.MapPost("/tests/{testId}/runs", async (
 api.MapGet("/runs/{runId}", (string runId, RunCoordinator coordinator) =>
     coordinator.Get(runId) is { } run ? Results.Ok(run) : Results.NotFound());
 
+api.MapPut("/runs/{runId}", async (
+    string runId,
+    TestRun run,
+    IWorkspaceRepository repository,
+    CancellationToken cancellationToken) =>
+{
+    if (!string.Equals(runId, run.Id, StringComparison.Ordinal))
+    {
+        return Results.BadRequest(new ProblemDetails { Title = "Run ID mismatch." });
+    }
+
+    await repository.SaveRunAsync(run, cancellationToken);
+    return Results.Ok(run);
+});
+
 api.MapGet("/runs/{runId}/events", async (
     string runId,
     HttpContext context,
@@ -260,7 +282,7 @@ api.MapGet("/runs/{runId}/events", async (
     await foreach (var step in coordinator.ReadEventsAsync(runId, cancellationToken))
     {
         await context.Response.WriteAsync(
-            $"event: step\ndata: {JsonSerializer.Serialize(step)}\n\n",
+            $"event: step\ndata: {JsonSerializer.Serialize(step, eventJsonOptions)}\n\n",
             cancellationToken);
         await context.Response.Body.FlushAsync(cancellationToken);
     }
@@ -268,7 +290,7 @@ api.MapGet("/runs/{runId}/events", async (
     if (coordinator.Get(runId) is { } completed)
     {
         await context.Response.WriteAsync(
-            $"event: done\ndata: {JsonSerializer.Serialize(completed)}\n\n",
+            $"event: done\ndata: {JsonSerializer.Serialize(completed, eventJsonOptions)}\n\n",
             cancellationToken);
     }
 });
