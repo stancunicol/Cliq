@@ -57,7 +57,9 @@ src/
   PageObjectGenerator.Cli/         command line entry point wiring it all together
   PageObjectGenerator.Api/         HTTP API (REST + WebSocket) over the same library
   PageObjectGenerator.Demo.Tests/  NUnit project that compiles and runs the generated example
+  PageObjectGenerator.VsExtension/ (planned) VSIX client of the API
 GeneratedPages/                    CLI/API output (Page Objects + NUnit tests + metadata)
+  Shared/                          (planned) shared component Page Objects
 Screenshots/                       screenshots taken during generation and /run (gitignored)
 ```
 
@@ -268,7 +270,7 @@ dotnet test src/PageObjectGenerator.Demo.Tests
 dotnet test src/PageObjectGenerator.Core.Tests
 ```
 
-- 32 tests, under 5 seconds, no Selenium/network/real page.
+- 41 tests, under 5 seconds, no Selenium/network/real page.
 - Covers `IdentifierNaming.Sanitize`/`ToPascalCase` edge cases, generator
   output per element kind and locator strategy, `DeriveClassName`.
 - Built from hand-written `ElementDescriptor` values — no DOM scanning.
@@ -299,12 +301,14 @@ naturally build on each other:
    just the winning selector so a broken locator can be matched against a
    rescan. Start with the safest action level (report only), before any
    auto-healing or rewriting generated files.
-4. **Shared components across pages** — for an application with several
-   pages, common chrome (nav bar, header, footer) shouldn't be regenerated
-   and duplicated per page. Scope: an explicit, tester-provided list of
-   URLs, each generated and referencing a shared component Page Object for
-   the parts they have in common — not automatic crawling/discovery of
-   pages, which doesn't fit a real multi-page site (unbounded surface, e.g.
-   thousands of product pages) and breaks down further for SPA navigation
-   that doesn't change the URL at all. Risk: keep it opt-in, so an existing
-   generated page doesn't break if it doesn't reference a shared component.
+4. **Shared components across pages** (inspired by Ranorex's own element
+   repository) — for an
+   application with several pages, common chrome (nav bar, header, footer)
+   shouldn't be regenerated and duplicated per page. Scope: an explicit,
+   tester-provided list of URLs, each generated and referencing a shared
+   component Page Object for the parts they have in common — not automatic
+   crawling/discovery of pages, which doesn't fit a real multi-page site
+   (unbounded surface, e.g. thousands of product pages) and breaks down
+   further for SPA navigation that doesn't change the URL at all. Risk: keep
+   it opt-in, so an existing generated page doesn't break if it doesn't
+   reference a shared component.
