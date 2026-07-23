@@ -21,6 +21,12 @@ export function BrowserPane({
       <div className="browser-title">
         <div className="tab"><Globe2 /><span>{state.title || 'New tab'}</span></div>
         <span className="window-drag" />
+        {recording && (
+          <div className="recording-banner" role="status">
+            <span /><strong>Recording</strong><em>Interactions become test steps</em>
+            <button onClick={onStopRecording}>Stop</button>
+          </div>
+        )}
       </div>
       <div className="browser-toolbar">
         <button aria-label="Go back" disabled={!state.canGoBack} onClick={() => window.cliq?.browser.back()}><ArrowLeft /></button>
@@ -36,12 +42,6 @@ export function BrowserPane({
           <Globe2 />
           <h2>{state.error ? 'Page failed to load' : 'Open a page'}</h2>
           <p>{state.error || 'Enter an HTTP or HTTPS URL above.'}</p>
-        </div>
-      )}
-      {recording && (
-        <div className="recording-banner">
-          <span /><strong>Recording</strong><em>Interactions become test steps</em>
-          <button onClick={onStopRecording}>Stop</button>
         </div>
       )}
     </aside>

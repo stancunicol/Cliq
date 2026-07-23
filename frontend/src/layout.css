@@ -1,5 +1,17 @@
 .sidebar { position: relative; }
 .app { min-width: 0; }
+.workspace {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+.topbar { flex: none; }
+.editor,
+.results {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+}
 .titlebar-drag { height: 38px; flex: none; -webkit-app-region: drag; }
 .sidebar-library { min-height: 0; overflow: auto; }
 .sidebar-search { margin: 0 10px 8px; }
@@ -50,3 +62,49 @@
 .step-config input,.step-config select { min-width: 0; height: 30px; border: 1px solid #303330; border-radius: 6px; background: #202220; color: #cfd1cd; padding: 0 8px; font-size: 11px; outline: none; }
 .step-config input:focus,.step-config select:focus { border-color: #8066c8; box-shadow: 0 0 0 2px #8066c822; }
 button { cursor: pointer; }
+
+.browser-title .recording-banner {
+  position: static;
+  z-index: auto;
+  left: auto;
+  bottom: auto;
+  transform: none;
+  flex: none;
+  margin-left: 8px;
+  padding: 5px 7px;
+  gap: 6px;
+  border-radius: 7px;
+  box-shadow: none;
+  font-size: 10px;
+  -webkit-app-region: no-drag;
+}
+
+.browser-title .recording-banner button {
+  padding: 3px 6px;
+}
+
+@media (max-width: 1200px) {
+  .app {
+    grid-template-columns: 196px minmax(0, 1fr) 360px;
+  }
+
+  .topbar {
+    padding-inline: 16px;
+  }
+
+  .top-actions {
+    gap: 5px;
+  }
+
+  .top-actions button {
+    padding-inline: 9px;
+  }
+
+  .editor {
+    padding-inline: 20px;
+  }
+
+  .browser-title .recording-banner em {
+    display: none;
+  }
+}
