@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cliq recorder fixture</title>
+  <style>
+    body { max-width: 720px; margin: 48px auto; padding: 0 24px; font: 16px system-ui, sans-serif; color: #20231f; }
+    main { display: grid; gap: 18px; }
+    button, input, select { min-height: 42px; padding: 8px 12px; font: inherit; }
+    button { display: inline-flex; align-items: center; gap: 8px; width: max-content; }
+    output { padding: 12px; border-radius: 6px; background: #eef5ef; font-weight: 700; }
+    label { display: grid; gap: 6px; }
+    .check { display: flex; align-items: center; gap: 8px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Recorder fixture</h1>
+    <p>This isolated page verifies that recorded interactions still perform their real page actions.</p>
+    <button type="button" data-testid="increment-counter">
+      <span aria-hidden="true">＋</span>
+      <span>Increment counter</span>
+    </button>
+    <output aria-live="polite">Count: 0</output>
+    <label for="display-name">Display name</label>
+    <input id="display-name" name="displayName" autocomplete="off">
+    <label for="role">Role</label>
+    <select id="role" name="role">
+      <option value="developer">Developer</option>
+      <option value="tester">Tester</option>
+    </select>
+    <label class="check"><input id="terms" name="terms" type="checkbox"> Accept terms</label>
+    <a href="/complete.html"><span>Continue to completion</span></a>
+  </main>
+  <script>
+    const button = document.querySelector('[data-testid="increment-counter"]')
+    const output = document.querySelector('output')
+    let count = 0
+    button.addEventListener('click', () => {
+      count += 1
+      output.textContent = `Count: ${count}`
+    })
+  </script>
+</body>
+</html>

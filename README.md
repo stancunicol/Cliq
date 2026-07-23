@@ -1,8 +1,10 @@
 # Cliq
 
-Cliq is a local Electron workbench for discovering web elements, recording browser workflows,
-running those workflows with Selenium, and generating maintainable C# Page Objects and NUnit
-tests.
+Cliq is a local Electron workbench for discovering web elements, recording and visibly replaying
+browser workflows, and generating maintainable Selenium C# Page Objects and NUnit tests.
+
+Interactive runs play back inside Cliq's embedded browser so every highlighted, paced action is
+visible. Generated NUnit workflows still use Selenium WebDriver for CI and external execution.
 
 ## Repository layout
 

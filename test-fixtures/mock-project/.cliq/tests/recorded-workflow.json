@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "id": "recorded-workflow",
+  "name": "Recorded workflow",
+  "description": "End-to-end fixture for recording, generation, and execution.",
+  "tags": [
+    "critical"
+  ],
+  "steps": [
+    {
+      "id": "open-fixture",
+      "action": "navigate",
+      "label": "Open recorder fixture",
+      "enabled": true,
+      "url": "http://127.0.0.1:4174/"
+    },
+    {
+      "id": "click-counter",
+      "action": "click",
+      "label": "Click counter",
+      "enabled": true,
+      "pageId": "recorder-fixture",
+      "elementId": "increment-counter"
+    },
+    {
+      "id": "assert-counter",
+      "action": "assertText",
+      "label": "Verify counter changed",
+      "enabled": true,
+      "pageId": "recorder-fixture",
+      "elementId": "counter-output",
+      "value": {
+        "kind": "literal",
+        "value": "Count: 1"
+      }
+    },
+    {
+      "id": "fill-name",
+      "action": "fill",
+      "label": "Fill display name",
+      "enabled": true,
+      "pageId": "recorder-fixture",
+      "elementId": "display-name",
+      "value": {
+        "kind": "literal",
+        "value": "Cliq tester"
+      }
+    }
+  ],
+  "updatedAt": "2026-07-23T00:00:00Z"
+}

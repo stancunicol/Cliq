@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+const optionalStringSchema = z.string().nullish().transform((value) => value ?? undefined)
+
 const httpUrlSchema = z.url().refine((value) => {
   const protocol = new URL(value).protocol
   return protocol === 'http:' || protocol === 'https:'
@@ -10,7 +12,7 @@ export const identifierSchema = z.string().min(1).max(200)
 const locatorSchema = z.object({
   strategy: z.enum(['testId', 'id', 'name', 'css', 'xpath']),
   value: z.string().min(1),
-  displayName: z.string().optional(),
+  displayName: optionalStringSchema,
 })
 
 const pageElementSchema = z.object({
@@ -28,7 +30,7 @@ const pageElementSchema = z.object({
     'assertUrl',
   ]),
   locator: locatorSchema,
-  expectedText: z.string().optional(),
+  expectedText: optionalStringSchema,
 })
 
 export const pageSchema = z.object({
@@ -59,18 +61,18 @@ const testStepSchema = z.object({
   ]),
   label: z.string().min(1),
   enabled: z.boolean(),
-  pageId: z.string().optional(),
-  elementId: z.string().optional(),
-  url: httpUrlSchema.optional(),
-  value: stepValueSchema.optional(),
-  timeoutMs: z.number().int().positive().optional(),
+  pageId: optionalStringSchema,
+  elementId: optionalStringSchema,
+  url: httpUrlSchema.nullish().transform((value) => value ?? undefined),
+  value: stepValueSchema.nullish().transform((value) => value ?? undefined),
+  timeoutMs: z.number().int().positive().nullish().transform((value) => value ?? undefined),
 })
 
 export const testCaseSchema = z.object({
   schemaVersion: z.literal(1),
   id: z.string().min(1),
   name: z.string().min(1),
-  description: z.string().optional(),
+  description: optionalStringSchema,
   tags: z.array(z.string()),
   steps: z.array(testStepSchema),
   updatedAt: z.string(),

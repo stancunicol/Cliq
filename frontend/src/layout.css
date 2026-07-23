@@ -38,4 +38,15 @@
 .sidebar-empty { padding: 22px 14px; color: #747772; display: flex; align-items: center; gap: 8px; font-size: 12px; }
 .sidebar-empty svg { width: 14px; }
 .result-icon.failed { background: #552b26; color: #f0a194; }
+.result-waiting { margin: 0; padding: 18px 15px; color: #777b76; font-size: 12px; }
+.result-row > span.failed { background: #552b26; color: #f0a194; }
+.result-row.current { background: #211d2b; box-shadow: inset 2px 0 #a98df5; }
+.result-row.current > span { background: #3a3151; color: #c9b7f7; }
+.result-row.pending { opacity: .55; }
+.result-row.pending > span > span { width: 5px; height: 5px; border-radius: 50%; background: #777b76; }
+.step-enabled { margin-left: auto; display: flex; align-items: center; gap: 5px; color: #777b76; font-size: 10px; }
+.step-enabled input { accent-color: #8f73df; }
+.step-config { display: grid; grid-template-columns: minmax(110px, .75fr) minmax(140px, 1fr); gap: 6px; margin-top: 8px; }
+.step-config input,.step-config select { min-width: 0; height: 30px; border: 1px solid #303330; border-radius: 6px; background: #202220; color: #cfd1cd; padding: 0 8px; font-size: 11px; outline: none; }
+.step-config input:focus,.step-config select:focus { border-color: #8066c8; box-shadow: 0 0 0 2px #8066c822; }
 button { cursor: pointer; }

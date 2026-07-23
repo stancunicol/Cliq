@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, Ellipsis, Globe2, RefreshCw, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Globe2, RefreshCw } from 'lucide-react'
 import type { BrowserState } from '../../types'
 
 export function BrowserPane({
@@ -25,12 +25,11 @@ export function BrowserPane({
       <div className="browser-toolbar">
         <button aria-label="Go back" disabled={!state.canGoBack} onClick={() => window.cliq?.browser.back()}><ArrowLeft /></button>
         <button aria-label="Go forward" disabled={!state.canGoForward} onClick={() => window.cliq?.browser.forward()}><ArrowRight /></button>
-        <button aria-label="Reload" onClick={() => window.cliq?.browser.reload()}>{state.loading ? <X /> : <RefreshCw />}</button>
+        <button aria-label="Reload" disabled={state.loading} onClick={() => window.cliq?.browser.reload()}><RefreshCw /></button>
         <form onSubmit={(event) => { event.preventDefault(); onNavigate() }}>
           <Globe2 />
           <input aria-label="Browser URL" value={url} onChange={(event) => onUrl(event.target.value)} />
         </form>
-        <button aria-label="Browser options"><Ellipsis /></button>
       </div>
       {(state.error || !state.url || state.url === 'about:blank') && (
         <div className="browser-fallback">
