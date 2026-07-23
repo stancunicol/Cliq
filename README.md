@@ -278,17 +278,6 @@ dotnet test src/PageObjectGenerator.Core.Tests
   `PageObjectRunner`'s live execution — those depend on a real page and are
   only exercised by `Demo.Tests` / manual `/run` calls.
 
-## Risks
-
-| Risk | Impact | Mitigation |
-|---|---|---|
-| Sending scanned page data (URLs, element text, ids) to an external AI service | High if the page under test contains internal/proprietary content | Prefer a local model or an enterprise zero-retention agreement for anything beyond generic structural metadata |
-| Non-deterministic AI output breaking reproducible generation (same page → different names on every regeneration) | Medium — undermines the "regenerating is safe" property the tool has today | Validate all AI output through the existing `IdentifierNaming` gate before accepting it |
-| Single DOM snapshot misses dynamically-revealed elements | Medium — incomplete Page Objects on menu/modal-heavy pages | Documented as a known limitation; would need interactive exploration to fix |
-| Vendor dependency if using an external LLM API (pricing, rate limits, availability) | Medium, only if that option is chosen | Keep the AI integration point isolated (e.g. behind an interface) so the provider can be swapped without touching `Core`'s generation logic |
-| VS extension depends on the REST/WebSocket API being reachable and version-compatible | Medium — extension is unusable if the host isn't running or has drifted from what the extension expects | Extension owns starting/stopping the API host itself instead of assuming it's already running, and version-checks the API on connect |
-| Shared components across pages change the current one-class-per-page model; an existing generated page shouldn't break if it doesn't opt in | Medium — regressions in Page Objects nobody meant to touch | Opt-in only: a page references a shared component explicitly; the single-page generation flow already in use stays untouched by default |
-
 ## Next steps
 
 Four directions agreed as the near-term scope, roughly in the order they'd
@@ -298,7 +287,9 @@ naturally build on each other:
    Consumes the existing REST/WebSocket API as a client (the reason that API
    was built in the first place) rather than calling
    `Core` in-process, so it becomes the first real client of that API instead
-   of a second, parallel execution path.
+   of a second, parallel execution path. Risk: should own starting/stopping
+   the API host itself and version-check it on connect, rather than assume
+   it's already running and compatible.
 2. **Pre-test failure-risk analysis** — a report of which generated elements
    are most likely to break, based on `LocatorStrategy` (`Id`/`Name`/
    `data-testid` = low risk, structural `nth-child` fallback = high risk).
@@ -315,4 +306,5 @@ naturally build on each other:
    the parts they have in common — not automatic crawling/discovery of
    pages, which doesn't fit a real multi-page site (unbounded surface, e.g.
    thousands of product pages) and breaks down further for SPA navigation
-   that doesn't change the URL at all.
+   that doesn't change the URL at all. Risk: keep it opt-in, so an existing
+   generated page doesn't break if it doesn't reference a shared component.
