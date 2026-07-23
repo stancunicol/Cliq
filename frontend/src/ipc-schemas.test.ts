@@ -38,4 +38,30 @@ describe('IPC schemas', () => {
 
     expect(parsed.success).toBe(true)
   })
+
+  it('normalizes nullable optional fields returned by the .NET backend', () => {
+    const parsed = testCaseSchema.parse({
+      schemaVersion: 1,
+      id: 'round-trip',
+      name: 'Round trip',
+      description: null,
+      tags: [],
+      steps: [{
+        id: 'open',
+        action: 'navigate',
+        label: 'Open',
+        enabled: true,
+        pageId: null,
+        elementId: null,
+        url: 'https://example.com',
+        value: null,
+        timeoutMs: null,
+      }],
+      updatedAt: new Date().toISOString(),
+    })
+
+    expect(parsed.description).toBeUndefined()
+    expect(parsed.steps[0].pageId).toBeUndefined()
+    expect(parsed.steps[0].value).toBeUndefined()
+  })
 })

@@ -14,15 +14,17 @@ namespace Cliq.Infrastructure;
 public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRunner
 {
     public Task<TestRun> RunAsync(
+        string runId,
         TestCase test,
         IReadOnlyDictionary<string, PageDefinition> pages,
         DomainBrowser browser,
         IReadOnlyDictionary<string, string> secrets,
         IProgress<DomainStepResult> progress,
         CancellationToken cancellationToken) =>
-        Task.Run(() => Run(test, pages, browser, secrets, progress, cancellationToken), cancellationToken);
+        Task.Run(() => Run(runId, test, pages, browser, secrets, progress, cancellationToken), cancellationToken);
 
     private TestRun Run(
+        string runId,
         TestCase test,
         IReadOnlyDictionary<string, PageDefinition> pages,
         DomainBrowser browser,
@@ -30,7 +32,6 @@ public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRu
         IProgress<DomainStepResult> progress,
         CancellationToken cancellationToken)
     {
-        var runId = Guid.NewGuid().ToString("N");
         var started = DateTimeOffset.UtcNow;
         var results = new List<DomainStepResult>();
         using var driver = BrowserFactory.Create(
