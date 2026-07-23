@@ -101,11 +101,15 @@ public static class PageObjectCodeGenerator
                 // No native By overload covers "name AND value", so this one stays
                 // CSS - built from a compile-time-known prefix (the group name) plus
                 // the runtime value. Single quotes for the CSS attribute value avoid
-                // colliding with the double quotes a C# string literal uses.
-                var radioPrefix = ToCSharpStringLiteral($"input[name='{element.LocatorValue}'][value='");
+                // colliding with the double quotes a C# string literal uses; both the
+                // group name (escaped here, at generation time) and the runtime value
+                // (escaped inline, below) are CSS-escaped so an apostrophe in either
+                // can't break the selector.
+                var radioPrefix = ToCSharpStringLiteral($"input[name='{CssEscapeSingleQuoted(element.LocatorValue)}'][value='");
                 sb.AppendLine($"    public void Select{name}(string value)");
                 sb.AppendLine("    {");
-                sb.AppendLine($"        var element = _wait.Until(d => d.FindElement(By.CssSelector({radioPrefix} + value + \"']\")));");
+                sb.AppendLine(@"        var escapedValue = value.Replace(""\\"", ""\\\\"").Replace(""'"", ""\\'"");");
+                sb.AppendLine($"        var element = _wait.Until(d => d.FindElement(By.CssSelector({radioPrefix} + escapedValue + \"']\")));");
                 sb.AppendLine("        element.Click();");
                 sb.AppendLine("    }");
                 break;
@@ -140,6 +144,16 @@ public static class PageObjectCodeGenerator
         sb.AppendLine("}");
         return sb.ToString();
     }
+
+    /// <summary>
+    /// Escapes a value for safe embedding inside a single-quoted CSS attribute
+    /// selector (e.g. <c>[value='...']</c>) - an unescaped apostrophe in the
+    /// value would otherwise terminate the selector early. Used both at
+    /// generation time (for a Radio group's compile-time-known name) and at
+    /// runtime (<see cref="PageObjectRunner"/>, same assembly).
+    /// </summary>
+    internal static string CssEscapeSingleQuoted(string value) =>
+        value.Replace("\\", "\\\\").Replace("'", "\\'");
 
     /// <summary>Emits the Selenium locator call as C# source text - By.Id/By.Name where a native strategy applies, By.CssSelector otherwise.</summary>
     internal static string ByExpression(ElementDescriptor element)

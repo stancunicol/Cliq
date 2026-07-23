@@ -87,7 +87,34 @@ public class PageObjectCodeGeneratorTests
         var code = PageObjectCodeGenerator.Generate("Page", "Generated", elements);
 
         Assert.That(code, Does.Contain("public void SelectSnack(string value)"));
-        Assert.That(code, Does.Contain("\"input[name='snack'][value='\" + value + \"']\""));
+        Assert.That(code, Does.Contain("\"input[name='snack'][value='\" + escapedValue + \"']\""));
+    }
+
+    [TestCase("snack", "snack")]
+    [TestCase("o'clock", "o\\'clock")]
+    [TestCase(@"back\slash", @"back\\slash")]
+    public void CssEscapeSingleQuoted_EscapesBackslashAndApostrophe(string input, string expected)
+    {
+        Assert.That(PageObjectCodeGenerator.CssEscapeSingleQuoted(input), Is.EqualTo(expected));
+    }
+
+    [Test]
+    public void Generate_Radio_EscapesApostropheInGroupName()
+    {
+        // A group name with an apostrophe (e.g. "o'clock") would otherwise
+        // terminate the CSS attribute selector early - this is the same class
+        // of bug as the unescaped-newline string-splitting issue, just for a
+        // single-quoted CSS value instead of a C# string literal.
+        var elements = new List<ElementDescriptor>
+        {
+            new("input", ElementActionKind.Radio, LocatorStrategy.Name, "o'clock", "snack"),
+        };
+
+        var code = PageObjectCodeGenerator.Generate("Page", "Generated", elements);
+        var expectedPrefix = PageObjectCodeGenerator.ToCSharpStringLiteral(
+            "input[name='" + PageObjectCodeGenerator.CssEscapeSingleQuoted("o'clock") + "'][value='");
+
+        Assert.That(code, Does.Contain(expectedPrefix));
     }
 
     [Test]

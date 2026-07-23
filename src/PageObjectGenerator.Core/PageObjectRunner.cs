@@ -167,7 +167,8 @@ public static class PageObjectRunner
                 case ElementActionKind.Radio:
                     if (value is not null)
                     {
-                        var optionSelector = "input[name='" + element.LocatorValue + "'][value='" + value + "']";
+                        var optionSelector = "input[name='" + PageObjectCodeGenerator.CssEscapeSingleQuoted(element.LocatorValue) +
+                            "'][value='" + PageObjectCodeGenerator.CssEscapeSingleQuoted(value) + "']";
                         driver.FindElement(By.CssSelector(optionSelector)).Click();
                     }
                     else

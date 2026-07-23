@@ -27,24 +27,44 @@ for (var i = 1; i < args.Length; i++)
     switch (args[i])
     {
         case "--browser":
-            browser = PageObjectWorkflow.ParseBrowserKind(args[++i]);
+            if (!TryNextArg(args, ref i, "--browser", out var browserValue)) return 1;
+            browser = PageObjectWorkflow.ParseBrowserKind(browserValue);
             break;
         case "--headless":
             headless = true;
             break;
         case "--class":
-            className = args[++i];
+            if (!TryNextArg(args, ref i, "--class", out var classValue)) return 1;
+            className = classValue;
             break;
         case "--namespace":
-            @namespace = args[++i];
+            if (!TryNextArg(args, ref i, "--namespace", out var namespaceValue)) return 1;
+            @namespace = namespaceValue;
             break;
         case "--out":
-            outDir = args[++i];
+            if (!TryNextArg(args, ref i, "--out", out var outValue)) return 1;
+            outDir = outValue;
             break;
         default:
             Console.Error.WriteLine($"Unknown option '{args[i]}'");
             return 1;
     }
+}
+
+// Bounds-checks the value following a flag (e.g. "--browser" as the last
+// argument, with nothing after it) instead of letting args[++i] throw an
+// unhandled IndexOutOfRangeException.
+static bool TryNextArg(string[] args, ref int i, string option, out string value)
+{
+    if (i + 1 >= args.Length)
+    {
+        Console.Error.WriteLine($"Missing value for {option}");
+        value = "";
+        return false;
+    }
+
+    value = args[++i];
+    return true;
 }
 
 className ??= PageObjectWorkflow.DeriveClassName(url);
