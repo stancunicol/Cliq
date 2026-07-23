@@ -1,0 +1,226 @@
+import {
+  app,
+  BaseWindow,
+  dialog,
+  ipcMain,
+  Menu,
+  session,
+  WebContentsView,
+} from 'electron'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { BackendSupervisor } from './backend-supervisor.js'
+import { BrowserController } from './browser-controller.js'
+import {
+  booleanSchema,
+  boundsSchema,
+  generationRequestSchema,
+  httpNavigationSchema,
+  identifierSchema,
+  pageSchema,
+  scanRequestSchema,
+  secretValuesSchema,
+  startRunRequestSchema,
+  testCaseSchema,
+} from './ipc-schemas.js'
+
+const dirname = path.dirname(fileURLToPath(import.meta.url))
+const repositoryRoot = path.resolve(dirname, '..', '..')
+const backend = new BackendSupervisor(repositoryRoot)
+let window: BaseWindow | undefined
+let shell: WebContentsView | undefined
+let browser: BrowserController | undefined
+
+async function createWindow() {
+  window = new BaseWindow({
+    width: 1680,
+    height: 1000,
+    minWidth: 1120,
+    minHeight: 720,
+    titleBarStyle: 'hidden',
+    backgroundColor: '#111211',
+  })
+  shell = new WebContentsView({
+    webPreferences: {
+      preload: path.join(dirname, 'preload.cjs'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  })
+  window.contentView.addChildView(shell)
+  browser = new BrowserController(window, shell, dirname)
+  const resize = () => {
+    if (!window || !shell) return
+    const bounds = window.getContentBounds()
+    shell.setBounds({ x: 0, y: 0, width: bounds.width, height: bounds.height })
+    browser?.resize()
+  }
+  window.on('resize', resize)
+  window.on('closed', () => {
+    shell?.webContents.close()
+    browser?.close()
+    shell = undefined
+    browser = undefined
+    window = undefined
+  })
+  resize()
+  await shell.webContents.loadURL(
+    process.env.VITE_DEV_SERVER_URL || `file://${path.join(dirname, '../dist/index.html')}`,
+  )
+}
+
+async function chooseAndOpenWorkspace() {
+  if (!window) return null
+  const result = await dialog.showOpenDialog(window, {
+    properties: ['openDirectory', 'createDirectory'],
+    title: 'Open Cliq workspace',
+  })
+  if (result.canceled) return null
+  return backend.request('/api/v1/workspaces/open', {
+    method: 'POST',
+    body: JSON.stringify({ rootPath: result.filePaths[0] }),
+  })
+}
+
+function installIpc() {
+  ipcMain.handle('workspace:choose-open', chooseAndOpenWorkspace)
+  ipcMain.handle('workspace:get', () => backend.request('/api/v1/workspace'))
+  ipcMain.handle('workspace:save-page', (_event, candidate) => {
+    const page = pageSchema.parse(candidate)
+    return backend.request(`/api/v1/pages/${encodeURIComponent(page.id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(page),
+    })
+  })
+  ipcMain.handle('workspace:save-test', (_event, candidate) => {
+    const test = testCaseSchema.parse(candidate)
+    return backend.request(`/api/v1/tests/${encodeURIComponent(test.id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(test),
+    })
+  })
+  ipcMain.handle('workspace:delete-test', (_event, candidate) => {
+    const id = identifierSchema.parse(candidate)
+    return backend.request(`/api/v1/tests/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  })
+  ipcMain.handle('workspace:scan-page', (_event, candidate) => {
+    const request = scanRequestSchema.parse(candidate)
+    return backend.request('/api/v1/pages/scan', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    })
+  })
+  ipcMain.handle(
+    'workspace:generate',
+    (_event, candidate) => {
+      const request = generationRequestSchema.parse(candidate)
+      return backend.request('/api/v1/generation', {
+        method: 'POST',
+        body: JSON.stringify(request),
+      })
+    },
+  )
+  ipcMain.handle(
+    'workspace:start-run',
+    async (_event, candidate) => {
+      const request = startRunRequestSchema.parse(candidate)
+      const run = await backend.request<{ id: string }>(
+        `/api/v1/tests/${encodeURIComponent(request.testId)}/runs`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ browser: request.browser }),
+        },
+      )
+      void backend
+        .streamRunEvents(run.id, (type, payload) => {
+          shell?.webContents.send(
+            'workspace:run-event',
+            type === 'done' ? { type, run: payload } : { type, step: payload },
+          )
+        })
+        .catch((error: Error) => {
+          shell?.webContents.send('workspace:run-event', {
+            type: 'done',
+            run: { ...run, status: 'failed', error: error.message, steps: [] },
+          })
+        })
+      return run
+    },
+  )
+  ipcMain.handle('workspace:cancel-run', (_event, candidate) => {
+    const runId = identifierSchema.parse(candidate)
+    return backend.request(`/api/v1/runs/${encodeURIComponent(runId)}/cancel`, { method: 'POST' })
+  })
+  ipcMain.handle('workspace:save-secrets', (_event, candidate) => {
+    const values = secretValuesSchema.parse(candidate)
+    return backend.request('/api/v1/secrets', {
+      method: 'PUT',
+      body: JSON.stringify(values),
+    })
+  })
+
+  ipcMain.handle('browser:navigate', (_event, candidate) =>
+    browser?.navigate(httpNavigationSchema.parse(candidate)),
+  )
+  ipcMain.handle('browser:back', () => browser?.back())
+  ipcMain.handle('browser:forward', () => browser?.forward())
+  ipcMain.handle('browser:reload', () => browser?.reload())
+  ipcMain.handle('browser:bounds', (_event, value) => browser?.setBounds(boundsSchema.parse(value)))
+  ipcMain.handle('browser:visible', (_event, candidate) =>
+    browser?.setVisible(booleanSchema.parse(candidate)),
+  )
+  ipcMain.handle('browser:recording', (_event, candidate) =>
+    browser?.setRecording(booleanSchema.parse(candidate)),
+  )
+}
+
+function installMenu() {
+  const isMac = process.platform === 'darwin'
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate([
+      ...(isMac ? [{ role: 'appMenu' as const }] : []),
+      {
+        label: 'Project',
+        submenu: [
+          {
+            label: 'Open Workspace…',
+            accelerator: 'CmdOrCtrl+O',
+            click: async () => {
+              const snapshot = await chooseAndOpenWorkspace()
+              if (snapshot) shell?.webContents.send('workspace:opened', snapshot)
+            },
+          },
+        ],
+      },
+      { role: 'editMenu' },
+      { role: 'viewMenu' },
+      { role: 'windowMenu' },
+    ]),
+  )
+}
+
+app.whenReady().then(async () => {
+  session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) =>
+    callback(false),
+  )
+  session.defaultSession.setPermissionCheckHandler(() => false)
+  await backend.start()
+  installIpc()
+  installMenu()
+  await createWindow()
+}).catch((error: unknown) => {
+  dialog.showErrorBox(
+    'Cliq could not start',
+    error instanceof Error ? error.message : String(error),
+  )
+  app.quit()
+})
+
+app.on('activate', () => {
+  if (!window) void createWindow()
+})
+app.on('before-quit', () => backend.stop())
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit()
+})
