@@ -21,7 +21,7 @@ export class BackendSupervisor {
     const executable = resolveDotnet()
     const project = path.join(
       this.repositoryRoot,
-      'Untitled',
+      'backend',
       'src',
       'Cliq.Api',
       'Cliq.Api.csproj',

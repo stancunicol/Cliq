@@ -6,8 +6,8 @@ tests.
 
 ## Repository layout
 
-- `Cliq-ui/` - Electron main/preload processes and the React renderer.
-- `Untitled/` - .NET 10 domain, application, infrastructure, API, and tests.
+- `frontend/` - Electron main/preload processes and the React renderer.
+- `backend/` - .NET 10 domain, application, infrastructure, API, and tests.
 - `docs/architecture.md` - process, security, data, and dependency boundaries.
 
 The product brief in `project-details/` is intentionally local and excluded from Git.
@@ -23,7 +23,7 @@ The product brief in `project-details/` is intentionally local and excluded from
 Install frontend dependencies:
 
 ```bash
-cd Cliq-ui
+cd frontend
 npm ci
 ```
 
@@ -41,7 +41,7 @@ receives the API bearer token and communicates through the sandboxed preload bri
 Frontend:
 
 ```bash
-cd Cliq-ui
+cd frontend
 npm run lint
 npm run typecheck
 npm test
@@ -52,7 +52,7 @@ npm audit --audit-level=high
 Backend:
 
 ```bash
-cd Untitled
+cd backend
 dotnet build Cliq.slnx --configuration Release
 dotnet test Cliq.slnx --configuration Release --no-build
 dotnet format Cliq.slnx --verify-no-changes --no-restore
