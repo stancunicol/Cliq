@@ -15,27 +15,6 @@ public sealed record RunResult(
     string? BaselineScreenshotPath,
     IReadOnlyList<StepResult> Steps);
 
-/// <summary>
-/// Re-opens a previously generated page and actually performs each discovered
-/// action (fill/click/select/check/...) live, non-headless by default, with a
-/// short pause between steps so a human can watch it happen. Unlike the
-/// generated NUnit smoke tests, this exercises the page instead of just
-/// checking presence. A failed step (e.g. a decorative element that isn't
-/// really clickable, even though it reports as displayed) doesn't stop the
-/// run - the remaining steps still target the same page and are worth trying.
-/// Only a click that actually navigates the page away stops the sequence,
-/// since every selector after that was resolved against a DOM that's gone.
-/// Every failed step is screenshotted (best-effort) so a human reviewing the
-/// run afterward can see what the page actually looked like at that point.
-/// Also captures a "before" screenshot at the start of each run - it can't show
-/// drift on its own (it always matches "now"), but paired with the fixed
-/// generation-time screenshot (see PageObjectWorkflow) it lets a human compare
-/// "when this Page Object was built" against "right before this specific run".
-/// The whole run is synchronous/blocking (it's driving a real browser); the
-/// optional onStep callback is how a caller gets progress before the final
-/// RunResult - e.g. the API's WebSocket endpoint runs this on a background
-/// thread and forwards each step over the socket as onStep fires.
-/// </summary>
 public static class PageObjectRunner
 {
     private const string DefaultFillValue = "test";

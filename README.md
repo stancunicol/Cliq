@@ -54,21 +54,20 @@ Spy tool inspects a running app — not by parsing raw HTML as static text.
 src/
   PageObjectGenerator.Core/        library: DOM scanning, naming, code generators, live execution
   PageObjectGenerator.Core.Tests/  unit tests for Core (no browser, no network)
-  PageObjectGenerator.Cli/         command line entry point wiring it all together
   PageObjectGenerator.Api/         HTTP API (REST + WebSocket) over the same library
   PageObjectGenerator.Demo.Tests/  NUnit project that compiles and runs the generated example
   PageObjectGenerator.VsExtension/ (planned) VSIX client of the API
-GeneratedPages/                    CLI/API output (Page Objects + NUnit tests + metadata)
+GeneratedPages/                    API output (Page Objects + NUnit tests + metadata)
   Shared/                          (planned) shared component Page Objects
 Screenshots/                       screenshots taken during generation and /run (gitignored)
 ```
 
-Central decision: **one `Core` reused by two clients** (CLI, API), not two
-parallel implementations.
+Central decision: **all generation/execution logic lives in `Core`**, called
+by `Api` — not duplicated into the host.
 
 - `PageObjectWorkflow` (generation) and `PageObjectRunner` (live execution)
   are the single source of truth.
-- CLI and API are thin layers on top.
+- `Api` is a thin layer on top.
 
 ### Component responsibilities
 
@@ -98,8 +97,8 @@ parallel implementations.
   thread-pool thread; `onStep` pushes each step through a `Channel<T>` to the
   socket without blocking the browser thread.
 - **CWD-independent paths** — `SolutionPaths` walks up to the `.sln` file and
-  anchors `GeneratedPages/`/`Screenshots/` there, so CLI and API resolve the
-  same locations regardless of working directory.
+  anchors `GeneratedPages/`/`Screenshots/` there, regardless of the process's
+  working directory.
 - **`/run` continues past failures, stops only on navigation** — a `Click`
   that succeeds and changes the URL stops the run; every other failure just
   gets reported and execution continues.
@@ -135,28 +134,6 @@ Four tools/approaches named as inspiration, not requirements:
 - **UI Spy / Object Spy** — adopted "inspect the live, rendered UI"; not
   adopted the interactive/manual exploration model.
 
-## Running (CLI)
-
-```
-dotnet run --project src/PageObjectGenerator.Cli -- <url> [options]
-
-Options:
-  --browser chrome|edge   Browser to drive (default: chrome)
-  --headless              Run without a visible window
-  --class <Name>          Page Object class name (default: derived from the URL)
-  --namespace <Ns>        Namespace for generated code (default: Generated)
-  --out <dir>             Output directory (default: GeneratedPages)
-```
-
-Example (the end-to-end demo):
-
-```
-dotnet run --project src/PageObjectGenerator.Cli -- "https://the-internet.herokuapp.com/login" --browser edge --headless --class LoginPage --namespace GeneratedPages
-```
-
-Generated files are overwritten on every run — source code meant to be
-compiled and tracked in git, not throwaway artifacts.
-
 ## Running (API)
 
 ```
@@ -169,6 +146,8 @@ dotnet run --project src/PageObjectGenerator.Api
   extension).
 - CORS is currently permissive (`AllowAnyOrigin`) — tighten once the client
   is known.
+- Generated files are overwritten on every generation call — source code
+  meant to be compiled and tracked in git, not throwaway artifacts.
 
 ### Endpoints
 

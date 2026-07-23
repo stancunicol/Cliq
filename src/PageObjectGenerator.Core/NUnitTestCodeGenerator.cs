@@ -2,20 +2,6 @@ using System.Text;
 
 namespace PageObjectGenerator.Core;
 
-/// <summary>
-/// Generates a smoke-test NUnit fixture: one [Test] per discovered element.
-/// For Fill/Click/Select/Check elements this asserts presence/visibility/
-/// enabled state - deliberately not exercising the action with made-up values,
-/// since the generator has no domain knowledge of what a "valid" login is, and
-/// invoking a submit button would navigate the page out from under the other
-/// generated tests. For Assert elements (headings) it instead asserts the text
-/// equals the value captured at generation time - a real snapshot check.
-///
-/// A [OneTimeSetUp] verifies the whole Page Object once, before any individual
-/// [Test] runs: if the page has drifted and three elements are now missing,
-/// this fails once with all three named, instead of three separate, less
-/// informative per-test failures further down the same run.
-/// </summary>
 public static class NUnitTestCodeGenerator
 {
     public static string Generate(

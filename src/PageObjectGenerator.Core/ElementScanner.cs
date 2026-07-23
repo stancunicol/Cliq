@@ -6,24 +6,6 @@ namespace PageObjectGenerator.Core;
 
 public static class ElementScanner
 {
-    // Walks the live DOM and describes every fillable/clickable/assertable
-    // element that a human tester could actually see and interact with -
-    // elements with zero rendered size or hidden via CSS are skipped, since
-    // generating a test for something nobody could click just produces a test
-    // that fails every run for reasons unrelated to the page's actual behavior.
-    // For each surviving element: the locator chosen for it (data-testid > id > name > structural
-    // nth-child fallback, each verified to uniquely match only that element
-    // before being accepted - a duplicate id/name in broken markup falls
-    // through to the next candidate instead of silently resolving to the
-    // wrong element later) and the naming hints used to derive an identifier.
-    // Headings are captured as "assert" targets - their current text becomes
-    // the expected value baked into the generated test, i.e. a snapshot
-    // assertion, not an interaction. Radio inputs sharing a "name" are
-    // collapsed into a single "radio" descriptor per group (one method
-    // selects among all options), not one descriptor per option.
-    // Selenium's ExecuteScript runs this as a function body, so an implicit
-    // top-level expression result (unlike CDP's Runtime.evaluate) is not
-    // returned automatically - the explicit "return" below is required.
     private const string ExtractScript = """
         return (() => {
             const candidates = Array.from(document.querySelectorAll(
