@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net10.0": {
+      "Selenium.Support": {
+        "type": "Direct",
+        "requested": "[4.46.0, )",
+        "resolved": "4.46.0",
+        "contentHash": "jnYu0iMTD0S8pZU4e2L/0y6AImO+vW9ckXbNm5rXKSoOAEIy1NsQ4rC9xy5HAf0HMGF2RxZ43J/FCVXeLikvEw==",
+        "dependencies": {
+          "Selenium.WebDriver": "4.46.0"
+        }
+      },
+      "Selenium.WebDriver": {
+        "type": "Direct",
+        "requested": "[4.46.0, )",
+        "resolved": "4.46.0",
+        "contentHash": "7bXGxmHD9mZEYflnUDVdE5IV/O9tat0DgFBnPYSrDv+W+0HrpFR8qMON4tTFNMe1fJHPS5HUIQLQdTKX8744bw=="
+      },
+      "cliq.application": {
+        "type": "Project",
+        "dependencies": {
+          "Cliq.Domain": "[1.0.0, )"
+        }
+      },
+      "cliq.domain": {
+        "type": "Project"
+      }
+    }
+  }
+}

@@ -1,0 +1,11 @@
+* text=auto eol=lf
+*.sln text eol=crlf
+*.slnx text eol=lf
+*.cs text eol=lf
+*.csproj text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.cts text eol=lf
+*.json text eol=lf
+*.png binary
+*.pdf binary

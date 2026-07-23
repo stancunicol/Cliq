@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Cliq.Api/Cliq.Api.csproj" />
+    <Project Path="src/Cliq.Application/Cliq.Application.csproj" />
+    <Project Path="src/Cliq.Domain/Cliq.Domain.csproj" />
+    <Project Path="src/Cliq.Infrastructure/Cliq.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Cliq.UnitTests/Cliq.UnitTests.csproj" />
+  </Folder>
+</Solution>

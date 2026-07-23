@@ -1,0 +1,116 @@
+import { z } from 'zod'
+
+const httpUrlSchema = z.url().refine((value) => {
+  const protocol = new URL(value).protocol
+  return protocol === 'http:' || protocol === 'https:'
+}, 'Only HTTP and HTTPS URLs are supported.')
+
+export const identifierSchema = z.string().min(1).max(200)
+
+const locatorSchema = z.object({
+  strategy: z.enum(['testId', 'id', 'name', 'css', 'xpath']),
+  value: z.string().min(1),
+  displayName: z.string().optional(),
+})
+
+const pageElementSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  tag: z.string().min(1),
+  action: z.enum([
+    'navigate',
+    'click',
+    'fill',
+    'select',
+    'pressKey',
+    'assertVisible',
+    'assertText',
+    'assertUrl',
+  ]),
+  locator: locatorSchema,
+  expectedText: z.string().optional(),
+})
+
+export const pageSchema = z.object({
+  schemaVersion: z.literal(1),
+  id: z.string().min(1),
+  name: z.string().min(1),
+  url: httpUrlSchema,
+  elements: z.array(pageElementSchema),
+  updatedAt: z.string(),
+})
+
+const stepValueSchema = z.object({
+  kind: z.enum(['literal', 'secret']),
+  value: z.string(),
+})
+
+const testStepSchema = z.object({
+  id: z.string().min(1),
+  action: z.enum([
+    'navigate',
+    'click',
+    'fill',
+    'select',
+    'pressKey',
+    'assertVisible',
+    'assertText',
+    'assertUrl',
+  ]),
+  label: z.string().min(1),
+  enabled: z.boolean(),
+  pageId: z.string().optional(),
+  elementId: z.string().optional(),
+  url: httpUrlSchema.optional(),
+  value: stepValueSchema.optional(),
+  timeoutMs: z.number().int().positive().optional(),
+})
+
+export const testCaseSchema = z.object({
+  schemaVersion: z.literal(1),
+  id: z.string().min(1),
+  name: z.string().min(1),
+  description: z.string().optional(),
+  tags: z.array(z.string()),
+  steps: z.array(testStepSchema),
+  updatedAt: z.string(),
+})
+
+export const scanRequestSchema = z.object({
+  url: httpUrlSchema,
+  name: z.string().min(1),
+  browser: z.enum(['chrome', 'edge']).optional(),
+})
+
+export const generationRequestSchema = z.object({
+  pageIds: z.array(identifierSchema).optional(),
+  testIds: z.array(identifierSchema).optional(),
+})
+
+export const startRunRequestSchema = z.object({
+  testId: identifierSchema,
+  browser: z.enum(['chrome', 'edge']).optional(),
+})
+
+export const secretValuesSchema = z.record(identifierSchema, z.string().max(10_000))
+
+export const httpNavigationSchema = httpUrlSchema
+
+export const booleanSchema = z.boolean()
+
+export const boundsSchema = z.object({
+  x: z.number().int(),
+  y: z.number().int(),
+  width: z.number().int().nonnegative(),
+  height: z.number().int().nonnegative(),
+})
+
+export const recordedInteractionSchema = z.object({
+  id: z.string().uuid(),
+  action: z.enum(['click', 'fill', 'select']),
+  label: z.string().min(1).max(160),
+  pageUrl: httpUrlSchema,
+  element: pageElementSchema,
+  value: stepValueSchema.optional(),
+  secretValue: z.string().max(10_000).optional(),
+})

@@ -1,0 +1,53 @@
+# Cliq architecture
+
+## Runtime boundary
+
+Electron is the desktop host. At startup its main process:
+
+1. creates a random per-launch bearer token;
+2. starts `Cliq.Api` on `127.0.0.1:0`;
+3. waits for the machine-readable `CLIQ_READY` message and health check;
+4. proxies validated domain operations through the sandboxed preload bridge; and
+5. terminates the sidecar when the application quits.
+
+The renderer has no filesystem or process access and never receives the sidecar address or token.
+Remote pages run in a separate `WebContentsView` with their own persistent session, denied
+permissions/downloads, sandboxing, context isolation, and restricted navigation.
+
+## Backend layers
+
+- `Cliq.Domain` defines versioned workspace records and run states.
+- `Cliq.Application` owns use cases and infrastructure abstractions.
+- `Cliq.Infrastructure` implements workspace persistence, Selenium discovery/execution, secrets,
+  screenshots, and C#/NUnit generation.
+- `Cliq.Api` is a thin authenticated HTTP/SSE adapter with RFC Problem Details.
+
+Browser work never runs on an ASP.NET request thread. `RunCoordinator` allows one active Selenium
+run, persists state, supports cancellation, and streams step events over server-sent events.
+
+## Workspace model
+
+`project.json`, `pages/*.json`, and `tests/*.json` carry `schemaVersion: 1`. Writes are atomic and
+all configured output paths are checked to remain inside the open workspace.
+
+Automatic DOM scans and Electron recordings create the same `PageDefinition` and stable locator
+model. Locator priority is `data-testid`, unique `id`, unique `name`, then verified CSS; XPath is
+accepted for manually maintained definitions.
+
+Test steps reference page and element IDs rather than duplicating selectors. Generation emits one
+partial Page Object per page plus an NUnit workflow per test. Generated files may be replaced;
+matching `.Custom.cs` files are created once and never overwritten.
+
+## Security posture
+
+- API binding is loopback-only with a random port and fixed-time bearer-token comparison.
+- CORS is not enabled; renderer-to-backend access is main-process mediated.
+- IPC inputs are validated before entering the backend.
+- Remote pages cannot request permissions, open native windows, download files, or navigate to
+  unexpected protocols.
+- Workspace identifiers and output paths are validated against traversal.
+- Sensitive inputs persist only references; local values and run artifacts are ignored by Git.
+
+The application intentionally accepts user-selected HTTP/HTTPS targets for discovery and testing.
+Users should treat those targets as untrusted and avoid opening a workspace containing code they
+do not intend Cliq to generate or update.

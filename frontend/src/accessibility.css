@@ -1,0 +1,8 @@
+.tab button {
+  border: 0;
+  background: transparent;
+  color: #797c77;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
