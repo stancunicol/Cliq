@@ -16,10 +16,6 @@ public static class IdentifierNaming
         "unchecked", "unsafe", "ushort", "using", "virtual", "void", "volatile", "while",
     };
 
-    /// <summary>
-    /// Mirrors the Python engine's identifier sanitization: strip to alnum runs, lowercase,
-    /// drop a leading run of digits/underscores, fall back on empty or reserved names.
-    /// </summary>
     public static string Sanitize(string? raw, string fallback)
     {
         var value = Regex.Replace(raw ?? "", "[^0-9a-zA-Z]+", "_").Trim('_').ToLowerInvariant();
@@ -40,12 +36,6 @@ public static class IdentifierNaming
 
     private static readonly Regex SafeIdentifierPattern = new("^[A-Za-z_][A-Za-z0-9_]*$", RegexOptions.Compiled);
 
-    /// <summary>
-    /// True only for a plain C# identifier - no dots, slashes, quotes, braces, or
-    /// ".." segments. Callers use this to gate any external string (an API request
-    /// field, a URL route parameter) before it is spliced into generated C# source
-    /// or used to build a filesystem path, since neither of those escape their input.
-    /// </summary>
     public static bool IsSafeIdentifier(string? value) =>
         !string.IsNullOrEmpty(value) && SafeIdentifierPattern.IsMatch(value);
 
@@ -55,11 +45,6 @@ public static class IdentifierNaming
 
     private static readonly Regex SafeScreenshotFileNamePattern = new(@"^[A-Za-z0-9_]+\.png$", RegexOptions.Compiled);
 
-    /// <summary>
-    /// True only for exactly the shape ScreenshotCapture produces ("{safe-label}_{digits}.png") -
-    /// gates a caller-supplied file name (an API route parameter) before it is used to build a
-    /// filesystem path, for the same reason IsSafeIdentifier gates class names.
-    /// </summary>
     public static bool IsSafeFileName(string? value) =>
         !string.IsNullOrEmpty(value) && SafeScreenshotFileNamePattern.IsMatch(value);
 }

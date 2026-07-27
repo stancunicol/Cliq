@@ -21,7 +21,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 builder.Services.AddSingleton<WorkspaceRepository>();
 builder.Services.AddSingleton<IWorkspaceRepository>(services => services.GetRequiredService<WorkspaceRepository>());
 builder.Services.AddSingleton<ISecretStore, WorkspaceSecretStore>();
-builder.Services.AddSingleton<IPageDiscovery, SeleniumPageDiscovery>();
+builder.Services.AddSingleton<IPageDiscovery, PuppeteerPageDiscovery>();
 builder.Services.AddSingleton<ICodeGeneration, WorkspaceCodeGeneration>();
 builder.Services.AddSingleton<ITestRunner, SeleniumTestRunner>();
 builder.Services.AddSingleton<RunCoordinator>();

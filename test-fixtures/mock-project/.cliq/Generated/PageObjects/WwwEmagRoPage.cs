@@ -3,7 +3,7 @@ using OpenQA.Selenium;
 using OpenQA.Selenium.Interactions;
 using OpenQA.Selenium.Support.UI;
 
-namespace Generated;
+namespace Generated.PageObjects;
 
 public sealed partial class WwwEmagRoPage
 {
@@ -300,43 +300,43 @@ public sealed partial class WwwEmagRoPage
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickSmartDeals()
+    public void ClickSuperPret()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverSmartDeals()
+    public void HoverSuperPret()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public string GetManaraEroticOracleChakraErosAndAText()
+    public string GetMasinaDeTocatManualaStorcatorManuText()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1)")));
         return element.Text;
     }
 
-    public void ClickManaraEroticOracleChakraErosAndA2()
+    public void ClickMasinaDeTocatManualaStorcatorManu2()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1) > a:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverManaraEroticOracleChakraErosAndA2()
+    public void HoverMasinaDeTocatManualaStorcatorManu2()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1) > a:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickReviewUri2()
+    public void ClickDeReviewUri38()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > a:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverReviewUri2()
+    public void HoverDeReviewUri38()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > a:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
@@ -366,33 +366,45 @@ public sealed partial class WwwEmagRoPage
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickA31()
+    public void ClickSuperPret2()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(2) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverA31()
+    public void HoverSuperPret2()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(2) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public string GetPasatorDeRosiiHomeHghd1200ppCompatText()
+    public string GetPentruFeteCeSeNtMplCuMineText()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(2) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1)")));
         return element.Text;
     }
 
-    public void ClickPasatorDeRosiiHomeHghd1200ppCompat2()
+    public void ClickPentruFeteCeSeNtMplCuMine2()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(2) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1) > a:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverPasatorDeRosiiHomeHghd1200ppCompat2()
+    public void HoverPentruFeteCeSeNtMplCuMine2()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(2) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1) > a:nth-child(1)")));
+        new Actions(_driver).MoveToElement(element).Perform();
+    }
+
+    public void ClickDeReviewUri27()
+    {
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(2) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > a:nth-child(1)")));
+        element.Click();
+    }
+
+    public void HoverDeReviewUri27()
+    {
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(2) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > a:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
@@ -408,45 +420,57 @@ public sealed partial class WwwEmagRoPage
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickButton35()
+    public void ClickButton36()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(3) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverButton35()
+    public void HoverButton36()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(3) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickSmartDeals2()
+    public void ClickMultiDeals()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(3) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverSmartDeals2()
+    public void HoverMultiDeals()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(3) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public string GetVoalDeMireasaQttvbtna3x15mPoliesText()
+    public string GetSet8InimiAmxeaPentruRacireaBauturiText()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(3) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1)")));
         return element.Text;
     }
 
-    public void ClickVoalDeMireasaQttvbtna3x15mPolies2()
+    public void ClickSet8InimiAmxeaPentruRacireaBauturi2()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(3) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1) > a:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverVoalDeMireasaQttvbtna3x15mPolies2()
+    public void HoverSet8InimiAmxeaPentruRacireaBauturi2()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(3) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1) > a:nth-child(1)")));
+        new Actions(_driver).MoveToElement(element).Perform();
+    }
+
+    public void ClickDeReviewUri26()
+    {
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(3) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > a:nth-child(1)")));
+        element.Click();
+    }
+
+    public void HoverDeReviewUri26()
+    {
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(3) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > a:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
@@ -462,45 +486,57 @@ public sealed partial class WwwEmagRoPage
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickButton40()
+    public void ClickButton42()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(4) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverButton40()
+    public void HoverButton42()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(4) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickA41()
+    public void ClickSuperPret3()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(4) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverA41()
+    public void HoverSuperPret3()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(4) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public string GetSetDeWalkieTalkiesPentruCopii3BuText()
+    public string GetAnvelopaAllSeasonLaufennLh71GFit4Text()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(4) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1)")));
         return element.Text;
     }
 
-    public void ClickSetDeWalkieTalkiesPentruCopii3Bu2()
+    public void ClickAnvelopaAllSeasonLaufennLh71GFit42()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(4) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1) > a:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverSetDeWalkieTalkiesPentruCopii3Bu2()
+    public void HoverAnvelopaAllSeasonLaufennLh71GFit42()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(4) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1) > a:nth-child(1)")));
+        new Actions(_driver).MoveToElement(element).Perform();
+    }
+
+    public void ClickDeReviewUri177()
+    {
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(4) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > a:nth-child(1)")));
+        element.Click();
+    }
+
+    public void HoverDeReviewUri177()
+    {
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(4) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > a:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
@@ -516,43 +552,43 @@ public sealed partial class WwwEmagRoPage
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickButton45()
+    public void ClickButton48()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(5) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverButton45()
+    public void HoverButton48()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(5) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickOfertaZilei2()
+    public void ClickA49()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(5) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverOfertaZilei2()
+    public void HoverA49()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(5) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public string GetFolieDeVinilPentruSpateCompatibilCText()
+    public string GetHusaTelefonCompatibilaCuHonor200SmText()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(5) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1)")));
         return element.Text;
     }
 
-    public void ClickFolieDeVinilPentruSpateCompatibilC2()
+    public void ClickHusaTelefonCompatibilaCuHonor200Sm2()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(5) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1) > a:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverFolieDeVinilPentruSpateCompatibilC2()
+    public void HoverHusaTelefonCompatibilaCuHonor200Sm2()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(5) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1) > a:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
@@ -570,43 +606,43 @@ public sealed partial class WwwEmagRoPage
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickButton50()
+    public void ClickButton53()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(6) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverButton50()
+    public void HoverButton53()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(6) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickSuperPret()
+    public void ClickSuperPret4()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(6) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverSuperPret()
+    public void HoverSuperPret4()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(6) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickPumaPantofiSportFlatformDePieleM()
+    public void ClickMichaelKorsCeasDamaLexingtonMk59()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(6) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > a:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverPumaPantofiSportFlatformDePieleM()
+    public void HoverMichaelKorsCeasDamaLexingtonMk59()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(6) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > a:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public string GetPumaPantofiSportFlatformDePieleM2Text()
+    public string GetMichaelKorsCeasDamaLexingtonMk592Text()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(6) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > a:nth-child(1) > h2:nth-child(1)")));
         return element.Text;
@@ -624,43 +660,43 @@ public sealed partial class WwwEmagRoPage
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickButton55()
+    public void ClickButton58()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(7) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverButton55()
+    public void HoverButton58()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(7) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickA56()
+    public void ClickA59()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(7) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverA56()
+    public void HoverA59()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(7) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickOemGeantaDamaMicaNodPapionAlba()
+    public void ClickSkechersPantofiSportDePlasaCuIns()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(7) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > a:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverOemGeantaDamaMicaNodPapionAlba()
+    public void HoverSkechersPantofiSportDePlasaCuIns()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(7) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > a:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public string GetOemGeantaDamaMicaNodPapionAlba2Text()
+    public string GetSkechersPantofiSportDePlasaCuIns2Text()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(7) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > a:nth-child(1) > h2:nth-child(1)")));
         return element.Text;
@@ -678,45 +714,57 @@ public sealed partial class WwwEmagRoPage
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickButton60()
+    public void ClickButton63()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(8) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverButton60()
+    public void HoverButton63()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(8) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickA61()
+    public void ClickElectroWeekendSuperPret()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(8) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverA61()
+    public void HoverElectroWeekendSuperPret()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(8) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public string GetOukitelC62688128gb4gb5150mahMovText()
+    public string GetTelefonMobilAppleIphone17Pro256gbText()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(8) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1)")));
         return element.Text;
     }
 
-    public void ClickOukitelC62688128gb4gb5150mahMov2()
+    public void ClickTelefonMobilAppleIphone17Pro256gb2()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(8) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1) > a:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverOukitelC62688128gb4gb5150mahMov2()
+    public void HoverTelefonMobilAppleIphone17Pro256gb2()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(8) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1) > a:nth-child(1)")));
+        new Actions(_driver).MoveToElement(element).Perform();
+    }
+
+    public void ClickDeReviewUri279()
+    {
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(8) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > a:nth-child(1)")));
+        element.Click();
+    }
+
+    public void HoverDeReviewUri279()
+    {
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(8) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > a:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
@@ -732,45 +780,57 @@ public sealed partial class WwwEmagRoPage
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickButton65()
+    public void ClickButton69()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(9) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverButton65()
+    public void HoverButton69()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(9) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickA66()
+    public void ClickTopFavorite()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(9) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverA66()
+    public void HoverTopFavorite()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(9) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public string GetHusaBestcaseSlimGlassyCompatibilaText()
+    public string GetAparatDeAerConditionatYamatoOptimumText()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(9) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1)")));
         return element.Text;
     }
 
-    public void ClickHusaBestcaseSlimGlassyCompatibila2()
+    public void ClickAparatDeAerConditionatYamatoOptimum2()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(9) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1) > a:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverHusaBestcaseSlimGlassyCompatibila2()
+    public void HoverAparatDeAerConditionatYamatoOptimum2()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(9) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1) > a:nth-child(1)")));
+        new Actions(_driver).MoveToElement(element).Perform();
+    }
+
+    public void ClickDeReviewUri362()
+    {
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(9) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > a:nth-child(1)")));
+        element.Click();
+    }
+
+    public void HoverDeReviewUri362()
+    {
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(9) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > a:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
@@ -786,43 +846,43 @@ public sealed partial class WwwEmagRoPage
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickButton70()
+    public void ClickButton75()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(10) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverButton70()
+    public void HoverButton75()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(10) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickMultiDeals()
+    public void ClickA76()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(10) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverMultiDeals()
+    public void HoverA76()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(10) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public string GetUnitateInternAerCondiIonatTipCaseText()
+    public string GetFiltruUleiVolvoFmIii460Din2020KwText()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(10) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1)")));
         return element.Text;
     }
 
-    public void ClickUnitateInternAerCondiIonatTipCase2()
+    public void ClickFiltruUleiVolvoFmIii460Din2020Kw2()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(10) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1) > a:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverUnitateInternAerCondiIonatTipCase2()
+    public void HoverFiltruUleiVolvoFmIii460Din2020Kw2()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(10) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1) > a:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
@@ -840,43 +900,43 @@ public sealed partial class WwwEmagRoPage
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickButton75()
+    public void ClickButton80()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(11) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverButton75()
+    public void HoverButton80()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(11) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickA76()
+    public void ClickA81()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(11) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverA76()
+    public void HoverA81()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(11) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public string GetFiltruUleiVolvoFhIi540Din2012KwText()
+    public string GetAspiratorRobot2in1AspirareSiMopSText()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(11) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1)")));
         return element.Text;
     }
 
-    public void ClickFiltruUleiVolvoFhIi540Din2012Kw2()
+    public void ClickAspiratorRobot2in1AspirareSiMopS2()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(11) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1) > a:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverFiltruUleiVolvoFhIi540Din2012Kw2()
+    public void HoverAspiratorRobot2in1AspirareSiMopS2()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(11) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1) > a:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
@@ -894,45 +954,57 @@ public sealed partial class WwwEmagRoPage
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickButton80()
+    public void ClickButton85()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(12) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverButton80()
+    public void HoverButton85()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(12) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickA81()
+    public void ClickSuperPret5()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(12) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverA81()
+    public void HoverSuperPret5()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(12) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public string GetAspiratorRobotInteligentNegru7090Text()
+    public string GetTelevizorSamsungLed50u8092125CmSText()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(12) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1)")));
         return element.Text;
     }
 
-    public void ClickAspiratorRobotInteligentNegru70902()
+    public void ClickTelevizorSamsungLed50u8092125CmS2()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(12) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1) > a:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverAspiratorRobotInteligentNegru70902()
+    public void HoverTelevizorSamsungLed50u8092125CmS2()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(12) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1) > a:nth-child(1)")));
+        new Actions(_driver).MoveToElement(element).Perform();
+    }
+
+    public void ClickDeReviewUri296()
+    {
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(12) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > a:nth-child(1)")));
+        element.Click();
+    }
+
+    public void HoverDeReviewUri296()
+    {
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(12) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > a:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
@@ -948,43 +1020,43 @@ public sealed partial class WwwEmagRoPage
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickButton85()
+    public void ClickButton91()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(13) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverButton85()
+    public void HoverButton91()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(13) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickA86()
+    public void ClickA92()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(13) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverA86()
+    public void HoverA92()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(13) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public string GetTelevizorQledSmartHisense50e7qUltrText()
+    public string GetLaptopDellInspiron5505CuProcesorAmText()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(13) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1)")));
         return element.Text;
     }
 
-    public void ClickTelevizorQledSmartHisense50e7qUltr2()
+    public void ClickLaptopDellInspiron5505CuProcesorAm2()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(13) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1) > a:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverTelevizorQledSmartHisense50e7qUltr2()
+    public void HoverLaptopDellInspiron5505CuProcesorAm2()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(13) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1) > a:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
@@ -1002,57 +1074,45 @@ public sealed partial class WwwEmagRoPage
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickButton90()
+    public void ClickButton96()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(14) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverButton90()
+    public void HoverButton96()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(14) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickSuperPret2()
+    public void ClickMultiDeals2()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(14) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverSuperPret2()
+    public void HoverMultiDeals2()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(14) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public string GetLaptopAppleMacbookPro14CuProcesorText()
+    public string GetSetApaDeParfumSalvoBarbati100mlCuText()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(14) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1)")));
         return element.Text;
     }
 
-    public void ClickLaptopAppleMacbookPro14CuProcesor2()
+    public void ClickSetApaDeParfumSalvoBarbati100mlCu2()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(14) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1) > a:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverLaptopAppleMacbookPro14CuProcesor2()
+    public void HoverSetApaDeParfumSalvoBarbati100mlCu2()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(14) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1) > a:nth-child(1)")));
-        new Actions(_driver).MoveToElement(element).Perform();
-    }
-
-    public void ClickDeReviewUri21()
-    {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(14) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > a:nth-child(1)")));
-        element.Click();
-    }
-
-    public void HoverDeReviewUri21()
-    {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(14) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > a:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
@@ -1068,46 +1128,46 @@ public sealed partial class WwwEmagRoPage
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickButton96()
+    public void ClickButton101()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(15) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverButton96()
+    public void HoverButton101()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(15) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickMultiDeals2()
+    public void ClickVoucher25ExtraFashionWeek()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(15) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverMultiDeals2()
+    public void HoverVoucher25ExtraFashionWeek()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(15) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public string GetApaDeParfumLuxeromBlueIcon100mlText()
+    public void ClickSarytaRochieElegantaDeSearaLunga()
     {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(15) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1)")));
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(15) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > a:nth-child(1)")));
+        element.Click();
+    }
+
+    public void HoverSarytaRochieElegantaDeSearaLunga()
+    {
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(15) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > a:nth-child(1)")));
+        new Actions(_driver).MoveToElement(element).Perform();
+    }
+
+    public string GetSarytaRochieElegantaDeSearaLunga2Text()
+    {
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(15) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > a:nth-child(1) > h2:nth-child(1)")));
         return element.Text;
-    }
-
-    public void ClickApaDeParfumLuxeromBlueIcon100ml2()
-    {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(15) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1) > a:nth-child(1)")));
-        element.Click();
-    }
-
-    public void HoverApaDeParfumLuxeromBlueIcon100ml2()
-    {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(15) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1) > a:nth-child(1)")));
-        new Actions(_driver).MoveToElement(element).Perform();
     }
 
     public void ClickAdaugaInCos15()
@@ -1122,283 +1182,295 @@ public sealed partial class WwwEmagRoPage
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickButton101()
-    {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(16) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
-        element.Click();
-    }
-
-    public void HoverButton101()
-    {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(16) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
-        new Actions(_driver).MoveToElement(element).Perform();
-    }
-
-    public void ClickA102()
-    {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(16) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
-        element.Click();
-    }
-
-    public void HoverA102()
-    {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(16) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
-        new Actions(_driver).MoveToElement(element).Perform();
-    }
-
-    public void ClickBaldininiPantofiSportWedgeCuGarni()
-    {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(16) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > a:nth-child(1)")));
-        element.Click();
-    }
-
-    public void HoverBaldininiPantofiSportWedgeCuGarni()
-    {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(16) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > a:nth-child(1)")));
-        new Actions(_driver).MoveToElement(element).Perform();
-    }
-
-    public string GetBaldininiPantofiSportWedgeCuGarni2Text()
-    {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(16) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > a:nth-child(1) > h2:nth-child(1)")));
-        return element.Text;
-    }
-
-    public void ClickVeziDetalii()
-    {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(16) > div:nth-child(1) > div:nth-child(1) > div:nth-child(4) > div:nth-child(2) > a:nth-child(1)")));
-        element.Click();
-    }
-
-    public void HoverVeziDetalii()
-    {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(16) > div:nth-child(1) > div:nth-child(1) > div:nth-child(4) > div:nth-child(2) > a:nth-child(1)")));
-        new Actions(_driver).MoveToElement(element).Perform();
-    }
-
     public void ClickButton106()
     {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(17) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(16) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
         element.Click();
     }
 
     public void HoverButton106()
     {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(17) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(16) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickSuperPret3()
+    public void ClickMultiDealsSuperPret()
     {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(17) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(16) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverSuperPret3()
+    public void HoverMultiDealsSuperPret()
     {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(17) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(16) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickMaxCoRochieEvazataCuManeciScurte()
+    public string GetSetDeConstructieLegoCreator3In1Text()
     {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(17) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > a:nth-child(1)")));
-        element.Click();
-    }
-
-    public void HoverMaxCoRochieEvazataCuManeciScurte()
-    {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(17) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > a:nth-child(1)")));
-        new Actions(_driver).MoveToElement(element).Perform();
-    }
-
-    public string GetMaxCoRochieEvazataCuManeciScurte2Text()
-    {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(17) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > a:nth-child(1) > h2:nth-child(1)")));
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(16) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1)")));
         return element.Text;
+    }
+
+    public void ClickSetDeConstructieLegoCreator3In12()
+    {
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(16) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1) > a:nth-child(1)")));
+        element.Click();
+    }
+
+    public void HoverSetDeConstructieLegoCreator3In12()
+    {
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(16) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1) > a:nth-child(1)")));
+        new Actions(_driver).MoveToElement(element).Perform();
+    }
+
+    public void ClickReviewUri10()
+    {
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(16) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > a:nth-child(1)")));
+        element.Click();
+    }
+
+    public void HoverReviewUri10()
+    {
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(16) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > a:nth-child(1)")));
+        new Actions(_driver).MoveToElement(element).Perform();
     }
 
     public void ClickAdaugaInCos16()
     {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(17) > div:nth-child(1) > div:nth-child(1) > div:nth-child(4) > div:nth-child(2) > form:nth-child(1) > button:nth-child(2)")));
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(16) > div:nth-child(1) > div:nth-child(1) > div:nth-child(4) > div:nth-child(2) > form:nth-child(1) > button:nth-child(2)")));
         element.Click();
     }
 
     public void HoverAdaugaInCos16()
     {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(17) > div:nth-child(1) > div:nth-child(1) > div:nth-child(4) > div:nth-child(2) > form:nth-child(1) > button:nth-child(2)")));
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(16) > div:nth-child(1) > div:nth-child(1) > div:nth-child(4) > div:nth-child(2) > form:nth-child(1) > button:nth-child(2)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickButton111()
+    public void ClickButton112()
     {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(18) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(17) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverButton111()
+    public void HoverButton112()
     {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(18) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(17) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickSuperPret4()
+    public void ClickTopFavorite2()
     {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(18) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(17) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverSuperPret4()
+    public void HoverTopFavorite2()
     {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(18) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(17) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public string GetSetDeConstructie353PiesePistolBeText()
+    public void ClickOemBrataraModelTennis4mmPietre()
     {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(18) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1)")));
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(17) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > a:nth-child(1)")));
+        element.Click();
+    }
+
+    public void HoverOemBrataraModelTennis4mmPietre()
+    {
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(17) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > a:nth-child(1)")));
+        new Actions(_driver).MoveToElement(element).Perform();
+    }
+
+    public string GetOemBrataraModelTennis4mmPietre2Text()
+    {
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(17) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > a:nth-child(1) > h2:nth-child(1)")));
         return element.Text;
-    }
-
-    public void ClickSetDeConstructie353PiesePistolBe2()
-    {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(18) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1) > a:nth-child(1)")));
-        element.Click();
-    }
-
-    public void HoverSetDeConstructie353PiesePistolBe2()
-    {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(18) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1) > a:nth-child(1)")));
-        new Actions(_driver).MoveToElement(element).Perform();
     }
 
     public void ClickAdaugaInCos17()
     {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(18) > div:nth-child(1) > div:nth-child(1) > div:nth-child(4) > div:nth-child(2) > form:nth-child(1) > button:nth-child(2)")));
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(17) > div:nth-child(1) > div:nth-child(1) > div:nth-child(4) > div:nth-child(2) > form:nth-child(1) > button:nth-child(2)")));
         element.Click();
     }
 
     public void HoverAdaugaInCos17()
     {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(18) > div:nth-child(1) > div:nth-child(1) > div:nth-child(4) > div:nth-child(2) > form:nth-child(1) > button:nth-child(2)")));
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(17) > div:nth-child(1) > div:nth-child(1) > div:nth-child(4) > div:nth-child(2) > form:nth-child(1) > button:nth-child(2)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickButton116()
+    public void ClickButton117()
     {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(19) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(18) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverButton116()
+    public void HoverButton117()
     {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(19) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(18) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickCadouSuperPret()
+    public void ClickGeniusDealsTopFavorite()
     {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(19) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(18) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverCadouSuperPret()
+    public void HoverGeniusDealsTopFavorite()
     {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(19) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(18) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickSuperTrendsBrataraTennisDinArgint()
+    public string GetCeasSmartwatchSiBrataraFitness2in1Text()
     {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(19) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > a:nth-child(1)")));
-        element.Click();
-    }
-
-    public void HoverSuperTrendsBrataraTennisDinArgint()
-    {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(19) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > a:nth-child(1)")));
-        new Actions(_driver).MoveToElement(element).Perform();
-    }
-
-    public string GetSuperTrendsBrataraTennisDinArgint2Text()
-    {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(19) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > a:nth-child(1) > h2:nth-child(1)")));
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(18) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1)")));
         return element.Text;
+    }
+
+    public void ClickCeasSmartwatchSiBrataraFitness2in12()
+    {
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(18) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1) > a:nth-child(1)")));
+        element.Click();
+    }
+
+    public void HoverCeasSmartwatchSiBrataraFitness2in12()
+    {
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(18) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1) > a:nth-child(1)")));
+        new Actions(_driver).MoveToElement(element).Perform();
+    }
+
+    public void ClickDeReviewUri860()
+    {
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(18) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > a:nth-child(1)")));
+        element.Click();
+    }
+
+    public void HoverDeReviewUri860()
+    {
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(18) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > a:nth-child(1)")));
+        new Actions(_driver).MoveToElement(element).Perform();
     }
 
     public void ClickAdaugaInCos18()
     {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(19) > div:nth-child(1) > div:nth-child(1) > div:nth-child(4) > div:nth-child(2) > form:nth-child(1) > button:nth-child(2)")));
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(18) > div:nth-child(1) > div:nth-child(1) > div:nth-child(4) > div:nth-child(2) > form:nth-child(1) > button:nth-child(2)")));
         element.Click();
     }
 
     public void HoverAdaugaInCos18()
     {
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(18) > div:nth-child(1) > div:nth-child(1) > div:nth-child(4) > div:nth-child(2) > form:nth-child(1) > button:nth-child(2)")));
+        new Actions(_driver).MoveToElement(element).Perform();
+    }
+
+    public void ClickButton123()
+    {
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(19) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
+        element.Click();
+    }
+
+    public void HoverButton123()
+    {
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(19) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
+        new Actions(_driver).MoveToElement(element).Perform();
+    }
+
+    public void ClickTopFavorite3()
+    {
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(19) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
+        element.Click();
+    }
+
+    public void HoverTopFavorite3()
+    {
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(19) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
+        new Actions(_driver).MoveToElement(element).Perform();
+    }
+
+    public void ClickImodixGeantaDamaDinPieleNaturala()
+    {
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(19) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > a:nth-child(1)")));
+        element.Click();
+    }
+
+    public void HoverImodixGeantaDamaDinPieleNaturala()
+    {
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(19) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > a:nth-child(1)")));
+        new Actions(_driver).MoveToElement(element).Perform();
+    }
+
+    public string GetImodixGeantaDamaDinPieleNaturala2Text()
+    {
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(19) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > a:nth-child(1) > h2:nth-child(1)")));
+        return element.Text;
+    }
+
+    public void ClickAdaugaInCos19()
+    {
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(19) > div:nth-child(1) > div:nth-child(1) > div:nth-child(4) > div:nth-child(2) > form:nth-child(1) > button:nth-child(2)")));
+        element.Click();
+    }
+
+    public void HoverAdaugaInCos19()
+    {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(19) > div:nth-child(1) > div:nth-child(1) > div:nth-child(4) > div:nth-child(2) > form:nth-child(1) > button:nth-child(2)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickButton121()
+    public void ClickButton128()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(20) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverButton121()
+    public void HoverButton128()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(20) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickSuperPret5()
+    public void ClickA129()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(20) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverSuperPret5()
+    public void HoverA129()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(20) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public string GetAppleWatchSe2025GpsCarcasaStarText()
+    public void ClickAlexanderSmithTenisiDamaNegriPi()
     {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(20) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1)")));
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(20) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > a:nth-child(1)")));
+        element.Click();
+    }
+
+    public void HoverAlexanderSmithTenisiDamaNegriPi()
+    {
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(20) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > a:nth-child(1)")));
+        new Actions(_driver).MoveToElement(element).Perform();
+    }
+
+    public string GetAlexanderSmithTenisiDamaNegriPi2Text()
+    {
+        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(20) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > a:nth-child(1) > h2:nth-child(1)")));
         return element.Text;
     }
 
-    public void ClickAppleWatchSe2025GpsCarcasaStar2()
-    {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(20) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1) > a:nth-child(1)")));
-        element.Click();
-    }
-
-    public void HoverAppleWatchSe2025GpsCarcasaStar2()
-    {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(20) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > h2:nth-child(1) > a:nth-child(1)")));
-        new Actions(_driver).MoveToElement(element).Perform();
-    }
-
-    public void ClickDeReviewUri87()
-    {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(20) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > a:nth-child(1)")));
-        element.Click();
-    }
-
-    public void HoverDeReviewUri87()
-    {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(20) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > div:nth-child(2) > div:nth-child(2) > a:nth-child(1)")));
-        new Actions(_driver).MoveToElement(element).Perform();
-    }
-
-    public void ClickAdaugaInCos19()
+    public void ClickAdaugaInCos20()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(20) > div:nth-child(1) > div:nth-child(1) > div:nth-child(4) > div:nth-child(2) > form:nth-child(1) > button:nth-child(2)")));
         element.Click();
     }
 
-    public void HoverAdaugaInCos19()
+    public void HoverAdaugaInCos20()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > div:nth-child(5) > main:nth-child(1) > div:nth-child(3) > div:nth-child(1) > div:nth-child(2) > div:nth-child(20) > div:nth-child(1) > div:nth-child(1) > div:nth-child(4) > div:nth-child(2) > form:nth-child(1) > button:nth-child(2)")));
         new Actions(_driver).MoveToElement(element).Perform();
@@ -1532,49 +1604,49 @@ public sealed partial class WwwEmagRoPage
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickA140()
+    public void ClickA146()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > footer:nth-child(8) > div:nth-child(2) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > a:nth-child(1)")));
         element.Click();
     }
 
-    public void HoverA140()
+    public void HoverA146()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > footer:nth-child(8) > div:nth-child(2) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > a:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickA141()
+    public void ClickA147()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > footer:nth-child(8) > div:nth-child(2) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > a:nth-child(2)")));
         element.Click();
     }
 
-    public void HoverA141()
+    public void HoverA147()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > footer:nth-child(8) > div:nth-child(2) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > a:nth-child(2)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickA142()
+    public void ClickA148()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > footer:nth-child(8) > div:nth-child(2) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > a:nth-child(3)")));
         element.Click();
     }
 
-    public void HoverA142()
+    public void HoverA148()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > footer:nth-child(8) > div:nth-child(2) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > a:nth-child(3)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickA143()
+    public void ClickA149()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > footer:nth-child(8) > div:nth-child(2) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > a:nth-child(4)")));
         element.Click();
     }
 
-    public void HoverA143()
+    public void HoverA149()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > footer:nth-child(8) > div:nth-child(2) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > a:nth-child(4)")));
         new Actions(_driver).MoveToElement(element).Perform();
@@ -1640,13 +1712,13 @@ public sealed partial class WwwEmagRoPage
         new Actions(_driver).MoveToElement(element).Perform();
     }
 
-    public void ClickA149()
+    public void ClickA155()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > footer:nth-child(8) > div:nth-child(2) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(8)")));
         element.Click();
     }
 
-    public void HoverA149()
+    public void HoverA155()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(10) > footer:nth-child(8) > div:nth-child(2) > div:nth-child(1) > div:nth-child(1) > div:nth-child(3) > a:nth-child(8)")));
         new Actions(_driver).MoveToElement(element).Perform();
@@ -1721,30 +1793,6 @@ public sealed partial class WwwEmagRoPage
     public void HoverAdministreazPreferinEle()
     {
         var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(29) > div:nth-child(1) > div:nth-child(2) > button:nth-child(3)")));
-        new Actions(_driver).MoveToElement(element).Perform();
-    }
-
-    public void ClickVeziOferta()
-    {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(33) > div:nth-child(1) > a:nth-child(2)")));
-        element.Click();
-    }
-
-    public void HoverVeziOferta()
-    {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(33) > div:nth-child(1) > a:nth-child(2)")));
-        new Actions(_driver).MoveToElement(element).Perform();
-    }
-
-    public void ClickPrecomandAcumNoileSamsungGalaxyVez()
-    {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(33) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
-        element.Click();
-    }
-
-    public void HoverPrecomandAcumNoileSamsungGalaxyVez()
-    {
-        var element = _wait.Until(d => d.FindElement(By.CssSelector("div:nth-child(33) > div:nth-child(1) > div:nth-child(3) > a:nth-child(1)")));
         new Actions(_driver).MoveToElement(element).Perform();
     }
 }

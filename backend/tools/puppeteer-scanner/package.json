@@ -1,0 +1,11 @@
+{
+  "name": "cliq-puppeteer-scanner",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "description": "Standalone Puppeteer-driven page scanner used by Cliq.Infrastructure's PuppeteerPageDiscovery.",
+  "main": "scan.js",
+  "dependencies": {
+    "puppeteer": "25.3.0"
+  }
+}

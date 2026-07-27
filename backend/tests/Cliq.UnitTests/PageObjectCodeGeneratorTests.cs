@@ -16,10 +16,6 @@ public class PageObjectCodeGeneratorTests
     [Test]
     public void ToCSharpStringLiteral_EscapesEmbeddedNewlinesAndTabs()
     {
-        // A real page's visible text (e.g. an <h2> snapshot) can carry a literal
-        // newline from the source HTML's own formatting. Embedding that raw
-        // would split the generated string literal across two physical lines,
-        // which doesn't compile - this is exactly the bug that produced it.
         var literal = PageObjectCodeGenerator.ToCSharpStringLiteral("speedlight -\n                Jacheta pentru femei");
 
         Assert.That(literal, Does.Not.Contain("\n"));
@@ -101,10 +97,6 @@ public class PageObjectCodeGeneratorTests
     [Test]
     public void Generate_Radio_EscapesApostropheInGroupName()
     {
-        // A group name with an apostrophe (e.g. "o'clock") would otherwise
-        // terminate the CSS attribute selector early - this is the same class
-        // of bug as the unescaped-newline string-splitting issue, just for a
-        // single-quoted CSS value instead of a C# string literal.
         var elements = new List<ElementDescriptor>
         {
             new("input", ElementActionKind.Radio, LocatorStrategy.Name, "o'clock", "snack"),

@@ -18,15 +18,18 @@ permissions/downloads, sandboxing, context isolation, and restricted navigation.
 
 - `Cliq.Domain` defines versioned workspace records and run states.
 - `Cliq.Application` owns use cases and infrastructure abstractions.
-- `Cliq.Infrastructure` implements workspace persistence, Selenium discovery/execution, secrets,
-  screenshots, and C#/NUnit generation.
+- `Cliq.Infrastructure` implements workspace persistence, Puppeteer-based page discovery,
+  Selenium test execution, secrets, screenshots, and C#/NUnit generation.
 - `Cliq.Api` is a thin authenticated HTTP/SSE adapter with RFC Problem Details.
 
-Page discovery remains a background Selenium operation. Interactive workflow runs execute inside
-Electron's isolated `WebContentsView`, allowing the user to watch every highlighted, paced action.
-The main process owns one active run, cancellation, failure screenshots, and persistence through
-the authenticated sidecar. Generated NUnit workflows continue to use Selenium for CI and external
-execution.
+Page discovery runs as a background Puppeteer operation: `PuppeteerPageDiscovery` shells out to a
+standalone Node script (`backend/tools/puppeteer-scanner`) that drives a headless/headed browser,
+extracts candidate elements, and hands back the same `PageDefinition`/locator model the app has
+always used. Interactive workflow runs still execute inside Electron's isolated `WebContentsView`,
+allowing the user to watch every highlighted, paced action. The main process owns one active run,
+cancellation, failure screenshots, and persistence through the authenticated sidecar. Generated
+NUnit workflows continue to use Selenium for CI and external execution, and `SeleniumTestRunner`
+still drives interactive runs the same way it always has - only discovery's engine changed.
 
 ## Workspace model
 
