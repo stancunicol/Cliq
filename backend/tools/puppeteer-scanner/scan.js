@@ -59,7 +59,14 @@ async function main() {
   const browserInstance = await puppeteer.launch(launchOptions);
   try {
     const page = await browserInstance.newPage();
-    await page.goto(url, { waitUntil: 'networkidle0', timeout: 30_000 });
+    // 'load' alone guarantees we never hang on pages with persistent
+    // connections (websockets, chat widgets, analytics beacons) - networkidle0
+    // as the primary gate can time out on those even once the page is
+    // visually done. The short waitForNetworkIdle afterwards is a best-effort
+    // grace period for SPAs that fetch their real content after the load
+    // event; if it doesn't settle in time we proceed with whatever rendered.
+    await page.goto(url, { waitUntil: 'load', timeout: 30_000 });
+    await page.waitForNetworkIdle({ idleTime: 500, timeout: 3_000 }).catch(() => {});
 
     let screenshotPath = null;
     if (args['screenshot-dir']) {
