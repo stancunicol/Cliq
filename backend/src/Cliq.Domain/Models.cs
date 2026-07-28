@@ -54,6 +54,27 @@ public sealed record ProjectManifest(
     public const int CurrentSchemaVersion = 1;
 }
 
+public sealed record ElementIdentificationSettings(
+    string TestIdAttribute,
+    IReadOnlyList<string> StrategyOrder);
+
+public sealed record TestExecutionSettings(
+    int DefaultStepTimeoutMs,
+    int PageReadyTimeoutMs);
+
+public sealed record ScanningSettings(
+    int LoadTimeoutMs,
+    int NetworkIdleGraceMs);
+
+public sealed record CliqSettings(
+    int SchemaVersion,
+    ElementIdentificationSettings ElementIdentification,
+    TestExecutionSettings TestExecution,
+    ScanningSettings Scanning)
+{
+    public const int CurrentSchemaVersion = 1;
+}
+
 public sealed record Locator(
     LocatorStrategy Strategy,
     string Value,
@@ -65,7 +86,17 @@ public sealed record PageElement(
     string Tag,
     StepAction Action,
     Locator Locator,
-    string? ExpectedText = null);
+    string? ExpectedText = null,
+    bool NotFound = false);
+
+public sealed record ScanReconciliationReport(
+    int MatchedCount,
+    int NewCount,
+    int MissingCount);
+
+public sealed record PageScanResult(
+    PageDefinition Page,
+    ScanReconciliationReport Reconciliation);
 
 public sealed record PageDefinition(
     int SchemaVersion,
@@ -114,7 +145,8 @@ public sealed record StepResult(
     RunStatus Status,
     long DurationMs,
     string? Error = null,
-    string? ScreenshotPath = null);
+    string? ScreenshotPath = null,
+    bool SelfHealed = false);
 
 public sealed record TestRun(
     string Id,

@@ -5,11 +5,9 @@ namespace Cliq.Infrastructure.Generation;
 
 internal static class PageReadiness
 {
-    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(15);
-
-    public static void WaitForComplete(IWebDriver driver)
+    public static void WaitForComplete(IWebDriver driver, TimeSpan timeout)
     {
-        new WebDriverWait(driver, Timeout).Until(d =>
+        new WebDriverWait(driver, timeout).Until(d =>
             ((IJavaScriptExecutor)d).ExecuteScript("return document.readyState")?.Equals("complete") == true);
     }
 }

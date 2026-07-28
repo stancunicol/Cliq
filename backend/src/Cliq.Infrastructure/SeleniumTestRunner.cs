@@ -13,15 +13,20 @@ namespace Cliq.Infrastructure;
 
 public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRunner
 {
-    public Task<TestRun> RunAsync(
+    public async Task<TestRun> RunAsync(
         string runId,
         TestCase test,
         IReadOnlyDictionary<string, PageDefinition> pages,
         DomainBrowser browser,
         IReadOnlyDictionary<string, string> secrets,
         IProgress<DomainStepResult> progress,
-        CancellationToken cancellationToken) =>
-        Task.Run(() => Run(runId, test, pages, browser, secrets, progress, cancellationToken), cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        var settings = await repository.GetSettingsAsync(cancellationToken);
+        return await Task.Run(
+            () => Run(runId, test, pages, browser, secrets, settings, progress, cancellationToken),
+            cancellationToken);
+    }
 
     private TestRun Run(
         string runId,
@@ -29,6 +34,7 @@ public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRu
         IReadOnlyDictionary<string, PageDefinition> pages,
         DomainBrowser browser,
         IReadOnlyDictionary<string, string> secrets,
+        CliqSettings settings,
         IProgress<DomainStepResult> progress,
         CancellationToken cancellationToken)
     {
@@ -47,8 +53,8 @@ public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRu
                 DomainStepResult result;
                 try
                 {
-                    ExecuteStep(driver, step, pages, secrets);
-                    result = new DomainStepResult(step.Id, RunStatus.Passed, stopwatch.ElapsedMilliseconds);
+                    var healed = ExecuteStep(driver, step, pages, secrets, settings, cancellationToken);
+                    result = new DomainStepResult(step.Id, RunStatus.Passed, stopwatch.ElapsedMilliseconds, SelfHealed: healed);
                 }
                 catch (Exception exception) when (exception is not OperationCanceledException)
                 {
@@ -81,17 +87,19 @@ public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRu
             failed ? "One or more test steps failed." : null);
     }
 
-    private static void ExecuteStep(
+    private bool ExecuteStep(
         IWebDriver driver,
         TestStep step,
         IReadOnlyDictionary<string, PageDefinition> pages,
-        IReadOnlyDictionary<string, string> secrets)
+        IReadOnlyDictionary<string, string> secrets,
+        CliqSettings settings,
+        CancellationToken cancellationToken)
     {
         if (step.Action == StepAction.Navigate)
         {
             driver.Navigate().GoToUrl(step.Url ?? throw new WorkspaceValidationException("Navigate step has no URL."));
-            PageReadiness.WaitForComplete(driver);
-            return;
+            PageReadiness.WaitForComplete(driver, TimeSpan.FromMilliseconds(settings.TestExecution.PageReadyTimeoutMs));
+            return false;
         }
 
         if (step.Action == StepAction.AssertUrl)
@@ -102,12 +110,32 @@ public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRu
                 throw new InvalidOperationException($"URL '{driver.Url}' does not match '{expected}'.");
             }
 
-            return;
+            return false;
         }
 
         var element = ResolveElement(step, pages);
-        var timeout = TimeSpan.FromMilliseconds(step.TimeoutMs is > 0 ? step.TimeoutMs.Value : 10_000);
-        var webElement = new WebDriverWait(driver, timeout).Until(current => current.FindElement(ByFor(element.Locator)));
+        var timeout = TimeSpan.FromMilliseconds(step.TimeoutMs is > 0 ? step.TimeoutMs.Value : settings.TestExecution.DefaultStepTimeoutMs);
+        var testIdAttribute = settings.ElementIdentification.TestIdAttribute;
+
+        IWebElement webElement;
+        var healed = false;
+        try
+        {
+            webElement = new WebDriverWait(driver, timeout).Until(current => current.FindElement(ByFor(element.Locator, testIdAttribute)));
+        }
+        catch (WebDriverTimeoutException)
+        {
+            var healedLocator = SelfHealingLocator.TryHeal(driver, element, settings.ElementIdentification);
+            if (healedLocator is null)
+            {
+                throw;
+            }
+
+            webElement = driver.FindElement(ByFor(healedLocator, testIdAttribute));
+            PersistHealedLocator(step, pages, element, healedLocator, cancellationToken);
+            healed = true;
+        }
+
         switch (step.Action)
         {
             case StepAction.Click:
@@ -137,6 +165,27 @@ public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRu
                 }
                 break;
         }
+
+        return healed;
+    }
+
+    private void PersistHealedLocator(
+        TestStep step,
+        IReadOnlyDictionary<string, PageDefinition> pages,
+        PageElement element,
+        Locator healedLocator,
+        CancellationToken cancellationToken)
+    {
+        if (step.PageId is null || !pages.TryGetValue(step.PageId, out var page))
+        {
+            return;
+        }
+
+        var updatedElements = page.Elements
+            .Select(candidate => candidate.Id == element.Id ? candidate with { Locator = healedLocator } : candidate)
+            .ToList();
+        var updatedPage = page with { Elements = updatedElements };
+        repository.SavePageAsync(updatedPage, cancellationToken).GetAwaiter().GetResult();
     }
 
     private static PageElement ResolveElement(
@@ -152,9 +201,9 @@ public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRu
             ?? throw new WorkspaceValidationException($"Step '{step.Id}' has no valid element reference.");
     }
 
-    private static By ByFor(Locator locator) => locator.Strategy switch
+    private static By ByFor(Locator locator, string testIdAttribute) => locator.Strategy switch
     {
-        DomainLocator.TestId => By.CssSelector($"[data-testid=\"{CssEscape(locator.Value)}\"]"),
+        DomainLocator.TestId => By.CssSelector($"[{testIdAttribute}=\"{CssEscape(locator.Value)}\"]"),
         DomainLocator.Id => By.Id(locator.Value),
         DomainLocator.Name => By.Name(locator.Value),
         DomainLocator.XPath => By.XPath(locator.Value),

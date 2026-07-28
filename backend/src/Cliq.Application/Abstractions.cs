@@ -8,6 +8,8 @@ public interface IWorkspaceRepository
     Task<WorkspaceSnapshot> OpenAsync(string rootPath, CancellationToken cancellationToken);
     Task<WorkspaceSnapshot> GetSnapshotAsync(CancellationToken cancellationToken);
     Task<ProjectManifest> SaveProjectAsync(ProjectManifest project, CancellationToken cancellationToken);
+    Task<CliqSettings> GetSettingsAsync(CancellationToken cancellationToken);
+    Task<CliqSettings> SaveSettingsAsync(CliqSettings settings, CancellationToken cancellationToken);
     Task<IReadOnlyList<PageDefinition>> ListPagesAsync(CancellationToken cancellationToken);
     Task<PageDefinition?> GetPageAsync(string id, CancellationToken cancellationToken);
     Task<PageDefinition> SavePageAsync(PageDefinition page, CancellationToken cancellationToken);
@@ -21,7 +23,7 @@ public interface IWorkspaceRepository
 
 public interface IPageDiscovery
 {
-    Task<PageDefinition> ScanAsync(
+    Task<PageScanResult> ScanAsync(
         string url,
         string name,
         BrowserKind browser,

@@ -1,8 +1,16 @@
 'use strict';
 
 // Runs inside the page via page.evaluate() - must be self-contained (no
-// closures over outer scope) since Puppeteer serializes it into the page.
-function extractElements() {
+// closures over outer scope, including module-level consts) since Puppeteer
+// serializes only this function's own source into the page. `config`
+// controls which attribute counts as "testId" and the priority order of
+// identification strategies tried before falling back to a structural CSS
+// selector; see backend/tools/puppeteer-scanner's --locator-config flag,
+// driven by the workspace's settings.json.
+function extractElements(config) {
+  const defaults = { testIdAttribute: 'data-testid', strategyOrder: ['testId', 'id', 'name'] };
+  const { testIdAttribute, strategyOrder } = { ...defaults, ...config };
+
   const candidates = Array.from(document.querySelectorAll(
     'input, textarea, select, button, a[href], h1, h2, h3, h4, h5, h6'
   ));
@@ -43,18 +51,27 @@ function extractElements() {
     return parts.join(' > ');
   }
 
-  function locatorFor(el) {
-    const testId = el.getAttribute('data-testid');
-    if (testId) {
-      const candidate = `[data-testid="${cssEscape(testId)}"]`;
-      if (isUniqueMatch(candidate, el)) return { strategy: 'css', value: candidate };
-    }
-    if (el.id && isUniqueMatch(`#${CSS.escape(el.id)}`, el)) {
-      return { strategy: 'id', value: el.id };
-    }
-    if (el.name) {
+  const strategyChecks = {
+    testId: (el) => {
+      const testId = el.getAttribute(testIdAttribute);
+      if (!testId) return null;
+      const candidate = `[${testIdAttribute}="${cssEscape(testId)}"]`;
+      return isUniqueMatch(candidate, el) ? { strategy: 'css', value: candidate } : null;
+    },
+    id: (el) => (el.id && isUniqueMatch(`#${CSS.escape(el.id)}`, el))
+      ? { strategy: 'id', value: el.id }
+      : null,
+    name: (el) => {
+      if (!el.name) return null;
       const candidate = `${el.tagName.toLowerCase()}[name="${cssEscape(el.name)}"]`;
-      if (isUniqueMatch(candidate, el)) return { strategy: 'name', value: el.name };
+      return isUniqueMatch(candidate, el) ? { strategy: 'name', value: el.name } : null;
+    },
+  };
+
+  function locatorFor(el) {
+    for (const key of strategyOrder) {
+      const result = strategyChecks[key]?.(el);
+      if (result) return result;
     }
     return { strategy: 'css', value: structuralSelector(el) };
   }
@@ -109,7 +126,7 @@ function extractElements() {
         strategy: locator.strategy,
         locatorValue: locator.value,
         groupName,
-        testId: el.getAttribute('data-testid'),
+        testId: el.getAttribute(testIdAttribute),
         id: el.id || null,
         name: el.getAttribute('name'),
         placeholder: el.getAttribute('placeholder'),

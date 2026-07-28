@@ -45,11 +45,13 @@ async function main() {
   const url = args.url;
   const outPath = args.out;
   if (!url || !outPath) {
-    throw new Error('Usage: scan.js --url <url> --out <path> [--browser chrome|edge] [--headless true|false] [--screenshot-dir <dir>] [--label <name>]');
+    throw new Error('Usage: scan.js --url <url> --out <path> [--browser chrome|edge] [--headless true|false] [--screenshot-dir <dir>] [--label <name>] [--locator-config <json>] [--load-timeout-ms <ms>] [--network-idle-timeout-ms <ms>]');
   }
 
   const headless = args.headless !== 'false';
   const browser = (args.browser || 'chrome').toLowerCase();
+  const loadTimeoutMs = args['load-timeout-ms'] ? Number(args['load-timeout-ms']) : 30_000;
+  const networkIdleTimeoutMs = args['network-idle-timeout-ms'] ? Number(args['network-idle-timeout-ms']) : 3_000;
 
   const launchOptions = { headless };
   if (browser === 'edge') {
@@ -65,8 +67,8 @@ async function main() {
     // visually done. The short waitForNetworkIdle afterwards is a best-effort
     // grace period for SPAs that fetch their real content after the load
     // event; if it doesn't settle in time we proceed with whatever rendered.
-    await page.goto(url, { waitUntil: 'load', timeout: 30_000 });
-    await page.waitForNetworkIdle({ idleTime: 500, timeout: 3_000 }).catch(() => {});
+    await page.goto(url, { waitUntil: 'load', timeout: loadTimeoutMs });
+    await page.waitForNetworkIdle({ idleTime: 500, timeout: networkIdleTimeoutMs }).catch(() => {});
 
     let screenshotPath = null;
     if (args['screenshot-dir']) {
@@ -79,7 +81,14 @@ async function main() {
       });
     }
 
-    const elements = await page.evaluate(extractElements);
+    let locatorConfig;
+    try {
+      locatorConfig = args['locator-config'] ? JSON.parse(args['locator-config']) : undefined;
+    } catch {
+      throw new Error('--locator-config must be valid JSON.');
+    }
+
+    const elements = await page.evaluate(extractElements, locatorConfig);
 
     fs.mkdirSync(path.dirname(outPath), { recursive: true });
     fs.writeFileSync(outPath, JSON.stringify({ elements, screenshotPath }), 'utf8');

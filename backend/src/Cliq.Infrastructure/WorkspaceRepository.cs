@@ -47,6 +47,11 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
             await WriteAtomicAsync(ProjectPath, project, cancellationToken);
         }
 
+        if (!File.Exists(SettingsPath))
+        {
+            await WriteAtomicAsync(SettingsPath, DefaultSettings(), cancellationToken);
+        }
+
         return await GetSnapshotAsync(cancellationToken);
     }
 
@@ -72,6 +77,28 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
         await WriteAtomicAsync(ProjectPath, updated, cancellationToken);
         return updated;
     }
+
+    public async Task<CliqSettings> GetSettingsAsync(CancellationToken cancellationToken)
+    {
+        EnsureOpen();
+        var settings = await ReadOptionalAsync<CliqSettings>(SettingsPath, cancellationToken) ?? DefaultSettings();
+        ValidateVersion(settings.SchemaVersion, CliqSettings.CurrentSchemaVersion, "settings");
+        return settings;
+    }
+
+    public async Task<CliqSettings> SaveSettingsAsync(CliqSettings settings, CancellationToken cancellationToken)
+    {
+        EnsureOpen();
+        ValidateVersion(settings.SchemaVersion, CliqSettings.CurrentSchemaVersion, "settings");
+        await WriteAtomicAsync(SettingsPath, settings, cancellationToken);
+        return settings;
+    }
+
+    private static CliqSettings DefaultSettings() => new(
+        CliqSettings.CurrentSchemaVersion,
+        new ElementIdentificationSettings("data-testid", ["testId", "id", "name"]),
+        new TestExecutionSettings(DefaultStepTimeoutMs: 10_000, PageReadyTimeoutMs: 15_000),
+        new ScanningSettings(LoadTimeoutMs: 30_000, NetworkIdleGraceMs: 3_000));
 
     public Task<IReadOnlyList<PageDefinition>> ListPagesAsync(CancellationToken cancellationToken) =>
         ReadDirectoryAsync<PageDefinition>(PagesDirectory, PageDefinition.CurrentSchemaVersion, cancellationToken);
@@ -135,6 +162,7 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
 
     private string CliqDirectory => Path.Combine(RequireRoot(), ".cliq");
     private string ProjectPath => Path.Combine(CliqDirectory, "project.json");
+    private string SettingsPath => Path.Combine(CliqDirectory, "settings.json");
     private string PagesDirectory => Path.Combine(CliqDirectory, "pages");
     private string TestsDirectory => Path.Combine(CliqDirectory, "tests");
     private string RunsDirectory => Path.Combine(CliqDirectory, "runs");

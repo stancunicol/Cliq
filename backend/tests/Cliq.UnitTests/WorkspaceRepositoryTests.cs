@@ -7,6 +7,9 @@ namespace Cliq.UnitTests;
 [TestFixture]
 public sealed class WorkspaceRepositoryTests
 {
+    private static readonly string[] DefaultStrategyOrder = ["testId", "id", "name"];
+    private static readonly string[] CustomStrategyOrder = ["id", "testId"];
+
     private string _root = null!;
 
     [SetUp]
@@ -59,6 +62,51 @@ public sealed class WorkspaceRepositoryTests
 
         Assert.That(loaded, Is.Not.Null);
         Assert.That(loaded!.Steps.Single().Url, Is.EqualTo("https://example.com"));
+    }
+
+    [Test]
+    public async Task OpenAsync_CreatesDefaultSettings()
+    {
+        var repository = new WorkspaceRepository();
+        await repository.OpenAsync(_root, CancellationToken.None);
+
+        var settings = await repository.GetSettingsAsync(CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(File.Exists(Path.Combine(_root, ".cliq", "settings.json")), Is.True);
+            Assert.That(settings.ElementIdentification.TestIdAttribute, Is.EqualTo("data-testid"));
+            Assert.That(settings.ElementIdentification.StrategyOrder, Is.EqualTo(DefaultStrategyOrder));
+            Assert.That(settings.TestExecution.DefaultStepTimeoutMs, Is.EqualTo(10_000));
+            Assert.That(settings.TestExecution.PageReadyTimeoutMs, Is.EqualTo(15_000));
+            Assert.That(settings.Scanning.LoadTimeoutMs, Is.EqualTo(30_000));
+            Assert.That(settings.Scanning.NetworkIdleGraceMs, Is.EqualTo(3_000));
+        });
+    }
+
+    [Test]
+    public async Task SaveSettingsAsync_RoundTripsCustomIdentificationRules()
+    {
+        var repository = new WorkspaceRepository();
+        await repository.OpenAsync(_root, CancellationToken.None);
+        var settings = new CliqSettings(
+            CliqSettings.CurrentSchemaVersion,
+            new ElementIdentificationSettings("data-qa", CustomStrategyOrder),
+            new TestExecutionSettings(5_000, 12_000),
+            new ScanningSettings(20_000, 2_000));
+
+        await repository.SaveSettingsAsync(settings, CancellationToken.None);
+        var loaded = await repository.GetSettingsAsync(CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(loaded.ElementIdentification.TestIdAttribute, Is.EqualTo("data-qa"));
+            Assert.That(loaded.ElementIdentification.StrategyOrder, Is.EqualTo(CustomStrategyOrder));
+            Assert.That(loaded.TestExecution.DefaultStepTimeoutMs, Is.EqualTo(5_000));
+            Assert.That(loaded.TestExecution.PageReadyTimeoutMs, Is.EqualTo(12_000));
+            Assert.That(loaded.Scanning.LoadTimeoutMs, Is.EqualTo(20_000));
+            Assert.That(loaded.Scanning.NetworkIdleGraceMs, Is.EqualTo(2_000));
+        });
     }
 
     [Test]

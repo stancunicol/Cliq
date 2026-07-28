@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "elementIdentification": {
+    "testIdAttribute": "data-testid",
+    "strategyOrder": [
+      "testId",
+      "id",
+      "name"
+    ]
+  },
+  "testExecution": {
+    "defaultStepTimeoutMs": 10000,
+    "pageReadyTimeoutMs": 15000
+  },
+  "scanning": {
+    "loadTimeoutMs": 30000,
+    "networkIdleGraceMs": 3000
+  }
+}

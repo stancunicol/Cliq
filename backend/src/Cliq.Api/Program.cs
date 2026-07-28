@@ -37,7 +37,7 @@ if (string.IsNullOrWhiteSpace(apiToken))
 
 app.Use(async (context, next) =>
 {
-    if (context.Request.Path.StartsWithSegments("/health"))
+    if (context.Request.Path.StartsWithSegments("/health") || context.Request.Path.StartsWithSegments("/swagger"))
     {
         await next();
         return;
@@ -117,6 +117,17 @@ api.MapPut("/project", async (
     CancellationToken cancellationToken) =>
     Results.Ok(await repository.SaveProjectAsync(project, cancellationToken)));
 
+api.MapGet("/settings", async (
+    IWorkspaceRepository repository,
+    CancellationToken cancellationToken) =>
+    Results.Ok(await repository.GetSettingsAsync(cancellationToken)));
+
+api.MapPut("/settings", async (
+    CliqSettings settings,
+    IWorkspaceRepository repository,
+    CancellationToken cancellationToken) =>
+    Results.Ok(await repository.SaveSettingsAsync(settings, cancellationToken)));
+
 api.MapGet("/pages", async (
     IWorkspaceRepository repository,
     CancellationToken cancellationToken) =>
@@ -160,13 +171,14 @@ api.MapPost("/pages/scan", async (
     CancellationToken cancellationToken) =>
 {
     var snapshot = await repository.GetSnapshotAsync(cancellationToken);
-    var page = await discovery.ScanAsync(
+    var result = await discovery.ScanAsync(
         request.Url,
         request.Name,
         request.Browser ?? snapshot.Project.DefaultBrowser,
         request.Headless,
         cancellationToken);
-    return Results.Ok(await repository.SavePageAsync(page, cancellationToken));
+    var saved = await repository.SavePageAsync(result.Page, cancellationToken);
+    return Results.Ok(new ScanPageResponse(saved, result.Reconciliation));
 });
 
 api.MapGet("/tests", async (

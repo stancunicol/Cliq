@@ -54,6 +54,7 @@ export class BackendSupervisor {
         try {
           const ready = JSON.parse(line.slice('CLIQ_READY '.length)) as ReadyMessage
           this.address = ready.address.replace('://localhost:', '://127.0.0.1:')
+          console.log(`[backend] listening on ${this.address}`)
           clearTimeout(timeout)
           resolve()
         } catch (error) {

@@ -16,7 +16,7 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     };
 
-    public async Task<PageDefinition> ScanAsync(
+    public async Task<PageScanResult> ScanAsync(
         string url,
         string name,
         DomainBrowser browser,
@@ -32,23 +32,30 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
         cancellationToken.ThrowIfCancellationRequested();
 
         var root = repository.RootPath ?? throw new WorkspaceNotOpenException();
+        var settings = await repository.GetSettingsAsync(cancellationToken);
         var screenshotDirectory = Path.Combine(root, ".cliq", "runs", "discovery");
         var className = PageObjectWorkflow.DeriveClassName(url);
+        var pageId = Slug(name);
         var outPath = Path.Combine(Path.GetTempPath(), $"cliq-scan-{Guid.NewGuid():N}.json");
 
         try
         {
             var scanOutput = await RunScanProcessAsync(
-                url, browser, headless, screenshotDirectory, className, outPath, cancellationToken);
+                url, browser, headless, screenshotDirectory, className,
+                settings.ElementIdentification, settings.Scanning, outPath, cancellationToken);
 
-            var elements = BuildElements(scanOutput.Elements);
-            return new PageDefinition(
+            var freshElements = BuildElements(scanOutput.Elements, settings.ElementIdentification.TestIdAttribute);
+            var previous = await repository.GetPageAsync(pageId, cancellationToken);
+            var (elements, report) = ElementReconciler.Reconcile(freshElements, previous?.Elements ?? []);
+
+            var page = new PageDefinition(
                 PageDefinition.CurrentSchemaVersion,
-                Slug(name),
+                pageId,
                 name,
                 url,
                 elements,
                 DateTimeOffset.UtcNow);
+            return new PageScanResult(page, report);
         }
         finally
         {
@@ -69,6 +76,8 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
         bool headless,
         string screenshotDirectory,
         string label,
+        ElementIdentificationSettings identification,
+        ScanningSettings scanning,
         string outPath,
         CancellationToken cancellationToken)
     {
@@ -93,6 +102,13 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
         startInfo.ArgumentList.Add(screenshotDirectory);
         startInfo.ArgumentList.Add("--label");
         startInfo.ArgumentList.Add(label);
+        startInfo.ArgumentList.Add("--locator-config");
+        startInfo.ArgumentList.Add(JsonSerializer.Serialize(
+            new { testIdAttribute = identification.TestIdAttribute, strategyOrder = identification.StrategyOrder }));
+        startInfo.ArgumentList.Add("--load-timeout-ms");
+        startInfo.ArgumentList.Add(scanning.LoadTimeoutMs.ToString());
+        startInfo.ArgumentList.Add("--network-idle-timeout-ms");
+        startInfo.ArgumentList.Add(scanning.NetworkIdleGraceMs.ToString());
 
         using var process = new Process { StartInfo = startInfo };
         process.Start();
@@ -168,7 +184,7 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
             "Could not locate the repository root to find the Puppeteer scanner script. Set CLIQ_PUPPETEER_SCANNER_PATH.");
     }
 
-    private static IReadOnlyList<PageElement> BuildElements(IReadOnlyList<RawElement> rawElements)
+    private static IReadOnlyList<PageElement> BuildElements(IReadOnlyList<RawElement> rawElements, string testIdAttribute)
     {
         var elements = new List<PageElement>();
         var usedNames = new Dictionary<string, int>();
@@ -198,7 +214,7 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
                 name,
                 el.Tag,
                 ToAction(el.Kind),
-                ToLocator(el.Strategy, el.LocatorValue, name),
+                ToLocator(el.Strategy, el.LocatorValue, name, testIdAttribute),
                 el.AssertText));
         }
 
@@ -215,13 +231,14 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
         _ => throw new InvalidOperationException($"Unknown element kind '{kind}'"),
     };
 
-    private static Locator ToLocator(string strategy, string value, string name)
+    private static Locator ToLocator(string strategy, string value, string name, string testIdAttribute)
     {
+        var testIdPrefix = $"[{testIdAttribute}=\"";
         if (strategy == "css"
-            && value.StartsWith("[data-testid=\"", StringComparison.Ordinal)
+            && value.StartsWith(testIdPrefix, StringComparison.Ordinal)
             && value.EndsWith("\"]", StringComparison.Ordinal))
         {
-            return new Locator(DomainLocator.TestId, value[14..^2], name);
+            return new Locator(DomainLocator.TestId, value[testIdPrefix.Length..^2], name);
         }
 
         return new Locator(
