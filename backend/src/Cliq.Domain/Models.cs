@@ -148,7 +148,9 @@ public sealed record StepResult(
     long DurationMs,
     string? Error = null,
     string? ScreenshotPath = null,
-    bool SelfHealed = false);
+    bool SelfHealed = false,
+    long? LocateMs = null,
+    long? ActionMs = null);
 
 public sealed record TestRun(
     string Id,

@@ -53,8 +53,14 @@ public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRu
                 DomainStepResult result;
                 try
                 {
-                    var healed = ExecuteStep(driver, step, pages, secrets, settings, cancellationToken);
-                    result = new DomainStepResult(step.Id, RunStatus.Passed, stopwatch.ElapsedMilliseconds, SelfHealed: healed);
+                    var timing = ExecuteStep(driver, step, pages, secrets, settings, cancellationToken);
+                    result = new DomainStepResult(
+                        step.Id,
+                        RunStatus.Passed,
+                        stopwatch.ElapsedMilliseconds,
+                        SelfHealed: timing.Healed,
+                        LocateMs: timing.LocateMs,
+                        ActionMs: timing.ActionMs);
                 }
                 catch (Exception exception) when (exception is not OperationCanceledException)
                 {
@@ -89,7 +95,7 @@ public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRu
             failed ? "One or more test steps failed." : null);
     }
 
-    private bool ExecuteStep(
+    private StepTiming ExecuteStep(
         IWebDriver driver,
         TestStep step,
         IReadOnlyDictionary<string, PageDefinition> pages,
@@ -101,7 +107,7 @@ public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRu
         {
             driver.Navigate().GoToUrl(step.Url ?? throw new WorkspaceValidationException("Navigate step has no URL."));
             PageReadiness.WaitForComplete(driver, TimeSpan.FromMilliseconds(settings.TestExecution.PageReadyTimeoutMs));
-            return false;
+            return new StepTiming(false, null, null);
         }
 
         if (step.Action == StepAction.AssertUrl)
@@ -112,13 +118,14 @@ public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRu
                 throw new InvalidOperationException($"URL '{driver.Url}' does not match '{expected}'.");
             }
 
-            return false;
+            return new StepTiming(false, null, null);
         }
 
         var element = ResolveElement(step, pages);
         var timeout = TimeSpan.FromMilliseconds(step.TimeoutMs is > 0 ? step.TimeoutMs.Value : settings.TestExecution.DefaultStepTimeoutMs);
         var testIdAttribute = settings.ElementIdentification.TestIdAttribute;
 
+        var locateStopwatch = Stopwatch.StartNew();
         IWebElement webElement;
         var healed = false;
         try
@@ -138,6 +145,9 @@ public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRu
             healed = true;
         }
 
+        var locateMs = locateStopwatch.ElapsedMilliseconds;
+
+        var actionStopwatch = Stopwatch.StartNew();
         switch (step.Action)
         {
             case StepAction.Click:
@@ -168,8 +178,10 @@ public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRu
                 break;
         }
 
-        return healed;
+        return new StepTiming(healed, locateMs, actionStopwatch.ElapsedMilliseconds);
     }
+
+    private readonly record struct StepTiming(bool Healed, long? LocateMs, long? ActionMs);
 
     private void PersistHealedLocator(
         TestStep step,
