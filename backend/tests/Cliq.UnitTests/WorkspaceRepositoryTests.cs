@@ -65,6 +65,97 @@ public sealed class WorkspaceRepositoryTests
     }
 
     [Test]
+    public async Task SaveTestAsync_RejectsStepWithNoPageReference()
+    {
+        var repository = new WorkspaceRepository();
+        await repository.OpenAsync(_root, CancellationToken.None);
+        var test = new TestCase(
+            TestCase.CurrentSchemaVersion,
+            "checkout",
+            "Checkout",
+            null,
+            [],
+            [new TestStep("click", StepAction.Click, "Click submit", true)],
+            DateTimeOffset.UtcNow);
+
+        Assert.ThrowsAsync<WorkspaceValidationException>(async () =>
+            await repository.SaveTestAsync(test, CancellationToken.None));
+    }
+
+    [Test]
+    public async Task SaveTestAsync_RejectsStepReferencingNonexistentPage()
+    {
+        var repository = new WorkspaceRepository();
+        await repository.OpenAsync(_root, CancellationToken.None);
+        var test = new TestCase(
+            TestCase.CurrentSchemaVersion,
+            "checkout",
+            "Checkout",
+            null,
+            [],
+            [new TestStep("click", StepAction.Click, "Click submit", true, PageId: "missing-page", ElementId: "submit")],
+            DateTimeOffset.UtcNow);
+
+        Assert.ThrowsAsync<WorkspaceValidationException>(async () =>
+            await repository.SaveTestAsync(test, CancellationToken.None));
+    }
+
+    [Test]
+    public async Task SaveTestAsync_RejectsStepReferencingNonexistentElement()
+    {
+        var repository = new WorkspaceRepository();
+        await repository.OpenAsync(_root, CancellationToken.None);
+        var page = new PageDefinition(
+            PageDefinition.CurrentSchemaVersion,
+            "login-page",
+            "Login Page",
+            "https://example.com/login",
+            [new PageElement("username-1", "username", "input", StepAction.Fill, new Locator(LocatorStrategy.Id, "username"))],
+            DateTimeOffset.UtcNow);
+        await repository.SavePageAsync(page, CancellationToken.None);
+
+        var test = new TestCase(
+            TestCase.CurrentSchemaVersion,
+            "checkout",
+            "Checkout",
+            null,
+            [],
+            [new TestStep("click", StepAction.Click, "Click submit", true, PageId: "login-page", ElementId: "does-not-exist")],
+            DateTimeOffset.UtcNow);
+
+        Assert.ThrowsAsync<WorkspaceValidationException>(async () =>
+            await repository.SaveTestAsync(test, CancellationToken.None));
+    }
+
+    [Test]
+    public async Task SaveTestAsync_AllowsValidElementReference()
+    {
+        var repository = new WorkspaceRepository();
+        await repository.OpenAsync(_root, CancellationToken.None);
+        var page = new PageDefinition(
+            PageDefinition.CurrentSchemaVersion,
+            "login-page",
+            "Login Page",
+            "https://example.com/login",
+            [new PageElement("username-1", "username", "input", StepAction.Fill, new Locator(LocatorStrategy.Id, "username"))],
+            DateTimeOffset.UtcNow);
+        await repository.SavePageAsync(page, CancellationToken.None);
+
+        var test = new TestCase(
+            TestCase.CurrentSchemaVersion,
+            "checkout",
+            "Checkout",
+            null,
+            [],
+            [new TestStep("fill", StepAction.Fill, "Fill username", true, PageId: "login-page", ElementId: "username-1")],
+            DateTimeOffset.UtcNow);
+
+        var saved = await repository.SaveTestAsync(test, CancellationToken.None);
+
+        Assert.That(saved.Steps.Single().ElementId, Is.EqualTo("username-1"));
+    }
+
+    [Test]
     public async Task OpenAsync_CreatesDefaultSettings()
     {
         var repository = new WorkspaceRepository();
@@ -111,6 +202,83 @@ public sealed class WorkspaceRepositoryTests
             Assert.That(loaded.Scanning.NetworkIdleGraceMs, Is.EqualTo(2_000));
             Assert.That(loaded.Scanning.CaptureScreenshot, Is.False);
         });
+    }
+
+    private static CliqSettings ValidSettings() => new(
+        CliqSettings.CurrentSchemaVersion,
+        new ElementIdentificationSettings("data-testid", DefaultStrategyOrder),
+        new TestExecutionSettings(10_000, 15_000, CaptureScreenshotOnFailure: true),
+        new ScanningSettings(30_000, 3_000, CaptureScreenshot: true));
+
+    [Test]
+    public async Task SaveSettingsAsync_RejectsUnknownStrategy()
+    {
+        var repository = new WorkspaceRepository();
+        await repository.OpenAsync(_root, CancellationToken.None);
+        var settings = ValidSettings() with
+        {
+            ElementIdentification = new ElementIdentificationSettings("data-testid", ["tesId"]),
+        };
+
+        Assert.ThrowsAsync<WorkspaceValidationException>(async () =>
+            await repository.SaveSettingsAsync(settings, CancellationToken.None));
+    }
+
+    [Test]
+    public async Task SaveSettingsAsync_RejectsEmptyStrategyOrder()
+    {
+        var repository = new WorkspaceRepository();
+        await repository.OpenAsync(_root, CancellationToken.None);
+        var settings = ValidSettings() with
+        {
+            ElementIdentification = new ElementIdentificationSettings("data-testid", []),
+        };
+
+        Assert.ThrowsAsync<WorkspaceValidationException>(async () =>
+            await repository.SaveSettingsAsync(settings, CancellationToken.None));
+    }
+
+    [Test]
+    public async Task SaveSettingsAsync_RejectsEmptyTestIdAttribute()
+    {
+        var repository = new WorkspaceRepository();
+        await repository.OpenAsync(_root, CancellationToken.None);
+        var settings = ValidSettings() with
+        {
+            ElementIdentification = new ElementIdentificationSettings("  ", DefaultStrategyOrder),
+        };
+
+        Assert.ThrowsAsync<WorkspaceValidationException>(async () =>
+            await repository.SaveSettingsAsync(settings, CancellationToken.None));
+    }
+
+    [TestCase(0)]
+    [TestCase(-1)]
+    public async Task SaveSettingsAsync_RejectsNonPositiveDefaultStepTimeout(int timeoutMs)
+    {
+        var repository = new WorkspaceRepository();
+        await repository.OpenAsync(_root, CancellationToken.None);
+        var settings = ValidSettings() with
+        {
+            TestExecution = ValidSettings().TestExecution with { DefaultStepTimeoutMs = timeoutMs },
+        };
+
+        Assert.ThrowsAsync<WorkspaceValidationException>(async () =>
+            await repository.SaveSettingsAsync(settings, CancellationToken.None));
+    }
+
+    [Test]
+    public async Task SaveSettingsAsync_RejectsNonPositiveScanningTimeouts()
+    {
+        var repository = new WorkspaceRepository();
+        await repository.OpenAsync(_root, CancellationToken.None);
+        var settings = ValidSettings() with
+        {
+            Scanning = ValidSettings().Scanning with { NetworkIdleGraceMs = 0 },
+        };
+
+        Assert.ThrowsAsync<WorkspaceValidationException>(async () =>
+            await repository.SaveSettingsAsync(settings, CancellationToken.None));
     }
 
     [Test]

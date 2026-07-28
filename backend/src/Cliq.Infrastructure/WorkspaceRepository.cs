@@ -90,8 +90,53 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
     {
         EnsureOpen();
         ValidateVersion(settings.SchemaVersion, CliqSettings.CurrentSchemaVersion, "settings");
+        ValidateSettings(settings);
         await WriteAtomicAsync(SettingsPath, settings, cancellationToken);
         return settings;
+    }
+
+    private static readonly HashSet<string> KnownIdentificationStrategies = new(StringComparer.Ordinal) { "testId", "id", "name" };
+
+    private static void ValidateSettings(CliqSettings settings)
+    {
+        if (string.IsNullOrWhiteSpace(settings.ElementIdentification.TestIdAttribute))
+        {
+            throw new WorkspaceValidationException("elementIdentification.testIdAttribute must not be empty.");
+        }
+
+        if (settings.ElementIdentification.StrategyOrder.Count == 0)
+        {
+            throw new WorkspaceValidationException("elementIdentification.strategyOrder must not be empty.");
+        }
+
+        foreach (var strategy in settings.ElementIdentification.StrategyOrder)
+        {
+            if (!KnownIdentificationStrategies.Contains(strategy))
+            {
+                throw new WorkspaceValidationException(
+                    $"elementIdentification.strategyOrder contains unknown strategy '{strategy}'. Expected one of: testId, id, name.");
+            }
+        }
+
+        if (settings.TestExecution.DefaultStepTimeoutMs <= 0)
+        {
+            throw new WorkspaceValidationException("testExecution.defaultStepTimeoutMs must be positive.");
+        }
+
+        if (settings.TestExecution.PageReadyTimeoutMs <= 0)
+        {
+            throw new WorkspaceValidationException("testExecution.pageReadyTimeoutMs must be positive.");
+        }
+
+        if (settings.Scanning.LoadTimeoutMs <= 0)
+        {
+            throw new WorkspaceValidationException("scanning.loadTimeoutMs must be positive.");
+        }
+
+        if (settings.Scanning.NetworkIdleGraceMs <= 0)
+        {
+            throw new WorkspaceValidationException("scanning.networkIdleGraceMs must be positive.");
+        }
     }
 
     private static CliqSettings DefaultSettings() => new(
@@ -128,9 +173,55 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
     {
         EnsureOpen();
         ValidateVersion(test.SchemaVersion, TestCase.CurrentSchemaVersion, "test");
+        await ValidateStepReferencesAsync(test, cancellationToken);
         var updated = test with { UpdatedAt = DateTimeOffset.UtcNow };
         await WriteAtomicAsync(EntityPath(TestsDirectory, test.Id), updated, cancellationToken);
         return updated;
+    }
+
+    private static readonly HashSet<StepAction> ActionsRequiringElement =
+    [
+        StepAction.Click,
+        StepAction.Fill,
+        StepAction.Select,
+        StepAction.PressKey,
+        StepAction.AssertVisible,
+        StepAction.AssertText,
+    ];
+
+    private async Task ValidateStepReferencesAsync(TestCase test, CancellationToken cancellationToken)
+    {
+        var pageCache = new Dictionary<string, PageDefinition?>(StringComparer.Ordinal);
+
+        foreach (var step in test.Steps)
+        {
+            if (!ActionsRequiringElement.Contains(step.Action))
+            {
+                continue;
+            }
+
+            if (string.IsNullOrEmpty(step.PageId))
+            {
+                throw new WorkspaceValidationException($"Step '{step.Id}' has no page reference.");
+            }
+
+            if (!pageCache.TryGetValue(step.PageId, out var page))
+            {
+                page = await ReadOptionalAsync<PageDefinition>(EntityPath(PagesDirectory, step.PageId), cancellationToken);
+                pageCache[step.PageId] = page;
+            }
+
+            if (page is null)
+            {
+                throw new WorkspaceValidationException($"Step '{step.Id}' references page '{step.PageId}', which does not exist.");
+            }
+
+            if (string.IsNullOrEmpty(step.ElementId) || page.Elements.All(element => element.Id != step.ElementId))
+            {
+                throw new WorkspaceValidationException(
+                    $"Step '{step.Id}' references element '{step.ElementId}' on page '{step.PageId}', which does not exist.");
+            }
+        }
     }
 
     public Task DeleteTestAsync(string id, CancellationToken cancellationToken) =>
