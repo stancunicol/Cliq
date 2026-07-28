@@ -60,11 +60,13 @@ public sealed record ElementIdentificationSettings(
 
 public sealed record TestExecutionSettings(
     int DefaultStepTimeoutMs,
-    int PageReadyTimeoutMs);
+    int PageReadyTimeoutMs,
+    bool CaptureScreenshotOnFailure);
 
 public sealed record ScanningSettings(
     int LoadTimeoutMs,
-    int NetworkIdleGraceMs);
+    int NetworkIdleGraceMs,
+    bool CaptureScreenshot);
 
 public sealed record CliqSettings(
     int SchemaVersion,

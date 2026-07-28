@@ -81,6 +81,8 @@ public sealed class WorkspaceRepositoryTests
             Assert.That(settings.TestExecution.PageReadyTimeoutMs, Is.EqualTo(15_000));
             Assert.That(settings.Scanning.LoadTimeoutMs, Is.EqualTo(30_000));
             Assert.That(settings.Scanning.NetworkIdleGraceMs, Is.EqualTo(3_000));
+            Assert.That(settings.Scanning.CaptureScreenshot, Is.True);
+            Assert.That(settings.TestExecution.CaptureScreenshotOnFailure, Is.True);
         });
     }
 
@@ -92,8 +94,8 @@ public sealed class WorkspaceRepositoryTests
         var settings = new CliqSettings(
             CliqSettings.CurrentSchemaVersion,
             new ElementIdentificationSettings("data-qa", CustomStrategyOrder),
-            new TestExecutionSettings(5_000, 12_000),
-            new ScanningSettings(20_000, 2_000));
+            new TestExecutionSettings(5_000, 12_000, CaptureScreenshotOnFailure: false),
+            new ScanningSettings(20_000, 2_000, CaptureScreenshot: false));
 
         await repository.SaveSettingsAsync(settings, CancellationToken.None);
         var loaded = await repository.GetSettingsAsync(CancellationToken.None);
@@ -104,8 +106,10 @@ public sealed class WorkspaceRepositoryTests
             Assert.That(loaded.ElementIdentification.StrategyOrder, Is.EqualTo(CustomStrategyOrder));
             Assert.That(loaded.TestExecution.DefaultStepTimeoutMs, Is.EqualTo(5_000));
             Assert.That(loaded.TestExecution.PageReadyTimeoutMs, Is.EqualTo(12_000));
+            Assert.That(loaded.TestExecution.CaptureScreenshotOnFailure, Is.False);
             Assert.That(loaded.Scanning.LoadTimeoutMs, Is.EqualTo(20_000));
             Assert.That(loaded.Scanning.NetworkIdleGraceMs, Is.EqualTo(2_000));
+            Assert.That(loaded.Scanning.CaptureScreenshot, Is.False);
         });
     }
 

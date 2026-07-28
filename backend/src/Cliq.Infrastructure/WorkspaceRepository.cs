@@ -97,8 +97,8 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
     private static CliqSettings DefaultSettings() => new(
         CliqSettings.CurrentSchemaVersion,
         new ElementIdentificationSettings("data-testid", ["testId", "id", "name"]),
-        new TestExecutionSettings(DefaultStepTimeoutMs: 10_000, PageReadyTimeoutMs: 15_000),
-        new ScanningSettings(LoadTimeoutMs: 30_000, NetworkIdleGraceMs: 3_000));
+        new TestExecutionSettings(DefaultStepTimeoutMs: 10_000, PageReadyTimeoutMs: 15_000, CaptureScreenshotOnFailure: true),
+        new ScanningSettings(LoadTimeoutMs: 30_000, NetworkIdleGraceMs: 3_000, CaptureScreenshot: true));
 
     public Task<IReadOnlyList<PageDefinition>> ListPagesAsync(CancellationToken cancellationToken) =>
         ReadDirectoryAsync<PageDefinition>(PagesDirectory, PageDefinition.CurrentSchemaVersion, cancellationToken);

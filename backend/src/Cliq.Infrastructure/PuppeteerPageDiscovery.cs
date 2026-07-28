@@ -98,8 +98,12 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
         startInfo.ArgumentList.Add(browser == DomainBrowser.Edge ? "edge" : "chrome");
         startInfo.ArgumentList.Add("--headless");
         startInfo.ArgumentList.Add(headless ? "true" : "false");
-        startInfo.ArgumentList.Add("--screenshot-dir");
-        startInfo.ArgumentList.Add(screenshotDirectory);
+        if (scanning.CaptureScreenshot)
+        {
+            startInfo.ArgumentList.Add("--screenshot-dir");
+            startInfo.ArgumentList.Add(screenshotDirectory);
+        }
+
         startInfo.ArgumentList.Add("--label");
         startInfo.ArgumentList.Add(label);
         startInfo.ArgumentList.Add("--locator-config");

@@ -58,7 +58,9 @@ public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRu
                 }
                 catch (Exception exception) when (exception is not OperationCanceledException)
                 {
-                    var screenshot = CaptureFailure(driver, runId, step.Id);
+                    var screenshot = settings.TestExecution.CaptureScreenshotOnFailure
+                        ? CaptureFailure(driver, runId, step.Id)
+                        : null;
                     result = new DomainStepResult(
                         step.Id,
                         RunStatus.Failed,

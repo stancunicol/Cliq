@@ -10,10 +10,12 @@
   },
   "testExecution": {
     "defaultStepTimeoutMs": 10000,
-    "pageReadyTimeoutMs": 15000
+    "pageReadyTimeoutMs": 15000,
+    "captureScreenshotOnFailure": true
   },
   "scanning": {
     "loadTimeoutMs": 30000,
-    "networkIdleGraceMs": 3000
+    "networkIdleGraceMs": 3000,
+    "captureScreenshot": true
   }
 }
