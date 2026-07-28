@@ -8,8 +8,17 @@
 // selector; see backend/tools/puppeteer-scanner's --locator-config flag,
 // driven by the workspace's settings.json.
 function extractElements(config) {
-  const defaults = { testIdAttribute: 'data-testid', strategyOrder: ['testId', 'id', 'name'] };
-  const { testIdAttribute, strategyOrder } = { ...defaults, ...config };
+  const defaults = { testIdAttribute: 'data-testid', strategyOrder: ['testId', 'id', 'name'], ignoreIdPatterns: [] };
+  const { testIdAttribute, strategyOrder, ignoreIdPatterns } = { ...defaults, ...config };
+
+  const ignoreIdRegexes = ignoreIdPatterns.map((pattern) => new RegExp(pattern, 'i'));
+
+  // A framework-generated id (React Select, Ember, Angular Material, GUIDs, ...) is volatile
+  // across page loads even without any DOM/data change, so it's untrustworthy both as a locator
+  // and as a naming source - treat it as if the element had no id at all.
+  function isIgnoredId(id) {
+    return ignoreIdRegexes.some((regex) => regex.test(id));
+  }
 
   const candidates = Array.from(document.querySelectorAll(
     'input, textarea, select, button, a[href], h1, h2, h3, h4, h5, h6'
@@ -58,7 +67,7 @@ function extractElements(config) {
       const candidate = `[${testIdAttribute}="${cssEscape(testId)}"]`;
       return isUniqueMatch(candidate, el) ? { strategy: 'css', value: candidate } : null;
     },
-    id: (el) => (el.id && isUniqueMatch(`#${CSS.escape(el.id)}`, el))
+    id: (el) => (el.id && !isIgnoredId(el.id) && isUniqueMatch(`#${CSS.escape(el.id)}`, el))
       ? { strategy: 'id', value: el.id }
       : null,
     name: (el) => {
@@ -127,7 +136,7 @@ function extractElements(config) {
         locatorValue: locator.value,
         groupName,
         testId: el.getAttribute(testIdAttribute),
-        id: el.id || null,
+        id: (el.id && !isIgnoredId(el.id)) ? el.id : null,
         name: el.getAttribute('name'),
         placeholder: el.getAttribute('placeholder'),
         text: text.slice(0, 40),

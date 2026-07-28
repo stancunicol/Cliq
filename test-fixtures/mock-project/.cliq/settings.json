@@ -6,6 +6,12 @@
       "testId",
       "id",
       "name"
+    ],
+    "ignoreIdPatterns": [
+      "^ember\\d\u002B$",
+      "^react-select-\\d\u002B-",
+      "^mat-[a-z]\u002B(-[a-z]\u002B)*-\\d\u002B$",
+      "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
     ]
   },
   "testExecution": {

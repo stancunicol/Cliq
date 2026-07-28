@@ -108,7 +108,12 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
         startInfo.ArgumentList.Add(label);
         startInfo.ArgumentList.Add("--locator-config");
         startInfo.ArgumentList.Add(JsonSerializer.Serialize(
-            new { testIdAttribute = identification.TestIdAttribute, strategyOrder = identification.StrategyOrder }));
+            new
+            {
+                testIdAttribute = identification.TestIdAttribute,
+                strategyOrder = identification.StrategyOrder,
+                ignoreIdPatterns = identification.IgnoreIdPatterns,
+            }));
         startInfo.ArgumentList.Add("--load-timeout-ms");
         startInfo.ArgumentList.Add(scanning.LoadTimeoutMs.ToString());
         startInfo.ArgumentList.Add("--network-idle-timeout-ms");

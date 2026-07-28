@@ -83,6 +83,18 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
         EnsureOpen();
         var settings = await ReadOptionalAsync<CliqSettings>(SettingsPath, cancellationToken) ?? DefaultSettings();
         ValidateVersion(settings.SchemaVersion, CliqSettings.CurrentSchemaVersion, "settings");
+
+        // A settings.json written before a field was introduced deserializes that field as null
+        // (not an empty collection) via constructor binding - backfill so older files upgrade
+        // cleanly instead of crashing whatever first reads the missing value.
+        if (settings.ElementIdentification.IgnoreIdPatterns is null)
+        {
+            settings = settings with
+            {
+                ElementIdentification = settings.ElementIdentification with { IgnoreIdPatterns = [] },
+            };
+        }
+
         return settings;
     }
 
@@ -118,6 +130,19 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
             }
         }
 
+        foreach (var pattern in settings.ElementIdentification.IgnoreIdPatterns)
+        {
+            try
+            {
+                _ = new Regex(pattern);
+            }
+            catch (ArgumentException exception)
+            {
+                throw new WorkspaceValidationException(
+                    $"elementIdentification.ignoreIdPatterns contains an invalid regular expression '{pattern}': {exception.Message}");
+            }
+        }
+
         if (settings.TestExecution.DefaultStepTimeoutMs <= 0)
         {
             throw new WorkspaceValidationException("testExecution.defaultStepTimeoutMs must be positive.");
@@ -139,9 +164,20 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
         }
     }
 
+    // Known framework-instance-generated id shapes: values that look like this are volatile
+    // across page loads even without any DOM/data change, so they're untrustworthy as a locator
+    // and as a naming source - see ElementIdentificationSettings.IgnoreIdPatterns.
+    private static readonly string[] DefaultIgnoreIdPatterns =
+    [
+        @"^ember\d+$",
+        @"^react-select-\d+-",
+        @"^mat-[a-z]+(-[a-z]+)*-\d+$",
+        @"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+    ];
+
     private static CliqSettings DefaultSettings() => new(
         CliqSettings.CurrentSchemaVersion,
-        new ElementIdentificationSettings("data-testid", ["testId", "id", "name"]),
+        new ElementIdentificationSettings("data-testid", ["testId", "id", "name"], DefaultIgnoreIdPatterns),
         new TestExecutionSettings(DefaultStepTimeoutMs: 10_000, PageReadyTimeoutMs: 15_000, CaptureScreenshotOnFailure: true),
         new ScanningSettings(LoadTimeoutMs: 30_000, NetworkIdleGraceMs: 3_000, CaptureScreenshot: true));
 

@@ -174,6 +174,7 @@ public sealed class WorkspaceRepositoryTests
             Assert.That(settings.Scanning.NetworkIdleGraceMs, Is.EqualTo(3_000));
             Assert.That(settings.Scanning.CaptureScreenshot, Is.True);
             Assert.That(settings.TestExecution.CaptureScreenshotOnFailure, Is.True);
+            Assert.That(settings.ElementIdentification.IgnoreIdPatterns, Is.Not.Empty);
         });
     }
 
@@ -184,7 +185,7 @@ public sealed class WorkspaceRepositoryTests
         await repository.OpenAsync(_root, CancellationToken.None);
         var settings = new CliqSettings(
             CliqSettings.CurrentSchemaVersion,
-            new ElementIdentificationSettings("data-qa", CustomStrategyOrder),
+            new ElementIdentificationSettings("data-qa", CustomStrategyOrder, []),
             new TestExecutionSettings(5_000, 12_000, CaptureScreenshotOnFailure: false),
             new ScanningSettings(20_000, 2_000, CaptureScreenshot: false));
 
@@ -206,7 +207,7 @@ public sealed class WorkspaceRepositoryTests
 
     private static CliqSettings ValidSettings() => new(
         CliqSettings.CurrentSchemaVersion,
-        new ElementIdentificationSettings("data-testid", DefaultStrategyOrder),
+        new ElementIdentificationSettings("data-testid", DefaultStrategyOrder, []),
         new TestExecutionSettings(10_000, 15_000, CaptureScreenshotOnFailure: true),
         new ScanningSettings(30_000, 3_000, CaptureScreenshot: true));
 
@@ -217,7 +218,7 @@ public sealed class WorkspaceRepositoryTests
         await repository.OpenAsync(_root, CancellationToken.None);
         var settings = ValidSettings() with
         {
-            ElementIdentification = new ElementIdentificationSettings("data-testid", ["tesId"]),
+            ElementIdentification = new ElementIdentificationSettings("data-testid", ["tesId"], []),
         };
 
         Assert.ThrowsAsync<WorkspaceValidationException>(async () =>
@@ -231,7 +232,7 @@ public sealed class WorkspaceRepositoryTests
         await repository.OpenAsync(_root, CancellationToken.None);
         var settings = ValidSettings() with
         {
-            ElementIdentification = new ElementIdentificationSettings("data-testid", []),
+            ElementIdentification = new ElementIdentificationSettings("data-testid", [], []),
         };
 
         Assert.ThrowsAsync<WorkspaceValidationException>(async () =>
@@ -245,7 +246,7 @@ public sealed class WorkspaceRepositoryTests
         await repository.OpenAsync(_root, CancellationToken.None);
         var settings = ValidSettings() with
         {
-            ElementIdentification = new ElementIdentificationSettings("  ", DefaultStrategyOrder),
+            ElementIdentification = new ElementIdentificationSettings("  ", DefaultStrategyOrder, []),
         };
 
         Assert.ThrowsAsync<WorkspaceValidationException>(async () =>
@@ -279,6 +280,35 @@ public sealed class WorkspaceRepositoryTests
 
         Assert.ThrowsAsync<WorkspaceValidationException>(async () =>
             await repository.SaveSettingsAsync(settings, CancellationToken.None));
+    }
+
+    [Test]
+    public async Task SaveSettingsAsync_RejectsInvalidIgnoreIdRegex()
+    {
+        var repository = new WorkspaceRepository();
+        await repository.OpenAsync(_root, CancellationToken.None);
+        var settings = ValidSettings() with
+        {
+            ElementIdentification = new ElementIdentificationSettings("data-testid", DefaultStrategyOrder, ["(unbalanced"]),
+        };
+
+        Assert.ThrowsAsync<WorkspaceValidationException>(async () =>
+            await repository.SaveSettingsAsync(settings, CancellationToken.None));
+    }
+
+    [Test]
+    public async Task SaveSettingsAsync_AllowsEmptyIgnoreIdPatterns()
+    {
+        var repository = new WorkspaceRepository();
+        await repository.OpenAsync(_root, CancellationToken.None);
+        var settings = ValidSettings() with
+        {
+            ElementIdentification = new ElementIdentificationSettings("data-testid", DefaultStrategyOrder, []),
+        };
+
+        var saved = await repository.SaveSettingsAsync(settings, CancellationToken.None);
+
+        Assert.That(saved.ElementIdentification.IgnoreIdPatterns, Is.Empty);
     }
 
     [Test]

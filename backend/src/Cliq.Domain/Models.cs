@@ -56,7 +56,8 @@ public sealed record ProjectManifest(
 
 public sealed record ElementIdentificationSettings(
     string TestIdAttribute,
-    IReadOnlyList<string> StrategyOrder);
+    IReadOnlyList<string> StrategyOrder,
+    IReadOnlyList<string> IgnoreIdPatterns);
 
 public sealed record TestExecutionSettings(
     int DefaultStepTimeoutMs,

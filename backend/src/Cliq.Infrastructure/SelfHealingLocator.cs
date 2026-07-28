@@ -24,6 +24,11 @@ internal static class SelfHealingLocator
             const tag = arguments[0];
             const testIdAttribute = arguments[1];
             const strategyOrder = arguments[2];
+            const ignoreIdRegexes = arguments[3].map((pattern) => new RegExp(pattern, 'i'));
+
+            function isIgnoredId(id) {
+                return ignoreIdRegexes.some((regex) => regex.test(id));
+            }
 
             function cssEscape(value) {
                 return value.replace(/["\\]/g, '\\$&');
@@ -64,7 +69,7 @@ internal static class SelfHealingLocator
                     const candidate = `[${testIdAttribute}="${cssEscape(testId)}"]`;
                     return isUniqueMatch(candidate, el) ? { strategy: 'css', value: candidate } : null;
                 },
-                id: (el) => (el.id && isUniqueMatch(`#${CSS.escape(el.id)}`, el))
+                id: (el) => (el.id && !isIgnoredId(el.id) && isUniqueMatch(`#${CSS.escape(el.id)}`, el))
                     ? { strategy: 'id', value: el.id }
                     : null,
                 name: (el) => {
@@ -88,7 +93,7 @@ internal static class SelfHealingLocator
                 const text = (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 40);
                 return {
                     testId: el.getAttribute(testIdAttribute),
-                    id: el.id || null,
+                    id: (el.id && !isIgnoredId(el.id)) ? el.id : null,
                     name: el.getAttribute('name'),
                     placeholder: el.getAttribute('placeholder'),
                     text,
@@ -107,7 +112,7 @@ internal static class SelfHealingLocator
     public static Locator? TryHeal(IWebDriver driver, PageElement element, ElementIdentificationSettings settings)
     {
         var js = (IJavaScriptExecutor)driver;
-        var json = (string)js.ExecuteScript(CandidateScript, element.Tag, settings.TestIdAttribute, settings.StrategyOrder)!;
+        var json = (string)js.ExecuteScript(CandidateScript, element.Tag, settings.TestIdAttribute, settings.StrategyOrder, settings.IgnoreIdPatterns)!;
         var candidates = JsonSerializer.Deserialize<List<Candidate>>(json, JsonOptions) ?? [];
         return SelectMatch(candidates, element.Name, settings.TestIdAttribute);
     }
