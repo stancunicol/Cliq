@@ -1,9 +1,14 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using Cliq.Domain;
 using Cliq.VisualStudio.Core;
+using Cliq.VisualStudio.Core.Authoring;
 using Microsoft.VisualStudio.PlatformUI;
 using Microsoft.VisualStudio.Shell;
 
@@ -16,9 +21,75 @@ public sealed class CliqWorkbenchToolWindow : ToolWindowPane
         : base(null)
     {
         Caption = CliqExtensionConstants.WorkbenchTitle;
-        Content = new CliqPlaceholderControl(
-            CliqExtensionConstants.WorkbenchTitle,
-            "Test and page authoring will appear here.");
+        Content = new WorkbenchControl(
+            new WorkbenchViewModel(
+                new DisconnectedWorkbenchStore(),
+                new MessageBoxWorkbenchPrompt()));
+    }
+}
+
+internal sealed class DisconnectedWorkbenchStore : IWorkbenchStore
+{
+    private readonly Dictionary<string, TestCase> _tests =
+        new Dictionary<string, TestCase>(StringComparer.Ordinal);
+
+    public Task<WorkspaceSnapshot> LoadAsync(CancellationToken cancellationToken)
+    {
+        var project = new ProjectManifest(
+            ProjectManifest.CurrentSchemaVersion,
+            "disconnected",
+            "No Cliq workspace connected",
+            "https://",
+            BrowserKind.Chrome,
+            new OutputSettings(),
+            DateTimeOffset.UtcNow);
+        return Task.FromResult(
+            new WorkspaceSnapshot(
+                string.Empty,
+                project,
+                Array.Empty<PageDefinition>(),
+                new List<TestCase>(_tests.Values)));
+    }
+
+    public Task<TestCase> SaveTestAsync(TestCase test, CancellationToken cancellationToken)
+    {
+        _tests[test.Id] = test;
+        return Task.FromResult(test);
+    }
+
+    public Task DeleteTestAsync(string testId, CancellationToken cancellationToken)
+    {
+        _tests.Remove(testId);
+        return Task.CompletedTask;
+    }
+}
+
+internal sealed class MessageBoxWorkbenchPrompt : IWorkbenchPrompt
+{
+    public Task<bool> ConfirmDiscardChangesAsync(
+        string operation,
+        CancellationToken cancellationToken)
+    {
+        var result = MessageBox.Show(
+            $"You have unsaved Cliq changes. Discard them and {operation}?",
+            "Cliq",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning,
+            MessageBoxResult.No);
+        return Task.FromResult(result == MessageBoxResult.Yes);
+    }
+
+    public Task<bool> ConfirmDeleteTestAsync(
+        string testName,
+        CancellationToken cancellationToken)
+    {
+        var result = MessageBox.Show(
+            $"Delete test “{testName}”? This cannot be undone.",
+            "Cliq",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning,
+            MessageBoxResult.No);
+        return Task.FromResult(result == MessageBoxResult.Yes);
     }
 }
 
