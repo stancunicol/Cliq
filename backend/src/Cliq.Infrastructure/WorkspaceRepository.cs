@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Cliq.Application;
 using Cliq.Domain;
+using GenerationIdentifierNaming = Cliq.Infrastructure.Generation.IdentifierNaming;
 
 namespace Cliq.Infrastructure;
 
@@ -269,6 +270,18 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
         var runDirectory = Path.Combine(RunsDirectory, SafeId(run.Id));
         Directory.CreateDirectory(runDirectory);
         return WriteAtomicAsync(Path.Combine(runDirectory, "run.json"), run, cancellationToken);
+    }
+
+    public string? GetScreenshotPath(string runId, string fileName)
+    {
+        EnsureOpen();
+        if (!IdPattern().IsMatch(runId) || !GenerationIdentifierNaming.IsSafeFileName(fileName))
+        {
+            return null;
+        }
+
+        var path = Path.Combine(RunsDirectory, runId, fileName);
+        return File.Exists(path) ? path : null;
     }
 
     internal string GetContainedPath(string relativeDirectory)

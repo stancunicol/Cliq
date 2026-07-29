@@ -102,6 +102,18 @@ export class BackendSupervisor {
     return (await response.json()) as T
   }
 
+  async requestDataUrl(route: string): Promise<string | null> {
+    if (!this.address) throw new Error('The .NET backend is not ready.')
+    const response = await fetch(`${this.address}${route}`, {
+      headers: { Authorization: `Bearer ${this.token}` },
+    })
+    if (response.status === 404) return null
+    if (!response.ok) throw new Error(`Backend request failed (${response.status}).`)
+    const contentType = response.headers.get('content-type') ?? 'application/octet-stream'
+    const buffer = Buffer.from(await response.arrayBuffer())
+    return `data:${contentType};base64,${buffer.toString('base64')}`
+  }
+
   async streamRunEvents(
     runId: string,
     onEvent: (event: string, payload: unknown) => void,

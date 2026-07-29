@@ -19,6 +19,7 @@ public interface IWorkspaceRepository
     Task<TestCase> SaveTestAsync(TestCase test, CancellationToken cancellationToken);
     Task DeleteTestAsync(string id, CancellationToken cancellationToken);
     Task SaveRunAsync(TestRun run, CancellationToken cancellationToken);
+    string? GetScreenshotPath(string runId, string fileName);
 }
 
 public interface IPageDiscovery

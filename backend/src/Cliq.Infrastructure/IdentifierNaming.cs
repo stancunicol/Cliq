@@ -43,7 +43,7 @@ public static class IdentifierNaming
     public static bool IsSafeNamespace(string? value) =>
         !string.IsNullOrEmpty(value) && value.Split('.').All(IsSafeIdentifier);
 
-    private static readonly Regex SafeScreenshotFileNamePattern = new(@"^[A-Za-z0-9_]+\.png$", RegexOptions.Compiled);
+    private static readonly Regex SafeScreenshotFileNamePattern = new(@"^[A-Za-z0-9_-]+\.png$", RegexOptions.Compiled);
 
     public static bool IsSafeFileName(string? value) =>
         !string.IsNullOrEmpty(value) && SafeScreenshotFileNamePattern.IsMatch(value);

@@ -1,4 +1,4 @@
-import { Copy, Plus, Trash2 } from 'lucide-react'
+import { Copy, Plus, Trash2, TriangleAlert } from 'lucide-react'
 import type { PageDefinition, StepAction, TestCase, TestStep } from '../../types'
 
 const actions: Record<StepAction, string> = {
@@ -184,7 +184,14 @@ export function TestEditor({
                   )}
                 </div>
                 {element && (
-                  <div className="locator"><span>{element.locator.strategy}</span><code>{element.locator.value}</code></div>
+                  <div className="locator">
+                    <span>{element.locator.strategy}</span><code>{element.locator.value}</code>
+                    {element.notFound && (
+                      <span className="not-found-badge" title="This element was not found on the page during the last scan.">
+                        <TriangleAlert />Not found on last scan
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
               <div className="step-actions">

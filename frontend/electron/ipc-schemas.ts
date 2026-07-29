@@ -107,6 +107,39 @@ export const boundsSchema = z.object({
   height: z.number().int().nonnegative(),
 })
 
+const regexPatternSchema = z.string().min(1).refine((value) => {
+  try {
+    new RegExp(value)
+    return true
+  } catch {
+    return false
+  }
+}, 'Must be a valid regular expression.')
+
+export const cliqSettingsSchema = z.object({
+  schemaVersion: z.literal(1),
+  elementIdentification: z.object({
+    testIdAttribute: z.string().min(1),
+    strategyOrder: z.array(z.enum(['testId', 'id', 'name'])).min(1),
+    ignoreIdPatterns: z.array(regexPatternSchema),
+  }),
+  testExecution: z.object({
+    defaultStepTimeoutMs: z.number().int().positive(),
+    pageReadyTimeoutMs: z.number().int().positive(),
+    captureScreenshotOnFailure: z.boolean(),
+  }),
+  scanning: z.object({
+    loadTimeoutMs: z.number().int().positive(),
+    networkIdleGraceMs: z.number().int().positive(),
+    captureScreenshot: z.boolean(),
+  }),
+})
+
+export const screenshotRequestSchema = z.object({
+  runId: identifierSchema,
+  fileName: z.string().min(1).max(300),
+})
+
 export const recordedInteractionSchema = z.object({
   id: z.string().uuid(),
   action: z.enum(['click', 'fill', 'select']),

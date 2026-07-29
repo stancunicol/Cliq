@@ -20,11 +20,13 @@ import {
 import {
   booleanSchema,
   boundsSchema,
+  cliqSettingsSchema,
   generationRequestSchema,
   httpNavigationSchema,
   identifierSchema,
   pageSchema,
   scanRequestSchema,
+  screenshotRequestSchema,
   secretValuesSchema,
   startRunRequestSchema,
   testCaseSchema,
@@ -195,6 +197,20 @@ function installIpc() {
       method: 'PUT',
       body: JSON.stringify(values),
     })
+  })
+  ipcMain.handle('workspace:get-settings', () => backend.request('/api/v1/settings'))
+  ipcMain.handle('workspace:save-settings', (_event, candidate) => {
+    const settings = cliqSettingsSchema.parse(candidate)
+    return backend.request('/api/v1/settings', {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    })
+  })
+  ipcMain.handle('workspace:get-screenshot', (_event, candidate) => {
+    const request = screenshotRequestSchema.parse(candidate)
+    return backend.requestDataUrl(
+      `/api/v1/runs/${encodeURIComponent(request.runId)}/screenshots/${encodeURIComponent(request.fileName)}`,
+    )
   })
 
   ipcMain.handle('browser:navigate', (_event, candidate) =>

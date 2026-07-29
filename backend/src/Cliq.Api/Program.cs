@@ -282,6 +282,14 @@ api.MapPut("/runs/{runId}", async (
     return Results.Ok(run);
 });
 
+api.MapGet("/runs/{runId}/screenshots/{fileName}", (
+    string runId,
+    string fileName,
+    IWorkspaceRepository repository) =>
+    repository.GetScreenshotPath(runId, fileName) is { } path
+        ? Results.File(path, "image/png")
+        : Results.NotFound());
+
 api.MapGet("/runs/{runId}/events", async (
     string runId,
     HttpContext context,

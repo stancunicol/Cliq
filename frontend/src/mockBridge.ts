@@ -1,6 +1,7 @@
 import type {
   BrowserState,
   CliqBridge,
+  CliqSettings,
   PageDefinition,
   RunEvent,
   TestCase,
@@ -10,6 +11,7 @@ import type {
 
 export function installMockBridge() {
   let snapshot = mockSnapshot()
+  let settings = mockSettings()
   let browserState: BrowserState = {
     url: snapshot.project.baseUrl,
     title: 'Cliq recorder fixture',
@@ -38,9 +40,15 @@ export function installMockBridge() {
         snapshot = { ...snapshot, tests: snapshot.tests.filter((test) => test.id !== id) }
       },
       scanPage: async (url, name) => {
+        const existing = snapshot.pages.find((candidate) => candidate.id === slug(name))
         const page = { ...mockPage(), url, name, id: slug(name), updatedAt: new Date().toISOString() }
         snapshot = { ...snapshot, pages: upsert(snapshot.pages, page) }
-        return page
+        return {
+          page,
+          reconciliation: existing
+            ? { matchedCount: page.elements.length, newCount: 0, missingCount: 0 }
+            : { matchedCount: 0, newCount: page.elements.length, missingCount: 0 },
+        }
       },
       generate: async (pageIds, testIds) => ({
         artifacts: [
@@ -96,6 +104,12 @@ export function installMockBridge() {
       },
       cancelRun: async () => undefined,
       saveSecrets: async () => undefined,
+      getSettings: async () => settings,
+      saveSettings: async (next) => {
+        settings = next
+        return settings
+      },
+      getScreenshot: async () => null,
       onRunEvent: (callback) => subscribe(runListeners, callback),
       onOpened: (callback) => subscribe(openedListeners, callback),
     },
@@ -193,6 +207,32 @@ function mockSnapshot(): WorkspaceSnapshot {
     },
     pages: [page],
     tests: [test],
+  }
+}
+
+function mockSettings(): CliqSettings {
+  return {
+    schemaVersion: 1,
+    elementIdentification: {
+      testIdAttribute: 'data-testid',
+      strategyOrder: ['testId', 'id', 'name'],
+      ignoreIdPatterns: [
+        '^ember\\d+$',
+        '^react-select-\\d+-',
+        '^mat-[a-z]+(-[a-z]+)*-\\d+$',
+        '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+      ],
+    },
+    testExecution: {
+      defaultStepTimeoutMs: 10_000,
+      pageReadyTimeoutMs: 15_000,
+      captureScreenshotOnFailure: true,
+    },
+    scanning: {
+      loadTimeoutMs: 30_000,
+      networkIdleGraceMs: 3_000,
+      captureScreenshot: true,
+    },
   }
 }
 

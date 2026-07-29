@@ -2,11 +2,13 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { CirclePlay, Code2, LoaderCircle, Radio, ScanSearch, Square } from 'lucide-react'
 import { BrowserPane } from './features/browser/BrowserPane'
 import { RunResults } from './features/runs/RunResults'
+import { SettingsPanel } from './features/settings/SettingsPanel'
 import { TestEditor } from './features/tests/TestEditor'
 import { Sidebar } from './features/workspace/Sidebar'
-import { workspaceService } from './services'
+import { settingsService, workspaceService } from './services'
 import type {
   BrowserState,
+  CliqSettings,
   PageDefinition,
   PageElement,
   RecordedInteraction,
@@ -27,7 +29,11 @@ const defaultBrowser: BrowserState = {
 export function App() {
   const [snapshot, setSnapshot] = useState<WorkspaceSnapshot>()
   const [selectedId, setSelectedId] = useState<string>()
-  const [active, setActive] = useState<'tests' | 'runs'>('tests')
+  const [active, setActive] = useState<'tests' | 'runs' | 'settings'>('tests')
+  const [settings, setSettings] = useState<CliqSettings>()
+  const [settingsSaving, setSettingsSaving] = useState(false)
+  const [settingsSaved, setSettingsSaved] = useState(false)
+  const [settingsError, setSettingsError] = useState<string>()
   const [search, setSearch] = useState('')
   const [browser, setBrowser] = useState(defaultBrowser)
   const [url, setUrl] = useState('https://example.com')
@@ -73,6 +79,12 @@ export function App() {
     void workspaceService.get().then(applySnapshot).catch(() => undefined)
     return window.cliq.workspace.onOpened(applySnapshot)
   }, [applySnapshot])
+
+  useEffect(() => {
+    if (!snapshot) return
+    setSettingsError(undefined)
+    void settingsService.get().then(setSettings).catch((cause) => setSettingsError(message(cause)))
+  }, [snapshot?.rootPath])
 
   useEffect(() => window.cliq?.browser.onState((state) => {
     setBrowser(state)
@@ -211,6 +223,22 @@ export function App() {
       .catch((cause) => setError(message(cause)))
   }
 
+  async function saveSettings(next: CliqSettings) {
+    setSettingsSaving(true)
+    setSettingsError(undefined)
+    setSettingsSaved(false)
+    try {
+      const saved = await settingsService.save(next)
+      setSettings(saved)
+      setSettingsSaved(true)
+      setTimeout(() => setSettingsSaved(false), 2000)
+    } catch (cause) {
+      setSettingsError(message(cause))
+    } finally {
+      setSettingsSaving(false)
+    }
+  }
+
   async function createTest() {
     if (!snapshot) return
     const test: TestCase = {
@@ -272,11 +300,12 @@ export function App() {
     if (!snapshot || !url) return
     setWorking('Scanning')
     try {
-      const page = await workspaceService.scanPage(url, pageNameFor(url), snapshot.project.defaultBrowser)
+      const { page, reconciliation } = await workspaceService.scanPage(url, pageNameFor(url), snapshot.project.defaultBrowser)
       updateSnapshot({ ...snapshot, pages: upsert(snapshot.pages, page) })
+      setWorking(`Scanned: ${reconciliation.matchedCount} matched · ${reconciliation.newCount} new · ${reconciliation.missingCount} missing`)
+      setTimeout(() => setWorking(undefined), 3000)
     } catch (cause) {
       setError(message(cause))
-    } finally {
       setWorking(undefined)
     }
   }
@@ -359,7 +388,7 @@ export function App() {
       />
       <section className="workspace">
         <header className="topbar">
-          <div><small>{snapshot.project.name}</small><h1>{active === 'runs' ? 'Run results' : selected?.name || 'Tests'}</h1></div>
+          <div><small>{snapshot.project.name}</small><h1>{active === 'runs' ? 'Run results' : active === 'settings' ? 'Settings' : selected?.name || 'Tests'}</h1></div>
           <div className="top-actions">
             <button onClick={() => void scanPage()} disabled={Boolean(working)}><ScanSearch />Scan</button>
             <button onClick={() => void generate()} disabled={Boolean(working)}><Code2 />Generate</button>
@@ -373,15 +402,25 @@ export function App() {
         </header>
         {error && <button className="error-banner" onClick={() => setError(undefined)}>{error}</button>}
         {working && <div className="working-banner">{working}</div>}
-        {active === 'tests'
-          ? <TestEditor test={selected} pages={snapshot.pages} onChange={saveTest} />
-          : <RunResults
-              run={run}
-              test={selected}
-              running={running}
-              activeStepId={activeStepId}
-              onCancel={() => void cancelRun()}
-            />}
+        {active === 'tests' && <TestEditor test={selected} pages={snapshot.pages} onChange={saveTest} />}
+        {active === 'runs' && (
+          <RunResults
+            run={run}
+            test={selected}
+            running={running}
+            activeStepId={activeStepId}
+            onCancel={() => void cancelRun()}
+          />
+        )}
+        {active === 'settings' && (
+          <SettingsPanel
+            settings={settings}
+            saving={settingsSaving}
+            saved={settingsSaved}
+            error={settingsError}
+            onSave={(next) => void saveSettings(next)}
+          />
+        )}
       </section>
       <BrowserPane
         state={browser}

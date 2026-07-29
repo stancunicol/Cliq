@@ -1,4 +1,6 @@
-import { Check, CircleAlert, LoaderCircle, Square, X } from 'lucide-react'
+import { Camera, Check, CircleAlert, LoaderCircle, Square, Wrench, X } from 'lucide-react'
+import { useState } from 'react'
+import { screenshotService } from '../../services'
 import type { TestCase, TestRun } from '../../types'
 
 export function RunResults({
@@ -14,11 +16,27 @@ export function RunResults({
   activeStepId?: string
   onCancel(): void
 }) {
+  const [screenshots, setScreenshots] = useState<Record<string, string | null>>({})
+  const [openScreenshot, setOpenScreenshot] = useState<string>()
+
   if (!run) {
     return running
       ? <section className="results run-empty"><LoaderCircle className="spin" /><h2>Starting {test?.name}</h2><p>Preparing the Selenium browser.</p></section>
       : <section className="results run-empty"><CircleAlert /><h2>No run selected</h2><p>Run a test to see progress and failures.</p></section>
   }
+
+  async function toggleScreenshot(fileName: string) {
+    if (openScreenshot === fileName) {
+      setOpenScreenshot(undefined)
+      return
+    }
+    setOpenScreenshot(fileName)
+    if (!(fileName in screenshots) && run) {
+      const dataUrl = await screenshotService.get(run.id, fileName).catch(() => null)
+      setScreenshots((current) => ({ ...current, [fileName]: dataUrl }))
+    }
+  }
+
   const passed = run.status === 'passed'
   const active = running || run.status === 'queued' || run.status === 'running'
   const activeStep = test?.steps.find((step) => step.id === activeStepId)
@@ -46,16 +64,52 @@ export function RunResults({
         {plannedSteps.map((step) => {
           const result = run.steps.find((candidate) => candidate.stepId === step.id)
           const isCurrent = step.id === activeStepId
+          const screenshotOpen = result?.screenshotPath !== undefined && openScreenshot === result.screenshotPath
           return (
-          <div className={`result-row ${isCurrent ? 'current' : result ? '' : 'pending'}`} key={step.id}>
-            <span className={isCurrent ? 'current' : result?.status === 'failed' ? 'failed' : ''}>
-              {isCurrent ? <LoaderCircle className="spin" /> : result?.status === 'passed' ? <Check /> : result ? <X /> : <span />}
-            </span>
-            <div>
-              <strong>{step.label}</strong>
-              <small>{isCurrent ? 'Executing in the Cliq browser…' : result?.error || result?.status || 'Waiting'}</small>
+          <div key={step.id}>
+            <div className={`result-row ${isCurrent ? 'current' : result ? '' : 'pending'}`}>
+              <span className={isCurrent ? 'current' : result?.status === 'failed' ? 'failed' : ''}>
+                {isCurrent ? <LoaderCircle className="spin" /> : result?.status === 'passed' ? <Check /> : result ? <X /> : <span />}
+              </span>
+              <div>
+                <strong>
+                  {step.label}
+                  {result?.selfHealed && (
+                    <span className="healed-badge" title="Locator was re-derived automatically after the original one no longer matched.">
+                      <Wrench />Self-healed
+                    </span>
+                  )}
+                </strong>
+                <small>{isCurrent ? 'Executing in the Cliq browser…' : result?.error || result?.status || 'Waiting'}</small>
+              </div>
+              {result?.screenshotPath && (
+                <button
+                  className={`screenshot-toggle ${screenshotOpen ? 'active' : ''}`}
+                  onClick={() => void toggleScreenshot(result.screenshotPath!)}
+                >
+                  <Camera />Screenshot
+                </button>
+              )}
+              <time>
+                {result ? `${result.durationMs} ms` : ''}
+                {result && (result.locateMs !== undefined || result.actionMs !== undefined) && (
+                  <small className="timing-breakdown">
+                    {result.locateMs !== undefined ? `locate ${result.locateMs}ms` : ''}
+                    {result.locateMs !== undefined && result.actionMs !== undefined ? ' · ' : ''}
+                    {result.actionMs !== undefined ? `action ${result.actionMs}ms` : ''}
+                  </small>
+                )}
+              </time>
             </div>
-            <time>{result ? `${result.durationMs} ms` : ''}</time>
+            {screenshotOpen && (
+              <div className="screenshot-panel">
+                {screenshots[result!.screenshotPath!] === undefined
+                  ? <LoaderCircle className="spin" />
+                  : screenshots[result!.screenshotPath!] === null
+                    ? <span>Screenshot is no longer available.</span>
+                    : <img src={screenshots[result!.screenshotPath!]!} alt={`Screenshot for step '${step.label}'`} />}
+              </div>
+            )}
           </div>
         )})}
       </div>

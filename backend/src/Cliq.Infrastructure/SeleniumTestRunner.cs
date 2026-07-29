@@ -252,7 +252,8 @@ public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRu
         }
 
         var directory = Path.Combine(root, ".cliq", "runs", runId);
-        return ScreenshotCapture.TryCapture(driver, directory, stepId);
+        var path = ScreenshotCapture.TryCapture(driver, directory, stepId);
+        return path is null ? null : Path.GetFileName(path);
     }
 
     private static string CssEscape(string value) =>

@@ -11,6 +11,33 @@ export type StepAction =
   | 'assertUrl'
 export type RunStatus = 'queued' | 'running' | 'passed' | 'failed' | 'cancelled'
 
+export type IdentificationStrategy = 'testId' | 'id' | 'name'
+
+export interface ElementIdentificationSettings {
+  testIdAttribute: string
+  strategyOrder: IdentificationStrategy[]
+  ignoreIdPatterns: string[]
+}
+
+export interface TestExecutionSettings {
+  defaultStepTimeoutMs: number
+  pageReadyTimeoutMs: number
+  captureScreenshotOnFailure: boolean
+}
+
+export interface ScanningSettings {
+  loadTimeoutMs: number
+  networkIdleGraceMs: number
+  captureScreenshot: boolean
+}
+
+export interface CliqSettings {
+  schemaVersion: 1
+  elementIdentification: ElementIdentificationSettings
+  testExecution: TestExecutionSettings
+  scanning: ScanningSettings
+}
+
 export interface OutputSettings {
   pageObjectsDirectory: string
   testsDirectory: string
@@ -41,6 +68,18 @@ export interface PageElement {
   action: StepAction
   locator: Locator
   expectedText?: string
+  notFound?: boolean
+}
+
+export interface ScanReconciliationReport {
+  matchedCount: number
+  newCount: number
+  missingCount: number
+}
+
+export interface PageScanResult {
+  page: PageDefinition
+  reconciliation: ScanReconciliationReport
 }
 
 export interface PageDefinition {
@@ -85,6 +124,9 @@ export interface StepResult {
   durationMs: number
   error?: string
   screenshotPath?: string
+  selfHealed?: boolean
+  locateMs?: number
+  actionMs?: number
 }
 
 export interface TestRun {
@@ -142,11 +184,14 @@ export interface CliqBridge {
     savePage(page: PageDefinition): Promise<PageDefinition>
     saveTest(test: TestCase): Promise<TestCase>
     deleteTest(id: string): Promise<void>
-    scanPage(url: string, name: string, browser?: BrowserKind): Promise<PageDefinition>
+    scanPage(url: string, name: string, browser?: BrowserKind): Promise<PageScanResult>
     generate(pageIds?: string[], testIds?: string[]): Promise<GenerationResult>
     startRun(testId: string, browser?: BrowserKind): Promise<TestRun>
     cancelRun(runId: string): Promise<void>
     saveSecrets(values: Record<string, string>): Promise<void>
+    getSettings(): Promise<CliqSettings>
+    saveSettings(settings: CliqSettings): Promise<CliqSettings>
+    getScreenshot(runId: string, fileName: string): Promise<string | null>
     onRunEvent(callback: (event: RunEvent) => void): () => void
     onOpened(callback: (snapshot: WorkspaceSnapshot) => void): () => void
   }
