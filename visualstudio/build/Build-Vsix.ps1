@@ -363,6 +363,8 @@ function Test-VsixArchive {
         $repositoryBinaryText = $binaryEncoding.GetString($repositoryUtf8)
         $textEntryPattern = '(?i)\.(json|js|txt|xml|config|manifest|md|cmd|ps1|props|targets)$'
         $secretAssignmentPattern = '(?i)(api[_-]?token|access[_-]?token|authorization)\s*[:=]\s*["'']?(bearer\s+)?[A-Za-z0-9+/_\-.=]{16,}'
+        $hasCommandTableRegistration = $false
+        $hasEmbeddedCommandTable = $false
 
         foreach ($entry in $archive.Entries) {
             if ($entry.Length -eq 0) {
@@ -385,6 +387,32 @@ function Test-VsixArchive {
 
             $binaryText = $binaryEncoding.GetString($bytes)
             $unicodeText = [Text.Encoding]::Unicode.GetString($bytes)
+            if ($entry.FullName -match '(?i)\.pkgdef$' -and
+                $unicodeText -match '(?i),\s*Commands\.ctmenu,\s*1') {
+                $hasCommandTableRegistration = $true
+            }
+
+            if ($entry.FullName -match '(?i)(^|/)Cliq\.VisualStudio\.dll$') {
+                $assembly = [Reflection.Assembly]::Load([byte[]] $bytes)
+                $resourceStream = $assembly.GetManifestResourceStream('_EmptyResource.resources')
+                if ($null -ne $resourceStream) {
+                    $resourceReader = New-Object Resources.ResourceReader($resourceStream)
+                    try {
+                        $resourceEnumerator = $resourceReader.GetEnumerator()
+                        while ($resourceEnumerator.MoveNext()) {
+                            if ($resourceEnumerator.Key -ceq 'Commands.CTMENU') {
+                                $hasEmbeddedCommandTable = $true
+                                break
+                            }
+                        }
+                    }
+                    finally {
+                        $resourceReader.Dispose()
+                        $resourceStream.Dispose()
+                    }
+                }
+            }
+
             if ($binaryText.IndexOf($repositoryBinaryText, [StringComparison]::OrdinalIgnoreCase) -ge 0 -or
                 $unicodeText.IndexOf($repositoryPath, [StringComparison]::OrdinalIgnoreCase) -ge 0) {
                 throw "VSIX entry '$($entry.FullName)' contains the repository's absolute path."
@@ -396,6 +424,10 @@ function Test-VsixArchive {
                     throw "VSIX entry '$($entry.FullName)' appears to contain a token or authorization secret."
                 }
             }
+        }
+
+        if (-not $hasCommandTableRegistration -or -not $hasEmbeddedCommandTable) {
+            throw 'VSIX command-table registration does not match the embedded Commands.CTMENU resource.'
         }
 
         $archiveSize = (Get-Item -LiteralPath $archiveFullPath).Length
