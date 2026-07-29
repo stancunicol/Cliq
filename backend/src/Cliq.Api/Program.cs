@@ -32,7 +32,7 @@ eventJsonOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.Cam
 var apiToken = Environment.GetEnvironmentVariable("CLIQ_API_TOKEN");
 if (string.IsNullOrWhiteSpace(apiToken))
 {
-    throw new InvalidOperationException("CLIQ_API_TOKEN must be provided by the Electron host.");
+    throw new InvalidOperationException("CLIQ_API_TOKEN must be provided by the sidecar host.");
 }
 
 app.Use(async (context, next) =>
@@ -68,22 +68,9 @@ app.Use(async (context, next) =>
     }
     catch (Exception exception)
     {
-        var status = exception switch
-        {
-            WorkspaceNotOpenException => StatusCodes.Status409Conflict,
-            WorkspaceValidationException or ArgumentException => StatusCodes.Status400BadRequest,
-            DirectoryNotFoundException or KeyNotFoundException => StatusCodes.Status404NotFound,
-            InvalidOperationException when exception.Message.Contains("already active", StringComparison.Ordinal) =>
-                StatusCodes.Status409Conflict,
-            _ => StatusCodes.Status500InternalServerError,
-        };
-        context.Response.StatusCode = status;
-        await context.Response.WriteAsJsonAsync(new ProblemDetails
-        {
-            Status = status,
-            Title = status == 500 ? "Internal server error" : "Request failed",
-            Detail = exception.Message,
-        });
+        var problem = ApiErrors.Create(exception);
+        context.Response.StatusCode = problem.Status!.Value;
+        await context.Response.WriteAsJsonAsync(problem);
     }
 });
 
@@ -100,6 +87,14 @@ api.MapPost("/workspaces/open", async (
     IWorkspaceRepository repository,
     CancellationToken cancellationToken) =>
     Results.Ok(await repository.OpenAsync(request.RootPath, cancellationToken)));
+
+api.MapPost("/workspaces/close", async (
+    IWorkspaceRepository repository,
+    CancellationToken cancellationToken) =>
+{
+    await repository.CloseAsync(cancellationToken);
+    return Results.NoContent();
+});
 
 api.MapGet("/workspace", async (
     IWorkspaceRepository repository,

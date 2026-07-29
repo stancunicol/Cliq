@@ -1,6 +1,8 @@
+using Cliq.Api;
 using Cliq.Application;
 using Cliq.Domain;
 using Cliq.Infrastructure;
+using Microsoft.AspNetCore.Http;
 
 namespace Cliq.UnitTests;
 
@@ -31,7 +33,7 @@ public sealed class WorkspaceRepositoryTests
     [Test]
     public async Task OpenAsync_InitializesVersionedWorkspace()
     {
-        var repository = new WorkspaceRepository();
+        using var repository = new WorkspaceRepository();
 
         var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
 
@@ -46,7 +48,7 @@ public sealed class WorkspaceRepositoryTests
     [Test]
     public async Task SaveTestAsync_RoundTripsTestSpecification()
     {
-        var repository = new WorkspaceRepository();
+        using var repository = new WorkspaceRepository();
         await repository.OpenAsync(_root, CancellationToken.None);
         var test = new TestCase(
             TestCase.CurrentSchemaVersion,
@@ -67,7 +69,7 @@ public sealed class WorkspaceRepositoryTests
     [Test]
     public async Task SaveTestAsync_RejectsStepWithNoPageReference()
     {
-        var repository = new WorkspaceRepository();
+        using var repository = new WorkspaceRepository();
         await repository.OpenAsync(_root, CancellationToken.None);
         var test = new TestCase(
             TestCase.CurrentSchemaVersion,
@@ -85,7 +87,7 @@ public sealed class WorkspaceRepositoryTests
     [Test]
     public async Task SaveTestAsync_RejectsStepReferencingNonexistentPage()
     {
-        var repository = new WorkspaceRepository();
+        using var repository = new WorkspaceRepository();
         await repository.OpenAsync(_root, CancellationToken.None);
         var test = new TestCase(
             TestCase.CurrentSchemaVersion,
@@ -103,7 +105,7 @@ public sealed class WorkspaceRepositoryTests
     [Test]
     public async Task SaveTestAsync_RejectsStepReferencingNonexistentElement()
     {
-        var repository = new WorkspaceRepository();
+        using var repository = new WorkspaceRepository();
         await repository.OpenAsync(_root, CancellationToken.None);
         var page = new PageDefinition(
             PageDefinition.CurrentSchemaVersion,
@@ -130,7 +132,7 @@ public sealed class WorkspaceRepositoryTests
     [Test]
     public async Task SaveTestAsync_AllowsValidElementReference()
     {
-        var repository = new WorkspaceRepository();
+        using var repository = new WorkspaceRepository();
         await repository.OpenAsync(_root, CancellationToken.None);
         var page = new PageDefinition(
             PageDefinition.CurrentSchemaVersion,
@@ -158,7 +160,7 @@ public sealed class WorkspaceRepositoryTests
     [Test]
     public async Task OpenAsync_CreatesDefaultSettings()
     {
-        var repository = new WorkspaceRepository();
+        using var repository = new WorkspaceRepository();
         await repository.OpenAsync(_root, CancellationToken.None);
 
         var settings = await repository.GetSettingsAsync(CancellationToken.None);
@@ -181,7 +183,7 @@ public sealed class WorkspaceRepositoryTests
     [Test]
     public async Task SaveSettingsAsync_RoundTripsCustomIdentificationRules()
     {
-        var repository = new WorkspaceRepository();
+        using var repository = new WorkspaceRepository();
         await repository.OpenAsync(_root, CancellationToken.None);
         var settings = new CliqSettings(
             CliqSettings.CurrentSchemaVersion,
@@ -214,7 +216,7 @@ public sealed class WorkspaceRepositoryTests
     [Test]
     public async Task SaveSettingsAsync_RejectsUnknownStrategy()
     {
-        var repository = new WorkspaceRepository();
+        using var repository = new WorkspaceRepository();
         await repository.OpenAsync(_root, CancellationToken.None);
         var settings = ValidSettings() with
         {
@@ -228,7 +230,7 @@ public sealed class WorkspaceRepositoryTests
     [Test]
     public async Task SaveSettingsAsync_RejectsEmptyStrategyOrder()
     {
-        var repository = new WorkspaceRepository();
+        using var repository = new WorkspaceRepository();
         await repository.OpenAsync(_root, CancellationToken.None);
         var settings = ValidSettings() with
         {
@@ -242,7 +244,7 @@ public sealed class WorkspaceRepositoryTests
     [Test]
     public async Task SaveSettingsAsync_RejectsEmptyTestIdAttribute()
     {
-        var repository = new WorkspaceRepository();
+        using var repository = new WorkspaceRepository();
         await repository.OpenAsync(_root, CancellationToken.None);
         var settings = ValidSettings() with
         {
@@ -257,7 +259,7 @@ public sealed class WorkspaceRepositoryTests
     [TestCase(-1)]
     public async Task SaveSettingsAsync_RejectsNonPositiveDefaultStepTimeout(int timeoutMs)
     {
-        var repository = new WorkspaceRepository();
+        using var repository = new WorkspaceRepository();
         await repository.OpenAsync(_root, CancellationToken.None);
         var settings = ValidSettings() with
         {
@@ -271,7 +273,7 @@ public sealed class WorkspaceRepositoryTests
     [Test]
     public async Task SaveSettingsAsync_RejectsNonPositiveScanningTimeouts()
     {
-        var repository = new WorkspaceRepository();
+        using var repository = new WorkspaceRepository();
         await repository.OpenAsync(_root, CancellationToken.None);
         var settings = ValidSettings() with
         {
@@ -285,7 +287,7 @@ public sealed class WorkspaceRepositoryTests
     [Test]
     public async Task SaveSettingsAsync_RejectsInvalidIgnoreIdRegex()
     {
-        var repository = new WorkspaceRepository();
+        using var repository = new WorkspaceRepository();
         await repository.OpenAsync(_root, CancellationToken.None);
         var settings = ValidSettings() with
         {
@@ -299,7 +301,7 @@ public sealed class WorkspaceRepositoryTests
     [Test]
     public async Task SaveSettingsAsync_AllowsEmptyIgnoreIdPatterns()
     {
-        var repository = new WorkspaceRepository();
+        using var repository = new WorkspaceRepository();
         await repository.OpenAsync(_root, CancellationToken.None);
         var settings = ValidSettings() with
         {
@@ -314,7 +316,7 @@ public sealed class WorkspaceRepositoryTests
     [Test]
     public async Task GetContainedPath_RejectsTraversal()
     {
-        var repository = new WorkspaceRepository();
+        using var repository = new WorkspaceRepository();
         await repository.OpenAsync(_root, CancellationToken.None);
 
         Assert.Throws<WorkspaceValidationException>(() => repository.GetContainedPath("../outside"));
@@ -323,9 +325,117 @@ public sealed class WorkspaceRepositoryTests
     [Test]
     public void OpenAsync_RejectsMissingDirectory()
     {
-        var repository = new WorkspaceRepository();
+        using var repository = new WorkspaceRepository();
 
         Assert.ThrowsAsync<DirectoryNotFoundException>(async () =>
             await repository.OpenAsync(Path.Combine(_root, "missing"), CancellationToken.None));
+    }
+
+    [Test]
+    public async Task OpenAsync_HoldsExclusiveLeaseAndReportsOwnerMetadata()
+    {
+        using var owner = new WorkspaceRepository();
+        using var contender = new WorkspaceRepository();
+        await owner.OpenAsync(_root, CancellationToken.None);
+
+        var exception = Assert.ThrowsAsync<WorkspaceInUseException>(async () =>
+            await contender.OpenAsync(_root, CancellationToken.None));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(exception!.Owner, Is.Not.Null);
+            Assert.That(exception.Owner!.HostKind, Is.Not.Empty);
+            Assert.That(exception.Owner.ProcessId, Is.EqualTo(Environment.ProcessId));
+            Assert.That(exception.Owner.AcquiredAt, Is.LessThanOrEqualTo(DateTimeOffset.UtcNow));
+            Assert.That(
+                File.ReadAllText(Path.Combine(_root, ".cliq", ".gitignore")),
+                Does.Contain("workspace.lock"));
+        });
+    }
+
+    [Test]
+    public async Task OpenAsync_RecoversStaleLeaseFile()
+    {
+        var cliqDirectory = Path.Combine(_root, ".cliq");
+        Directory.CreateDirectory(cliqDirectory);
+        await File.WriteAllTextAsync(
+            Path.Combine(cliqDirectory, "workspace.lock"),
+            """{"hostKind":"crashed-host","processId":123,"acquiredAt":"2026-01-01T00:00:00+00:00"}""");
+        using var repository = new WorkspaceRepository();
+
+        var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
+
+        Assert.That(snapshot.RootPath, Is.EqualTo(Path.GetFullPath(_root)));
+    }
+
+    [Test]
+    public async Task CloseAsync_ReleasesLeaseForAnotherRepository()
+    {
+        using var first = new WorkspaceRepository();
+        using var second = new WorkspaceRepository();
+        await first.OpenAsync(_root, CancellationToken.None);
+
+        await first.CloseAsync(CancellationToken.None);
+        var snapshot = await second.OpenAsync(_root, CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(first.RootPath, Is.Null);
+            Assert.That(snapshot.RootPath, Is.EqualTo(Path.GetFullPath(_root)));
+        });
+    }
+
+    [Test]
+    public async Task Dispose_ReleasesLeaseForAnotherRepository()
+    {
+        var first = new WorkspaceRepository();
+        await first.OpenAsync(_root, CancellationToken.None);
+        first.Dispose();
+        using var second = new WorkspaceRepository();
+
+        var snapshot = await second.OpenAsync(_root, CancellationToken.None);
+
+        Assert.That(snapshot.RootPath, Is.EqualTo(Path.GetFullPath(_root)));
+    }
+
+    [Test]
+    public async Task OpenAsync_FailedSwitchPreservesCurrentWorkspaceAndLease()
+    {
+        using var repository = new WorkspaceRepository();
+        using var contender = new WorkspaceRepository();
+        var original = await repository.OpenAsync(_root, CancellationToken.None);
+        var candidateRoot = Path.Combine(_root, "invalid-candidate");
+        var candidateCliqDirectory = Path.Combine(candidateRoot, ".cliq");
+        Directory.CreateDirectory(candidateCliqDirectory);
+        await File.WriteAllTextAsync(Path.Combine(candidateCliqDirectory, "project.json"), "{invalid");
+
+        Assert.ThrowsAsync<WorkspaceValidationException>(async () =>
+            await repository.OpenAsync(candidateRoot, CancellationToken.None));
+        var afterFailure = await repository.GetSnapshotAsync(CancellationToken.None);
+        var contention = Assert.ThrowsAsync<WorkspaceInUseException>(async () =>
+            await contender.OpenAsync(_root, CancellationToken.None));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(repository.RootPath, Is.EqualTo(original.RootPath));
+            Assert.That(afterFailure.RootPath, Is.EqualTo(original.RootPath));
+            Assert.That(contention, Is.Not.Null);
+        });
+    }
+
+    [Test]
+    public void WorkspaceInUseError_ProducesStructuredConflictWithoutWorkspacePath()
+    {
+        var owner = new WorkspaceLeaseOwner("visual-studio", 42, DateTimeOffset.Parse("2026-07-29T10:15:30Z"));
+
+        var problem = ApiErrors.Create(new WorkspaceInUseException(owner));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(problem.Status, Is.EqualTo(StatusCodes.Status409Conflict));
+            Assert.That(problem.Extensions["code"], Is.EqualTo("workspace_in_use"));
+            Assert.That(problem.Extensions["owner"], Is.EqualTo(owner));
+            Assert.That(problem.Detail, Does.Not.Contain(_root));
+        });
     }
 }

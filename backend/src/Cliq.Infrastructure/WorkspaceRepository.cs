@@ -16,56 +16,120 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
     };
 
     private readonly SemaphoreSlim _writeGate = new(1, 1);
+    private readonly SemaphoreSlim _workspaceGate = new(1, 1);
+    private FileStream? _workspaceLease;
+    private bool _disposed;
 
     public string? RootPath { get; private set; }
 
     public async Task<WorkspaceSnapshot> OpenAsync(string rootPath, CancellationToken cancellationToken)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         var fullPath = Path.GetFullPath(rootPath);
         if (!Directory.Exists(fullPath))
         {
             throw new DirectoryNotFoundException($"Workspace '{fullPath}' does not exist.");
         }
 
-        RootPath = fullPath;
-        Directory.CreateDirectory(CliqDirectory);
-        Directory.CreateDirectory(PagesDirectory);
-        Directory.CreateDirectory(TestsDirectory);
-        Directory.CreateDirectory(RunsDirectory);
-        await EnsureWorkspaceIgnoreAsync(cancellationToken);
-
-        if (!File.Exists(ProjectPath))
+        await _workspaceGate.WaitAsync(cancellationToken);
+        try
         {
-            var now = DateTimeOffset.UtcNow;
-            var project = new ProjectManifest(
-                ProjectManifest.CurrentSchemaVersion,
-                Slug(Path.GetFileName(fullPath)),
-                Path.GetFileName(fullPath),
-                "https://example.com",
-                BrowserKind.Chrome,
-                new OutputSettings(),
-                now);
-            await WriteAtomicAsync(ProjectPath, project, cancellationToken);
-        }
+            if (string.Equals(RootPath, fullPath, StringComparison.OrdinalIgnoreCase))
+            {
+                return await LoadSnapshotAsync(fullPath, cancellationToken);
+            }
 
-        if (!File.Exists(SettingsPath))
+            var cliqDirectory = Path.Combine(fullPath, ".cliq");
+            Directory.CreateDirectory(cliqDirectory);
+            var candidateLease = await AcquireWorkspaceLeaseAsync(cliqDirectory, cancellationToken);
+            try
+            {
+                Directory.CreateDirectory(Path.Combine(cliqDirectory, "pages"));
+                Directory.CreateDirectory(Path.Combine(cliqDirectory, "tests"));
+                Directory.CreateDirectory(Path.Combine(cliqDirectory, "runs"));
+                await EnsureWorkspaceIgnoreAsync(cliqDirectory, cancellationToken);
+
+                var projectPath = Path.Combine(cliqDirectory, "project.json");
+                if (!File.Exists(projectPath))
+                {
+                    var now = DateTimeOffset.UtcNow;
+                    var project = new ProjectManifest(
+                        ProjectManifest.CurrentSchemaVersion,
+                        Slug(Path.GetFileName(fullPath)),
+                        Path.GetFileName(fullPath),
+                        "https://example.com",
+                        BrowserKind.Chrome,
+                        new OutputSettings(),
+                        now);
+                    await WriteAtomicAsync(projectPath, project, cancellationToken);
+                }
+
+                var settingsPath = Path.Combine(cliqDirectory, "settings.json");
+                if (!File.Exists(settingsPath))
+                {
+                    await WriteAtomicAsync(settingsPath, DefaultSettings(), cancellationToken);
+                }
+
+                var snapshot = await LoadSnapshotAsync(fullPath, cancellationToken);
+                var previousLease = _workspaceLease;
+                _workspaceLease = candidateLease;
+                RootPath = fullPath;
+                candidateLease = null;
+                previousLease?.Dispose();
+                return snapshot;
+            }
+            finally
+            {
+                candidateLease?.Dispose();
+            }
+        }
+        finally
         {
-            await WriteAtomicAsync(SettingsPath, DefaultSettings(), cancellationToken);
+            _workspaceGate.Release();
         }
+    }
 
-        return await GetSnapshotAsync(cancellationToken);
+    public async Task CloseAsync(CancellationToken cancellationToken)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        await _workspaceGate.WaitAsync(cancellationToken);
+        try
+        {
+            RootPath = null;
+            _workspaceLease?.Dispose();
+            _workspaceLease = null;
+        }
+        finally
+        {
+            _workspaceGate.Release();
+        }
     }
 
     public async Task<WorkspaceSnapshot> GetSnapshotAsync(CancellationToken cancellationToken)
     {
-        EnsureOpen();
-        var project = await ReadRequiredAsync<ProjectManifest>(ProjectPath, cancellationToken);
-        ValidateVersion(project.SchemaVersion, ProjectManifest.CurrentSchemaVersion, ProjectPath);
+        var rootPath = RequireRoot();
+        return await LoadSnapshotAsync(rootPath, cancellationToken);
+    }
+
+    private static async Task<WorkspaceSnapshot> LoadSnapshotAsync(
+        string rootPath,
+        CancellationToken cancellationToken)
+    {
+        var cliqDirectory = Path.Combine(rootPath, ".cliq");
+        var projectPath = Path.Combine(cliqDirectory, "project.json");
+        var project = await ReadRequiredAsync<ProjectManifest>(projectPath, cancellationToken);
+        ValidateVersion(project.SchemaVersion, ProjectManifest.CurrentSchemaVersion, projectPath);
         return new WorkspaceSnapshot(
-            RootPath!,
+            rootPath,
             project,
-            await ListPagesAsync(cancellationToken),
-            await ListTestsAsync(cancellationToken));
+            await ReadDirectoryAsync<PageDefinition>(
+                Path.Combine(cliqDirectory, "pages"),
+                PageDefinition.CurrentSchemaVersion,
+                cancellationToken),
+            await ReadDirectoryAsync<TestCase>(
+                Path.Combine(cliqDirectory, "tests"),
+                TestCase.CurrentSchemaVersion,
+                cancellationToken));
     }
 
     public async Task<ProjectManifest> SaveProjectAsync(ProjectManifest project, CancellationToken cancellationToken)
@@ -298,7 +362,20 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
         return candidate;
     }
 
-    public void Dispose() => _writeGate.Dispose();
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        RootPath = null;
+        _workspaceLease?.Dispose();
+        _workspaceLease = null;
+        _writeGate.Dispose();
+        _workspaceGate.Dispose();
+    }
 
     private string CliqDirectory => Path.Combine(RequireRoot(), ".cliq");
     private string ProjectPath => Path.Combine(CliqDirectory, "project.json");
@@ -346,12 +423,11 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
         }
     }
 
-    private async Task<IReadOnlyList<T>> ReadDirectoryAsync<T>(
+    private static async Task<IReadOnlyList<T>> ReadDirectoryAsync<T>(
         string directory,
         int currentVersion,
         CancellationToken cancellationToken)
     {
-        EnsureOpen();
         if (!Directory.Exists(directory))
         {
             return [];
@@ -423,14 +499,105 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
         return Task.CompletedTask;
     }
 
-    private async Task EnsureWorkspaceIgnoreAsync(CancellationToken cancellationToken)
+    private static async Task EnsureWorkspaceIgnoreAsync(
+        string cliqDirectory,
+        CancellationToken cancellationToken)
     {
-        var ignorePath = Path.Combine(CliqDirectory, ".gitignore");
-        const string contents = "runs/\nsecrets.local.json\n*.tmp\n";
+        var ignorePath = Path.Combine(cliqDirectory, ".gitignore");
+        const string contents = "runs/\nsecrets.local.json\nworkspace.lock\n*.tmp\n";
         if (!File.Exists(ignorePath) || await File.ReadAllTextAsync(ignorePath, cancellationToken) != contents)
         {
             await File.WriteAllTextAsync(ignorePath, contents, cancellationToken);
         }
+    }
+
+    private static async Task<FileStream> AcquireWorkspaceLeaseAsync(
+        string cliqDirectory,
+        CancellationToken cancellationToken)
+    {
+        var lockPath = Path.Combine(cliqDirectory, "workspace.lock");
+        FileStream stream;
+        try
+        {
+            stream = new FileStream(
+                lockPath,
+                FileMode.OpenOrCreate,
+                FileAccess.ReadWrite,
+                FileShare.Read,
+                bufferSize: 4_096,
+                FileOptions.Asynchronous);
+        }
+        catch (IOException)
+        {
+            throw new WorkspaceInUseException(await ReadLeaseOwnerAsync(lockPath, cancellationToken));
+        }
+
+        try
+        {
+            var owner = new WorkspaceLeaseOwner(
+                NormalizeHostKind(Environment.GetEnvironmentVariable("CLIQ_HOST_KIND")),
+                Environment.ProcessId,
+                DateTimeOffset.UtcNow);
+            stream.SetLength(0);
+            await JsonSerializer.SerializeAsync(stream, owner, JsonOptions, cancellationToken);
+            await stream.FlushAsync(cancellationToken);
+            return stream;
+        }
+        catch
+        {
+            await stream.DisposeAsync();
+            throw;
+        }
+    }
+
+    private static async Task<WorkspaceLeaseOwner?> ReadLeaseOwnerAsync(
+        string lockPath,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using var stream = new FileStream(
+                lockPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete,
+                bufferSize: 4_096,
+                FileOptions.Asynchronous);
+            var owner = await JsonSerializer.DeserializeAsync<WorkspaceLeaseOwner>(
+                stream,
+                JsonOptions,
+                cancellationToken);
+            return owner is null
+                ? null
+                : owner with
+                {
+                    HostKind = NormalizeHostKind(owner.HostKind),
+                    ProcessId = Math.Max(0, owner.ProcessId),
+                };
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static string NormalizeHostKind(string? hostKind)
+    {
+        if (string.IsNullOrWhiteSpace(hostKind))
+        {
+            return "unknown";
+        }
+
+        var normalized = new string(hostKind
+            .Trim()
+            .Take(64)
+            .Where(character => char.IsAsciiLetterOrDigit(character) || character is '-' or '_')
+            .ToArray());
+        return string.IsNullOrEmpty(normalized) ? "unknown" : normalized;
     }
 
     [GeneratedRegex("^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$")]

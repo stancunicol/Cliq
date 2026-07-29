@@ -27,7 +27,7 @@ public sealed class WorkspaceCodeGenerationTests
     [Test]
     public async Task GenerateAsync_CreatesPageObjectWorkflowAndPreservesCustomFile()
     {
-        var repository = new WorkspaceRepository();
+        using var repository = new WorkspaceRepository();
         var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
         var page = new PageDefinition(
             PageDefinition.CurrentSchemaVersion,
@@ -91,7 +91,7 @@ public sealed class WorkspaceCodeGenerationTests
     [Test]
     public async Task GenerateAsync_EscapesQuotedTestIdInVisibilityAssertion()
     {
-        var repository = new WorkspaceRepository();
+        using var repository = new WorkspaceRepository();
         var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
         var page = new PageDefinition(
             PageDefinition.CurrentSchemaVersion,
