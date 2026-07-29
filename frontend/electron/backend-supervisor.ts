@@ -34,6 +34,7 @@ export class BackendSupervisor {
         env: {
           ...process.env,
           ASPNETCORE_ENVIRONMENT: 'Development',
+          CLIQ_HOST_KIND: 'electron',
           CLIQ_API_TOKEN: this.token,
           DOTNET_CLI_TELEMETRY_OPTOUT: '1',
         },
