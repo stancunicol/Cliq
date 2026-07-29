@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel.Design;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,6 +11,7 @@ using Cliq.VisualStudio.Core;
 using Cliq.VisualStudio.Core.Actions;
 using Cliq.VisualStudio.Core.Api;
 using Cliq.VisualStudio.Core.Authoring;
+using Cliq.VisualStudio.Core.Runs;
 using EnvDTE;
 using EnvDTE80;
 using Microsoft.VisualStudio.Shell;
@@ -41,6 +43,8 @@ public sealed class CliqPackage : AsyncPackage
 
     internal WorkspaceActionsViewModel? Actions => _actions;
 
+    internal RunResultsViewModel? RunResults { get; private set; }
+
     protected override async Task InitializeAsync(
         CancellationToken cancellationToken,
         IProgress<ServiceProgressData> progress)
@@ -55,6 +59,8 @@ public sealed class CliqPackage : AsyncPackage
         var store = new ApiWorkbenchStore(_session);
         Workbench = new WorkbenchViewModel(store, new MessageBoxWorkbenchPrompt(), store);
         _actions = new WorkspaceActionsViewModel(new ApiWorkspaceActionStore(_session));
+        RunResults = new RunResultsViewModel(
+            new ApiRunStore(_session, SynchronizationContext.Current));
         _context.ContextChanged += OnContextChanged;
         _logger.Write("Cliq extension initialized. The private sidecar will start with the first command.");
     }
@@ -76,6 +82,7 @@ public sealed class CliqPackage : AsyncPackage
 
             _session?.Dispose();
             _actions?.Dispose();
+            RunResults?.Dispose();
             _runtime?.Dispose();
             Current = null;
         }
@@ -258,6 +265,56 @@ public sealed class CliqPackage : AsyncPackage
         }
 
         await GenerateAsync(_actions.GenerateAllAsync);
+    }
+
+    internal async Task RunSelectedTestAsync()
+    {
+        if (_context is null || _session is null || Workbench is null || RunResults is null ||
+            !await PrepareForPersistedActionAsync("run the selected test"))
+        {
+            return;
+        }
+
+        await JoinableTaskFactory.SwitchToMainThreadAsync(DisposalToken);
+        var context = _context.Capture();
+        var testId = context.SelectedDocumentKind == CliqDocumentKind.Test
+            ? context.SelectedCliqEntityId
+            : Workbench.SelectedTest?.Id;
+        if (string.IsNullOrWhiteSpace(testId))
+        {
+            MessageBox.Show(
+                "Select a Cliq test in Solution Explorer or the Workbench.",
+                "Cliq",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        var test = Workbench.Tests
+            .FirstOrDefault(candidate =>
+                string.Equals(candidate.Id, testId, StringComparison.Ordinal))
+            ?.ToModel();
+        if (test is null)
+        {
+            var client = await _session.GetClientAsync(DisposalToken);
+            test = await client.GetTestAsync(testId!, DisposalToken);
+        }
+
+        await ShowToolWindowAsync(
+            typeof(CliqRunResultsToolWindow),
+            0,
+            create: true,
+            DisposalToken);
+        var browser = Workbench.Project?.DefaultBrowser ?? BrowserKind.Chrome;
+        await RunResults.StartAsync(test, browser, DisposalToken);
+    }
+
+    internal async Task CancelRunAsync()
+    {
+        if (RunResults is not null)
+        {
+            await RunResults.CancelAsync(DisposalToken);
+        }
     }
 
     private async Task GenerateAsync(

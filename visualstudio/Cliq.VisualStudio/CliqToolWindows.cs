@@ -163,9 +163,12 @@ public sealed class CliqRunResultsToolWindow : ToolWindowPane
         : base(null)
     {
         Caption = CliqExtensionConstants.RunResultsTitle;
-        Content = new CliqPlaceholderControl(
-            CliqExtensionConstants.RunResultsTitle,
-            "Live run progress and results will appear here.");
+        var viewModel = CliqPackage.Current?.RunResults;
+        Content = viewModel is null
+            ? new CliqPlaceholderControl(
+                CliqExtensionConstants.RunResultsTitle,
+                "Open the Cliq menu after the package initializes to start a run.")
+            : new RunResultsControl(viewModel);
     }
 }
 
