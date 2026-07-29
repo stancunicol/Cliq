@@ -101,9 +101,10 @@ internal sealed class CliqSidecarRuntime : IDisposable
         var installDirectory = Path.GetDirectoryName(typeof(CliqPackage).Assembly.Location)
             ?? Environment.CurrentDirectory;
         var payloadDirectory = Path.Combine(installDirectory, "Payload");
-        var backendExecutable = Path.Combine(payloadDirectory, "backend", "Cliq.Api.exe");
-        var nodeExecutable = Path.Combine(payloadDirectory, "node", "node.exe");
-        var scannerScript = Path.Combine(payloadDirectory, "scanner", "scan.js");
+        var runtimeDirectory = Path.Combine(payloadDirectory, "runtime");
+        var backendExecutable = Path.Combine(runtimeDirectory, "api", "Cliq.Api.exe");
+        var nodeExecutable = Path.Combine(runtimeDirectory, "node", "node.exe");
+        var scannerScript = Path.Combine(runtimeDirectory, "scanner", "scan.js");
         var repositoryRoot = FindRepositoryRoot(installDirectory)
             ?? FindRepositoryRoot(Environment.CurrentDirectory);
         var backendProject = repositoryRoot is null

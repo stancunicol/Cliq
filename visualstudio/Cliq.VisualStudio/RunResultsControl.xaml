@@ -98,6 +98,7 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
                 <StackPanel Orientation="Horizontal">
@@ -115,7 +116,14 @@
                            TextWrapping="Wrap"
                            Foreground="{DynamicResource Cliq.Run.Error}"
                            AutomationProperties.LiveSetting="Assertive" />
-                <Border Grid.Row="2"
+                <TextBlock Grid.Row="2"
+                           Margin="3,0,3,8"
+                           Text="{Binding SelectedItem.Error, ElementName=StepsGrid}"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource Cliq.Run.Error}"
+                           AutomationProperties.Name="Selected step failure"
+                           AutomationProperties.LiveSetting="Polite" />
+                <Border Grid.Row="3"
                         BorderBrush="{DynamicResource Cliq.Run.Border}"
                         BorderThickness="1"
                         Background="{DynamicResource Cliq.Run.ToolbarBackground}">

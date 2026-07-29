@@ -69,17 +69,19 @@ internal sealed class ProcessDesktopApplicationLauncher : IDesktopApplicationLau
 {
     public void Launch(string executablePath, string workspacePath)
     {
-        var process = Process.Start(
+        using (var process = Process.Start(
             new ProcessStartInfo
             {
                 FileName = executablePath,
                 Arguments = $"--workspace \"{workspacePath.Replace("\"", "\\\"")}\"",
                 UseShellExecute = false,
                 WorkingDirectory = Path.GetDirectoryName(executablePath),
-            });
-        if (process is null)
+            }))
         {
-            throw new InvalidOperationException("Windows did not start Cliq Desktop.");
+            if (process is null)
+            {
+                throw new InvalidOperationException("Windows did not start Cliq Desktop.");
+            }
         }
     }
 }

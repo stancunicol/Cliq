@@ -44,6 +44,17 @@ To validate an existing archive independently:
 
 Validation requires the extension assembly and manifest, API executable, Node executable, scanner entry point, `puppeteer-core`, and license notices. It rejects secrets, token assignments, repository absolute paths, Node/npm caches, and Chromium/Chrome payloads.
 
+To smoke-test the exact staged runtime with installed Chrome (a visible browser window
+opens briefly for the Selenium run):
+
+```powershell
+.\visualstudio\build\Test-PackagedRuntime.ps1 -Browser chrome
+```
+
+This opens a temporary workspace, performs a headless page scan, generates artifacts,
+runs and cancels tests, retrieves a failure screenshot, closes the workspace lease, and
+terminates the private sidecar.
+
 ## Install and uninstall
 
 Close all Visual Studio instances before installing or removing the preview.

@@ -73,9 +73,13 @@ public static class CliqShellContext
                     ? CliqCommandState.Available()
                     : CliqCommandState.Disabled();
             case CliqShellCommand.RunSelectedTest:
-                return isTest ? CliqCommandState.Available() : CliqCommandState.Disabled();
+                return hasWorkspaceScope
+                    ? CliqCommandState.Available()
+                    : CliqCommandState.Disabled();
             case CliqShellCommand.GenerateSelected:
-                return isCliqDocument ? CliqCommandState.Available() : CliqCommandState.Disabled();
+                return hasWorkspaceScope
+                    ? CliqCommandState.Available()
+                    : CliqCommandState.Disabled();
             case CliqShellCommand.GenerateAll:
             case CliqShellCommand.RecordInDesktop:
             case CliqShellCommand.Refresh:

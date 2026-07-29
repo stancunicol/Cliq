@@ -424,56 +424,73 @@ public sealed class CliqPackage : AsyncPackage, ICliqShellCommandTarget
         IdeContextSnapshot context,
         CancellationToken cancellationToken)
     {
-        switch (command)
+        try
         {
-            case CliqShellCommand.OpenWorkbench:
-            case CliqShellCommand.Settings:
-                await OpenWorkbenchAsync();
-                break;
-            case CliqShellCommand.ScanPage:
-            case CliqShellCommand.ScanSelectedUrl:
-                await ScanPageAsync();
-                break;
-            case CliqShellCommand.RunSelectedTest:
-            case CliqShellCommand.RunCliqTest:
-                await RunSelectedTestAsync();
-                break;
-            case CliqShellCommand.GenerateSelected:
-            case CliqShellCommand.GenerateCliqDocument:
-                await GenerateSelectedAsync();
-                break;
-            case CliqShellCommand.GenerateAll:
-                await GenerateAllAsync();
-                break;
-            case CliqShellCommand.Refresh:
-                await RefreshWorkspaceAsync();
-                break;
-            case CliqShellCommand.BindWorkspace:
-            case CliqShellCommand.OpenScopedWorkbench:
-            case CliqShellCommand.BindProjectAndOpen:
-                if (await BindContextWorkspaceAsync(context))
-                {
+            switch (command)
+            {
+                case CliqShellCommand.OpenWorkbench:
+                case CliqShellCommand.Settings:
                     await OpenWorkbenchAsync();
-                }
-                break;
-            case CliqShellCommand.GenerateScopedAll:
-                if (await BindContextWorkspaceAsync(context))
-                {
+                    break;
+                case CliqShellCommand.ScanPage:
+                case CliqShellCommand.ScanSelectedUrl:
+                    await ScanPageAsync();
+                    break;
+                case CliqShellCommand.RunSelectedTest:
+                case CliqShellCommand.RunCliqTest:
+                    await RunSelectedTestAsync();
+                    break;
+                case CliqShellCommand.GenerateSelected:
+                case CliqShellCommand.GenerateCliqDocument:
+                    await GenerateSelectedAsync();
+                    break;
+                case CliqShellCommand.GenerateAll:
                     await GenerateAllAsync();
-                }
-                break;
-            case CliqShellCommand.OpenCliqDocument:
-                await OpenCliqDocumentAsync(context);
-                break;
-            case CliqShellCommand.RescanCliqPage:
-                await SelectCliqDocumentAsync(context);
-                await ScanPageAsync();
-                break;
-            case CliqShellCommand.RecordInDesktop:
-                await RecordInDesktopAsync();
-                break;
-            default:
-                throw new ArgumentOutOfRangeException(nameof(command), command, null);
+                    break;
+                case CliqShellCommand.Refresh:
+                    await RefreshWorkspaceAsync();
+                    break;
+                case CliqShellCommand.BindWorkspace:
+                case CliqShellCommand.OpenScopedWorkbench:
+                case CliqShellCommand.BindProjectAndOpen:
+                    if (await BindContextWorkspaceAsync(context))
+                    {
+                        await OpenWorkbenchAsync();
+                    }
+                    break;
+                case CliqShellCommand.GenerateScopedAll:
+                    if (await BindContextWorkspaceAsync(context))
+                    {
+                        await GenerateAllAsync();
+                    }
+                    break;
+                case CliqShellCommand.OpenCliqDocument:
+                    await OpenCliqDocumentAsync(context);
+                    break;
+                case CliqShellCommand.RescanCliqPage:
+                    await SelectCliqDocumentAsync(context);
+                    await ScanPageAsync();
+                    break;
+                case CliqShellCommand.RecordInDesktop:
+                    await RecordInDesktopAsync();
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(command), command, null);
+            }
+        }
+        catch (OperationCanceledException) when (
+            cancellationToken.IsCancellationRequested || DisposalToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            _logger?.Write($"Cliq command '{command}' failed: {exception}");
+            await JoinableTaskFactory.SwitchToMainThreadAsync();
+            MessageBox.Show(
+                exception.Message,
+                "Cliq command failed",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
         }
     }
 

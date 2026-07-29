@@ -49,6 +49,31 @@ public sealed class DesktopHandoffCoordinatorTests
         });
     }
 
+    [Test]
+    public void HandoffAsync_DoesNotStealLeaseBeforeDesktopAcquiresIt()
+    {
+        var lease = new RecordingLease(true);
+        var coordinator = new DesktopHandoffCoordinator(
+            lease,
+            new RecordingLauncher(),
+            TimeSpan.Zero,
+            TimeSpan.Zero);
+
+        var exception = Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await coordinator.HandoffAsync(
+                @"C:\Apps\Cliq\Cliq.exe",
+                @"C:\work\shop",
+                null,
+                CancellationToken.None));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(exception!.Message, Does.Contain("did not acquire"));
+            Assert.That(lease.CloseCount, Is.EqualTo(1));
+            Assert.That(lease.AcquireCount, Is.EqualTo(1));
+        });
+    }
+
     private sealed class RecordingLease : IDesktopWorkspaceLease
     {
         private readonly Queue<bool> _results;

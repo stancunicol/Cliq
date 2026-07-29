@@ -102,7 +102,7 @@ public sealed class CliqShellContextTests
     }
 
     [Test]
-    public void MainCommandsDisableOperationsThatRequireASelectedTest()
+    public void MainCommandsRemainAvailableForWorkbenchSelections()
     {
         var context = Snapshot(
             selectedItem: Path.Combine(_project, "CheckoutTests.cs"),
@@ -115,9 +115,9 @@ public sealed class CliqShellContextTests
         Assert.Multiple(() =>
         {
             Assert.That(run.Visible, Is.True);
-            Assert.That(run.Enabled, Is.False);
+            Assert.That(run.Enabled, Is.True);
             Assert.That(generate.Visible, Is.True);
-            Assert.That(generate.Enabled, Is.False);
+            Assert.That(generate.Enabled, Is.True);
             Assert.That(generateAll.Enabled, Is.True);
         });
     }
