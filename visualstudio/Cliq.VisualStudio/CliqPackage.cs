@@ -12,6 +12,7 @@ using Cliq.VisualStudio.Core.Actions;
 using Cliq.VisualStudio.Core.Api;
 using Cliq.VisualStudio.Core.Authoring;
 using Cliq.VisualStudio.Core.Runs;
+using Cliq.VisualStudio.Core.Shell;
 using EnvDTE;
 using EnvDTE80;
 using Microsoft.VisualStudio.Shell;
@@ -28,7 +29,7 @@ namespace Cliq.VisualStudio;
 [ProvideToolWindow(typeof(CliqWorkbenchToolWindow))]
 [ProvideToolWindow(typeof(CliqRunResultsToolWindow))]
 [Guid(PackageGuidString)]
-public sealed class CliqPackage : AsyncPackage
+public sealed class CliqPackage : AsyncPackage, ICliqShellCommandTarget
 {
     public const string PackageGuidString = "2C0AF2DA-640F-41B8-B02D-E847AF06C29E";
     private CliqOutputLogger? _logger;
@@ -62,6 +63,7 @@ public sealed class CliqPackage : AsyncPackage
         RunResults = new RunResultsViewModel(
             new ApiRunStore(_session, SynchronizationContext.Current));
         _context.ContextChanged += OnContextChanged;
+        await new CliqCommandRegistrar(this, _context, this).InitializeAsync(cancellationToken);
         _logger.Write("Cliq extension initialized. The private sidecar will start with the first command.");
     }
 
@@ -412,5 +414,126 @@ public sealed class CliqPackage : AsyncPackage
 
         var dte = GetService(typeof(DTE)) as DTE2;
         dte?.ItemOperations.OpenFile(path, Constants.vsViewKindCode);
+    }
+
+    async Task ICliqShellCommandTarget.ExecuteAsync(
+        CliqShellCommand command,
+        IdeContextSnapshot context,
+        CancellationToken cancellationToken)
+    {
+        switch (command)
+        {
+            case CliqShellCommand.OpenWorkbench:
+            case CliqShellCommand.Settings:
+                await OpenWorkbenchAsync();
+                break;
+            case CliqShellCommand.ScanPage:
+            case CliqShellCommand.ScanSelectedUrl:
+                await ScanPageAsync();
+                break;
+            case CliqShellCommand.RunSelectedTest:
+            case CliqShellCommand.RunCliqTest:
+                await RunSelectedTestAsync();
+                break;
+            case CliqShellCommand.GenerateSelected:
+            case CliqShellCommand.GenerateCliqDocument:
+                await GenerateSelectedAsync();
+                break;
+            case CliqShellCommand.GenerateAll:
+                await GenerateAllAsync();
+                break;
+            case CliqShellCommand.Refresh:
+                await RefreshWorkspaceAsync();
+                break;
+            case CliqShellCommand.BindWorkspace:
+            case CliqShellCommand.OpenScopedWorkbench:
+            case CliqShellCommand.BindProjectAndOpen:
+                if (await BindContextWorkspaceAsync(context))
+                {
+                    await OpenWorkbenchAsync();
+                }
+                break;
+            case CliqShellCommand.GenerateScopedAll:
+                if (await BindContextWorkspaceAsync(context))
+                {
+                    await GenerateAllAsync();
+                }
+                break;
+            case CliqShellCommand.OpenCliqDocument:
+                await OpenCliqDocumentAsync(context);
+                break;
+            case CliqShellCommand.RescanCliqPage:
+                await SelectCliqDocumentAsync(context);
+                await ScanPageAsync();
+                break;
+            case CliqShellCommand.RecordInDesktop:
+                await RecordInDesktopAsync();
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(command), command, null);
+        }
+    }
+
+    private async Task<bool> BindContextWorkspaceAsync(IdeContextSnapshot context)
+    {
+        if (_context is null || _session is null || Workbench is null)
+        {
+            return false;
+        }
+
+        var root = WorkspacePathResolver.ResolveForSelectedScope(context);
+        if (root is null)
+        {
+            return false;
+        }
+
+        if (!await PrepareForPersistedActionAsync("switch workspaces"))
+        {
+            return false;
+        }
+
+        await JoinableTaskFactory.SwitchToMainThreadAsync(DisposalToken);
+        if (context.SolutionDirectory is not null)
+        {
+            _context.SetOverride(context, root);
+        }
+
+        await _session.OpenAsync(root, DisposalToken);
+        await Workbench.InitializeAsync(DisposalToken);
+        _logger?.Write($"Cliq workspace explicitly bound to {root}.");
+        return true;
+    }
+
+    private async Task OpenCliqDocumentAsync(IdeContextSnapshot context)
+    {
+        await OpenWorkbenchAsync();
+        await SelectCliqDocumentAsync(context);
+    }
+
+    private async Task SelectCliqDocumentAsync(IdeContextSnapshot context)
+    {
+        if (Workbench is null || context.SelectedCliqEntityId is not { } entityId)
+        {
+            return;
+        }
+
+        if (context.SelectedDocumentKind == CliqDocumentKind.Test)
+        {
+            Workbench.SelectedTest = Workbench.Tests.FirstOrDefault(
+                test => string.Equals(test.Id, entityId, StringComparison.Ordinal));
+        }
+        else if (context.SelectedDocumentKind == CliqDocumentKind.Page)
+        {
+            Workbench.SelectedPage = Workbench.Pages.FirstOrDefault(
+                page => string.Equals(page.Id, entityId, StringComparison.Ordinal));
+        }
+
+        await Task.CompletedTask;
+    }
+
+    private Task RecordInDesktopAsync()
+    {
+        return Task.FromException(
+            new InvalidOperationException("Cliq Desktop handoff is not initialized."));
     }
 }

@@ -5,6 +5,15 @@ using System.Text;
 
 namespace Cliq.VisualStudio.Core;
 
+public enum IdeSelectionKind
+{
+    Unknown,
+    Solution,
+    Project,
+    File,
+    Editor
+}
+
 public sealed class IdeContextSnapshot
 {
     public IdeContextSnapshot(
@@ -12,13 +21,15 @@ public sealed class IdeContextSnapshot
         string? selectedProjectDirectory,
         string? selectedItemPath,
         string? activeDocumentPath,
-        string? selectedText)
+        string? selectedText,
+        IdeSelectionKind selectionKind = IdeSelectionKind.Unknown)
     {
         SolutionDirectory = NormalizeDirectory(solutionDirectory);
         SelectedProjectDirectory = NormalizeDirectory(selectedProjectDirectory);
         SelectedItemPath = NormalizePath(selectedItemPath);
         ActiveDocumentPath = NormalizePath(activeDocumentPath);
         SelectedText = selectedText;
+        SelectionKind = selectionKind;
     }
 
     public string? SolutionDirectory { get; }
@@ -26,6 +37,7 @@ public sealed class IdeContextSnapshot
     public string? SelectedItemPath { get; }
     public string? ActiveDocumentPath { get; }
     public string? SelectedText { get; }
+    public IdeSelectionKind SelectionKind { get; }
 
     public CliqDocumentKind SelectedDocumentKind =>
         CliqDocumentClassifier.Classify(SelectedItemPath ?? ActiveDocumentPath);

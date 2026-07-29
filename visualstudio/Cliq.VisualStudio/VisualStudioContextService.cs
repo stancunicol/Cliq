@@ -48,6 +48,7 @@ internal sealed class VisualStudioContextService : IVsSolutionEvents, IDisposabl
         var solutionDirectory = GetSolutionDirectory();
         var selectedProjectDirectory = default(string);
         var selectedItemPath = default(string);
+        var selectionKind = IdeSelectionKind.Unknown;
 
         if (_selection is not null &&
             ErrorHandler.Succeeded(_selection.GetCurrentSelection(
@@ -63,6 +64,7 @@ internal sealed class VisualStudioContextService : IVsSolutionEvents, IDisposabl
                     var hierarchy = Marshal.GetObjectForIUnknown(hierarchyPointer) as IVsHierarchy;
                     selectedItemPath = GetCanonicalName(hierarchy, itemId);
                     selectedProjectDirectory = GetProjectDirectory(hierarchy);
+                    selectionKind = ClassifySelection(itemId, selectedItemPath, selectedProjectDirectory);
                 }
             }
             finally
@@ -81,12 +83,22 @@ internal sealed class VisualStudioContextService : IVsSolutionEvents, IDisposabl
 
         var activeDocumentPath = GetActiveDocumentPath();
         var selectedText = GetSelectedText();
+        if (selectionKind == IdeSelectionKind.Unknown && activeDocumentPath is not null)
+        {
+            selectionKind = IdeSelectionKind.Editor;
+        }
+        else if (selectionKind == IdeSelectionKind.Unknown && solutionDirectory is not null)
+        {
+            selectionKind = IdeSelectionKind.Solution;
+        }
+
         return new IdeContextSnapshot(
             solutionDirectory,
             selectedProjectDirectory,
             selectedItemPath,
             activeDocumentPath,
-            selectedText);
+            selectedText,
+            selectionKind);
     }
 
     public string? GetOverride(IdeContextSnapshot context)
@@ -180,6 +192,24 @@ internal sealed class VisualStudioContextService : IVsSolutionEvents, IDisposabl
         }
 
         return value as string;
+    }
+
+    private static IdeSelectionKind ClassifySelection(
+        uint itemId,
+        string? selectedItemPath,
+        string? selectedProjectDirectory)
+    {
+        if (itemId == VSConstants.VSITEMID_ROOT)
+        {
+            return string.Equals(Path.GetExtension(selectedItemPath), ".sln", StringComparison.OrdinalIgnoreCase) ||
+                   selectedProjectDirectory is null
+                ? IdeSelectionKind.Solution
+                : IdeSelectionKind.Project;
+        }
+
+        return selectedItemPath is null
+            ? IdeSelectionKind.Unknown
+            : IdeSelectionKind.File;
     }
 
     private string? GetActiveDocumentPath()

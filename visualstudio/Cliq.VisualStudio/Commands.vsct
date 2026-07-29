@@ -2,13 +2,14 @@
 <CommandTable xmlns="http://schemas.microsoft.com/VisualStudio/2005-10-18/CommandTable">
   <Extern href="stdidcmd.h" />
   <Extern href="vsshlids.h" />
+  <Extern href="KnownImageIds.vsct" />
 
   <Commands package="guidCliqPackage">
     <Menus>
       <Menu guid="guidCliqCommandSet" id="CliqMainMenu" priority="0x700" type="Menu">
         <Parent guid="guidSHLMainMenu" id="IDG_VS_MM_TOOLSADDINS" />
         <Strings>
-          <ButtonText>Cliq</ButtonText>
+          <ButtonText>Cli&amp;q</ButtonText>
           <CommandName>Cliq</CommandName>
         </Strings>
       </Menu>
@@ -28,48 +29,132 @@
       <Group guid="guidCliqCommandSet" id="CliqToolbarGroup" priority="0x0100">
         <Parent guid="guidCliqCommandSet" id="CliqToolbar" />
       </Group>
+      <Group guid="guidCliqCommandSet" id="CliqSolutionContextGroup" priority="0x0800">
+        <Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_SOLNNODE" />
+      </Group>
+      <Group guid="guidCliqCommandSet" id="CliqProjectContextGroup" priority="0x0800">
+        <Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_PROJNODE" />
+      </Group>
+      <Group guid="guidCliqCommandSet" id="CliqItemContextGroup" priority="0x0800">
+        <Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_ITEMNODE" />
+      </Group>
+      <Group guid="guidCliqCommandSet" id="CliqEditorContextGroup" priority="0x0800">
+        <Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_CODEWIN" />
+      </Group>
     </Groups>
 
     <Buttons>
       <Button guid="guidCliqCommandSet" id="OpenWorkbench" priority="0x0100" type="Button">
         <Parent guid="guidCliqCommandSet" id="CliqMainGroup" />
-        <CommandFlag>TextOnly</CommandFlag>
-        <Strings><ButtonText>Open Workbench</ButtonText></Strings>
+        <CommandFlag>IconAndText</CommandFlag>
+        <Icon guid="ImageCatalogGuid" id="ToolWindow" />
+        <Strings><ButtonText>&amp;Open Workbench</ButtonText></Strings>
       </Button>
       <Button guid="guidCliqCommandSet" id="ScanPage" priority="0x0200" type="Button">
         <Parent guid="guidCliqCommandSet" id="CliqMainGroup" />
-        <CommandFlag>TextOnly</CommandFlag>
-        <Strings><ButtonText>Scan Page</ButtonText></Strings>
+        <CommandFlag>IconAndText</CommandFlag>
+        <Icon guid="ImageCatalogGuid" id="Search" />
+        <Strings><ButtonText>&amp;Scan Page...</ButtonText></Strings>
       </Button>
       <Button guid="guidCliqCommandSet" id="RunSelectedTest" priority="0x0300" type="Button">
         <Parent guid="guidCliqCommandSet" id="CliqMainGroup" />
-        <CommandFlag>TextOnly</CommandFlag>
-        <Strings><ButtonText>Run Selected Test</ButtonText></Strings>
+        <CommandFlag>IconAndText</CommandFlag>
+        <Icon guid="ImageCatalogGuid" id="RunTest" />
+        <Strings><ButtonText>&amp;Run Selected Test</ButtonText></Strings>
       </Button>
       <Button guid="guidCliqCommandSet" id="GenerateSelected" priority="0x0400" type="Button">
         <Parent guid="guidCliqCommandSet" id="CliqMainGroup" />
-        <CommandFlag>TextOnly</CommandFlag>
-        <Strings><ButtonText>Generate Selected</ButtonText></Strings>
+        <CommandFlag>IconAndText</CommandFlag>
+        <Icon guid="ImageCatalogGuid" id="GenerateFile" />
+        <Strings><ButtonText>&amp;Generate Selected</ButtonText></Strings>
       </Button>
       <Button guid="guidCliqCommandSet" id="GenerateAll" priority="0x0500" type="Button">
         <Parent guid="guidCliqCommandSet" id="CliqMainGroup" />
-        <CommandFlag>TextOnly</CommandFlag>
-        <Strings><ButtonText>Generate All</ButtonText></Strings>
+        <CommandFlag>IconAndText</CommandFlag>
+        <Icon guid="ImageCatalogGuid" id="GenerateAllFromTemplate" />
+        <Strings><ButtonText>Generate &amp;All</ButtonText></Strings>
       </Button>
       <Button guid="guidCliqCommandSet" id="RecordInDesktop" priority="0x0600" type="Button">
         <Parent guid="guidCliqCommandSet" id="CliqMainGroup" />
-        <CommandFlag>TextOnly</CommandFlag>
-        <Strings><ButtonText>Record in Cliq Desktop</ButtonText></Strings>
+        <CommandFlag>IconAndText</CommandFlag>
+        <Icon guid="ImageCatalogGuid" id="Record" />
+        <Strings><ButtonText>Record in Cliq &amp;Desktop</ButtonText></Strings>
       </Button>
       <Button guid="guidCliqCommandSet" id="Refresh" priority="0x0700" type="Button">
         <Parent guid="guidCliqCommandSet" id="CliqMainGroup" />
-        <CommandFlag>TextOnly</CommandFlag>
-        <Strings><ButtonText>Refresh</ButtonText></Strings>
+        <CommandFlag>IconAndText</CommandFlag>
+        <Icon guid="ImageCatalogGuid" id="Refresh" />
+        <Strings><ButtonText>Re&amp;fresh</ButtonText></Strings>
       </Button>
       <Button guid="guidCliqCommandSet" id="Settings" priority="0x0800" type="Button">
         <Parent guid="guidCliqCommandSet" id="CliqMainGroup" />
-        <CommandFlag>TextOnly</CommandFlag>
-        <Strings><ButtonText>Settings</ButtonText></Strings>
+        <CommandFlag>IconAndText</CommandFlag>
+        <Icon guid="ImageCatalogGuid" id="Settings" />
+        <Strings><ButtonText>Se&amp;ttings</ButtonText></Strings>
+      </Button>
+
+      <Button guid="guidCliqCommandSet" id="BindWorkspace" priority="0x0100" type="Button">
+        <Parent guid="guidCliqCommandSet" id="CliqSolutionContextGroup" />
+        <CommandFlag>DefaultInvisible</CommandFlag>
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <Icon guid="ImageCatalogGuid" id="OpenProjectFolder" />
+        <Strings><ButtonText>Use as Cliq Workspace</ButtonText></Strings>
+      </Button>
+      <Button guid="guidCliqCommandSet" id="OpenScopedWorkbench" priority="0x0200" type="Button">
+        <Parent guid="guidCliqCommandSet" id="CliqSolutionContextGroup" />
+        <CommandFlag>DefaultInvisible</CommandFlag>
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <Icon guid="ImageCatalogGuid" id="ToolWindow" />
+        <Strings><ButtonText>Open Cliq Workbench</ButtonText></Strings>
+      </Button>
+      <Button guid="guidCliqCommandSet" id="GenerateScopedAll" priority="0x0300" type="Button">
+        <Parent guid="guidCliqCommandSet" id="CliqSolutionContextGroup" />
+        <CommandFlag>DefaultInvisible</CommandFlag>
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <Icon guid="ImageCatalogGuid" id="GenerateAllFromTemplate" />
+        <Strings><ButtonText>Generate All Cliq Artifacts</ButtonText></Strings>
+      </Button>
+      <Button guid="guidCliqCommandSet" id="BindProjectAndOpen" priority="0x0100" type="Button">
+        <Parent guid="guidCliqCommandSet" id="CliqItemContextGroup" />
+        <CommandFlag>DefaultInvisible</CommandFlag>
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <Icon guid="ImageCatalogGuid" id="OpenProjectFolder" />
+        <Strings><ButtonText>Bind Project and Open Cliq Workbench</ButtonText></Strings>
+      </Button>
+      <Button guid="guidCliqCommandSet" id="OpenCliqDocument" priority="0x0200" type="Button">
+        <Parent guid="guidCliqCommandSet" id="CliqItemContextGroup" />
+        <CommandFlag>DefaultInvisible</CommandFlag>
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <Icon guid="ImageCatalogGuid" id="OpenFile" />
+        <Strings><ButtonText>Open in Cliq Workbench</ButtonText></Strings>
+      </Button>
+      <Button guid="guidCliqCommandSet" id="RunCliqTest" priority="0x0300" type="Button">
+        <Parent guid="guidCliqCommandSet" id="CliqItemContextGroup" />
+        <CommandFlag>DefaultInvisible</CommandFlag>
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <Icon guid="ImageCatalogGuid" id="RunTest" />
+        <Strings><ButtonText>Run Cliq Test</ButtonText></Strings>
+      </Button>
+      <Button guid="guidCliqCommandSet" id="GenerateCliqDocument" priority="0x0400" type="Button">
+        <Parent guid="guidCliqCommandSet" id="CliqItemContextGroup" />
+        <CommandFlag>DefaultInvisible</CommandFlag>
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <Icon guid="ImageCatalogGuid" id="GenerateFile" />
+        <Strings><ButtonText>Generate Cliq Artifact</ButtonText></Strings>
+      </Button>
+      <Button guid="guidCliqCommandSet" id="RescanCliqPage" priority="0x0500" type="Button">
+        <Parent guid="guidCliqCommandSet" id="CliqItemContextGroup" />
+        <CommandFlag>DefaultInvisible</CommandFlag>
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <Icon guid="ImageCatalogGuid" id="Refresh" />
+        <Strings><ButtonText>Rescan Cliq Page...</ButtonText></Strings>
+      </Button>
+      <Button guid="guidCliqCommandSet" id="ScanSelectedUrl" priority="0x0100" type="Button">
+        <Parent guid="guidCliqCommandSet" id="CliqEditorContextGroup" />
+        <CommandFlag>DefaultInvisible</CommandFlag>
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <Icon guid="ImageCatalogGuid" id="Web" />
+        <Strings><ButtonText>Scan URL in Cliq...</ButtonText></Strings>
       </Button>
     </Buttons>
   </Commands>
@@ -99,7 +184,25 @@
       <CommandPlacement guid="guidCliqCommandSet" id="Settings" priority="0x0800">
         <Parent guid="guidCliqCommandSet" id="CliqToolbarGroup" />
       </CommandPlacement>
+      <CommandPlacement guid="guidCliqCommandSet" id="BindWorkspace" priority="0x0100">
+        <Parent guid="guidCliqCommandSet" id="CliqProjectContextGroup" />
+      </CommandPlacement>
+      <CommandPlacement guid="guidCliqCommandSet" id="OpenScopedWorkbench" priority="0x0200">
+        <Parent guid="guidCliqCommandSet" id="CliqProjectContextGroup" />
+      </CommandPlacement>
+      <CommandPlacement guid="guidCliqCommandSet" id="GenerateScopedAll" priority="0x0300">
+        <Parent guid="guidCliqCommandSet" id="CliqProjectContextGroup" />
+      </CommandPlacement>
   </CommandPlacements>
+
+  <KeyBindings>
+    <KeyBinding guid="guidCliqCommandSet" id="OpenWorkbench"
+                editor="guidVSStd97" key1="C" mod1="CONTROL ALT"
+                key2="W" mod2="CONTROL ALT" />
+    <KeyBinding guid="guidCliqCommandSet" id="RunSelectedTest"
+                editor="guidVSStd97" key1="C" mod1="CONTROL ALT"
+                key2="R" mod2="CONTROL ALT" />
+  </KeyBindings>
 
   <Symbols>
     <GuidSymbol name="guidCliqPackage" value="{2C0AF2DA-640F-41B8-B02D-E847AF06C29E}" />
@@ -108,6 +211,10 @@
       <IDSymbol name="CliqToolbar" value="0x1001" />
       <IDSymbol name="CliqMainGroup" value="0x1020" />
       <IDSymbol name="CliqToolbarGroup" value="0x1021" />
+      <IDSymbol name="CliqSolutionContextGroup" value="0x1022" />
+      <IDSymbol name="CliqProjectContextGroup" value="0x1023" />
+      <IDSymbol name="CliqItemContextGroup" value="0x1024" />
+      <IDSymbol name="CliqEditorContextGroup" value="0x1025" />
       <IDSymbol name="OpenWorkbench" value="0x0100" />
       <IDSymbol name="ScanPage" value="0x0101" />
       <IDSymbol name="RunSelectedTest" value="0x0102" />
@@ -116,6 +223,15 @@
       <IDSymbol name="RecordInDesktop" value="0x0105" />
       <IDSymbol name="Refresh" value="0x0106" />
       <IDSymbol name="Settings" value="0x0107" />
+      <IDSymbol name="BindWorkspace" value="0x0200" />
+      <IDSymbol name="OpenScopedWorkbench" value="0x0201" />
+      <IDSymbol name="GenerateScopedAll" value="0x0202" />
+      <IDSymbol name="BindProjectAndOpen" value="0x0203" />
+      <IDSymbol name="OpenCliqDocument" value="0x0204" />
+      <IDSymbol name="RunCliqTest" value="0x0205" />
+      <IDSymbol name="GenerateCliqDocument" value="0x0206" />
+      <IDSymbol name="RescanCliqPage" value="0x0207" />
+      <IDSymbol name="ScanSelectedUrl" value="0x0208" />
     </GuidSymbol>
   </Symbols>
 </CommandTable>
