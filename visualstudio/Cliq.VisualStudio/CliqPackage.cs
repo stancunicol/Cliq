@@ -11,6 +11,7 @@ using Cliq.VisualStudio.Core;
 using Cliq.VisualStudio.Core.Actions;
 using Cliq.VisualStudio.Core.Api;
 using Cliq.VisualStudio.Core.Authoring;
+using Cliq.VisualStudio.Core.Desktop;
 using Cliq.VisualStudio.Core.Runs;
 using Cliq.VisualStudio.Core.Shell;
 using EnvDTE;
@@ -28,6 +29,7 @@ namespace Cliq.VisualStudio;
 [ProvideMenuResource("Menus.ctmenu", 1)]
 [ProvideToolWindow(typeof(CliqWorkbenchToolWindow))]
 [ProvideToolWindow(typeof(CliqRunResultsToolWindow))]
+[ProvideOptionPage(typeof(CliqOptionsPage), "Cliq", "General", 0, 0, true)]
 [Guid(PackageGuidString)]
 public sealed class CliqPackage : AsyncPackage, ICliqShellCommandTarget
 {
@@ -37,6 +39,7 @@ public sealed class CliqPackage : AsyncPackage, ICliqShellCommandTarget
     private VisualStudioContextService? _context;
     private VisualStudioCliqSession? _session;
     private WorkspaceActionsViewModel? _actions;
+    private Task? _desktopHandoff;
 
     internal static CliqPackage? Current { get; private set; }
 
@@ -531,9 +534,78 @@ public sealed class CliqPackage : AsyncPackage, ICliqShellCommandTarget
         await Task.CompletedTask;
     }
 
-    private Task RecordInDesktopAsync()
+    private async Task RecordInDesktopAsync()
     {
-        return Task.FromException(
-            new InvalidOperationException("Cliq Desktop handoff is not initialized."));
+        if (_session is null || Workbench is null)
+        {
+            return;
+        }
+
+        if (_desktopHandoff is { IsCompleted: false })
+        {
+            await JoinableTaskFactory.SwitchToMainThreadAsync(DisposalToken);
+            MessageBox.Show(
+                "Cliq is already waiting for the Desktop recording session to finish.",
+                "Cliq",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        if (!await PrepareForPersistedActionAsync("record in Cliq Desktop"))
+        {
+            return;
+        }
+
+        var workspaceRoot = _session.WorkspaceRoot
+            ?? await _session.ResolveCurrentWorkspaceAsync(DisposalToken);
+        if (workspaceRoot is null)
+        {
+            throw new InvalidOperationException("Open or bind a Cliq workspace before recording.");
+        }
+
+        await JoinableTaskFactory.SwitchToMainThreadAsync(DisposalToken);
+        var options = (CliqOptionsPage)GetDialogPage(typeof(CliqOptionsPage));
+        var executable = CliqDesktopDiscovery.FindExecutable(options.DesktopExecutablePath);
+        if (executable is null)
+        {
+            MessageBox.Show(
+                "Cliq Desktop was not found. Configure Cliq.exe under Tools > Options > Cliq > General.",
+                "Cliq",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return;
+        }
+
+        var coordinator = new DesktopHandoffCoordinator(
+            new VisualStudioWorkspaceLease(_session),
+            new ProcessDesktopApplicationLauncher());
+        try
+        {
+            _desktopHandoff = coordinator.HandoffAsync(
+                executable,
+                workspaceRoot,
+                message => _logger?.Write(message),
+                DisposalToken);
+            await _desktopHandoff;
+            await Workbench.InitializeAsync(DisposalToken);
+        }
+        catch (OperationCanceledException) when (DisposalToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            _logger?.Write($"Cliq Desktop handoff failed: {exception}");
+            await JoinableTaskFactory.SwitchToMainThreadAsync(DisposalToken);
+            MessageBox.Show(
+                exception.Message,
+                "Cliq Desktop handoff failed",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+        finally
+        {
+            _desktopHandoff = null;
+        }
     }
 }
