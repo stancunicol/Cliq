@@ -59,11 +59,11 @@ public partial class WorkbenchControl : UserControl
         e.Handled = true;
         if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0)
         {
-            _ = _viewModel.SaveAllAsync();
+            RunOperation(async () => { await _viewModel.SaveAllAsync(); });
         }
         else
         {
-            _ = _viewModel.SaveSelectedAsync();
+            RunOperation(async () => { await _viewModel.SaveSelectedAsync(); });
         }
     }
 
@@ -116,6 +116,81 @@ public partial class WorkbenchControl : UserControl
     private void MoveStepDown_Click(object sender, RoutedEventArgs e)
     {
         _viewModel.SelectedTest?.MoveSelectedStep(1);
+    }
+
+    private void SaveProject_Click(object sender, RoutedEventArgs e)
+    {
+        RunOperation(async () => { await _viewModel.SaveProjectAsync(); });
+    }
+
+    private void SaveSettings_Click(object sender, RoutedEventArgs e)
+    {
+        RunOperation(async () => { await _viewModel.SaveSettingsAsync(); });
+    }
+
+    private void AddStrategy_Click(object sender, RoutedEventArgs e)
+    {
+        _viewModel.Settings?.AddSelectedStrategy();
+    }
+
+    private void RemoveStrategy_Click(object sender, RoutedEventArgs e)
+    {
+        _viewModel.Settings?.RemoveStrategy(StrategyList.SelectedItem as string);
+    }
+
+    private void MoveStrategyUp_Click(object sender, RoutedEventArgs e)
+    {
+        _viewModel.Settings?.MoveStrategy(StrategyList.SelectedItem as string, -1);
+    }
+
+    private void MoveStrategyDown_Click(object sender, RoutedEventArgs e)
+    {
+        _viewModel.Settings?.MoveStrategy(StrategyList.SelectedItem as string, 1);
+    }
+
+    private void AddSecret_Click(object sender, RoutedEventArgs e)
+    {
+        ShowSecretEditor(null);
+    }
+
+    private void UpdateSecret_Click(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel.SelectedSecret != null)
+        {
+            ShowSecretEditor(_viewModel.SelectedSecret.Key);
+        }
+    }
+
+    private void DeleteSecret_Click(object sender, RoutedEventArgs e)
+    {
+        RunOperation(async () => { await _viewModel.DeleteSelectedSecretAsync(); });
+    }
+
+    private void ShowSecretEditor(string? existingKey)
+    {
+        var dialog = new SecretValueDialog(existingKey)
+        {
+            Owner = Window.GetWindow(this),
+        };
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        var key = dialog.SecretKey;
+        var secret = dialog.TakeSecret();
+        RunOperation(
+            async () =>
+            {
+                try
+                {
+                    await _viewModel.SaveSecretAsync(key, secret);
+                }
+                finally
+                {
+                    secret = string.Empty;
+                }
+            });
     }
 
     private void ApplyTheme()

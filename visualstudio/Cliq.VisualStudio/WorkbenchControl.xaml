@@ -413,6 +413,267 @@
                         </Grid>
                     </Grid>
                 </TabItem>
+
+                <TabItem Header="Project">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <Grid Margin="18"
+                              MaxWidth="850"
+                              HorizontalAlignment="Left"
+                              DataContext="{Binding Project}">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right"
+                                        Content="Save project"
+                                        Click="SaveProject_Click"
+                                        AutomationProperties.Name="Save project settings" />
+                                <StackPanel>
+                                    <TextBlock Text="Project" FontSize="22" FontWeight="SemiBold" />
+                                    <TextBlock Text="Workspace identity, browser defaults, and generated-code locations."
+                                               Foreground="{DynamicResource Cliq.MutedForeground}"
+                                               Margin="0,3,0,0" />
+                                </StackPanel>
+                            </DockPanel>
+
+                            <Grid Grid.Row="1" Margin="0,18,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="180" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Margin="0,0,10,0">
+                                    <TextBlock Text="Project name" Style="{StaticResource FieldLabel}" />
+                                    <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                             AutomationProperties.Name="Project name" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Margin="0,0,10,0">
+                                    <TextBlock Text="Base URL" Style="{StaticResource FieldLabel}" />
+                                    <TextBox Text="{Binding BaseUrl, UpdateSourceTrigger=PropertyChanged}"
+                                             AutomationProperties.Name="Project base URL" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Default browser" Style="{StaticResource FieldLabel}" />
+                                    <ComboBox SelectedValue="{Binding DefaultBrowser}"
+                                              SelectedValuePath="Tag"
+                                              AutomationProperties.Name="Default browser">
+                                        <ComboBoxItem Content="Chrome" Tag="{x:Static domain:BrowserKind.Chrome}" />
+                                        <ComboBoxItem Content="Microsoft Edge" Tag="{x:Static domain:BrowserKind.Edge}" />
+                                    </ComboBox>
+                                </StackPanel>
+                            </Grid>
+
+                            <TextBlock Grid.Row="2"
+                                       Text="Generated output"
+                                       Style="{StaticResource SectionHeading}"
+                                       Margin="0,22,0,10" />
+                            <Grid Grid.Row="3">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Margin="0,0,10,12">
+                                    <TextBlock Text="Page objects directory" Style="{StaticResource FieldLabel}" />
+                                    <TextBox Text="{Binding PageObjectsDirectory, UpdateSourceTrigger=PropertyChanged}"
+                                             AutomationProperties.Name="Page objects output directory" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Margin="0,0,0,12">
+                                    <TextBlock Text="Page objects namespace" Style="{StaticResource FieldLabel}" />
+                                    <TextBox Text="{Binding PageObjectsNamespace, UpdateSourceTrigger=PropertyChanged}"
+                                             AutomationProperties.Name="Page objects namespace" />
+                                </StackPanel>
+                            </Grid>
+                            <Grid Grid.Row="4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Margin="0,0,10,0">
+                                    <TextBlock Text="Tests directory" Style="{StaticResource FieldLabel}" />
+                                    <TextBox Text="{Binding TestsDirectory, UpdateSourceTrigger=PropertyChanged}"
+                                             AutomationProperties.Name="Tests output directory" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="Tests namespace" Style="{StaticResource FieldLabel}" />
+                                    <TextBox Text="{Binding TestsNamespace, UpdateSourceTrigger=PropertyChanged}"
+                                             AutomationProperties.Name="Tests namespace" />
+                                </StackPanel>
+                            </Grid>
+                            <TextBlock Grid.Row="5"
+                                       Text="{Binding ValidationSummary}"
+                                       Margin="0,12,0,0"
+                                       Foreground="{DynamicResource Cliq.Error}"
+                                       TextWrapping="Wrap" />
+                        </Grid>
+                    </ScrollViewer>
+                </TabItem>
+
+                <TabItem Header="Cliq settings">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="18"
+                                    MaxWidth="850"
+                                    HorizontalAlignment="Left"
+                                    DataContext="{Binding Settings}">
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right"
+                                        Content="Save settings"
+                                        Click="SaveSettings_Click"
+                                        AutomationProperties.Name="Save Cliq settings" />
+                                <StackPanel>
+                                    <TextBlock Text="Cliq settings" FontSize="22" FontWeight="SemiBold" />
+                                    <TextBlock Text="Identification, execution, scanning, and screenshot behavior."
+                                               Foreground="{DynamicResource Cliq.MutedForeground}"
+                                               Margin="0,3,0,0" />
+                                </StackPanel>
+                            </DockPanel>
+
+                            <TextBlock Text="Element identification"
+                                       Style="{StaticResource SectionHeading}"
+                                       Margin="0,22,0,10" />
+                            <TextBlock Text="Test ID attribute" Style="{StaticResource FieldLabel}" />
+                            <TextBox Text="{Binding TestIdAttribute, UpdateSourceTrigger=PropertyChanged}"
+                                     Width="330"
+                                     HorizontalAlignment="Left"
+                                     AutomationProperties.Name="Test ID attribute" />
+
+                            <TextBlock Text="Strategy order"
+                                       Style="{StaticResource FieldLabel}"
+                                       Margin="0,14,0,4" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="330" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ListBox x:Name="StrategyList"
+                                         ItemsSource="{Binding StrategyOrder}"
+                                         Height="84"
+                                         BorderThickness="1"
+                                         BorderBrush="{DynamicResource Cliq.Border}"
+                                         AutomationProperties.Name="Identification strategy order" />
+                                <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                    <Button Content="Move up" Click="MoveStrategyUp_Click" />
+                                    <Button Content="Move down" Click="MoveStrategyDown_Click" Margin="3,5,3,0" />
+                                    <Button Content="Remove" Click="RemoveStrategy_Click" Margin="3,5,3,0" />
+                                </StackPanel>
+                            </Grid>
+                            <StackPanel Orientation="Horizontal" Margin="0,7,0,0">
+                                <ComboBox Width="220"
+                                          ItemsSource="{Binding AvailableStrategies}"
+                                          SelectedItem="{Binding StrategyToAdd}"
+                                          AutomationProperties.Name="Strategy to add" />
+                                <Button Content="Add strategy" Click="AddStrategy_Click" />
+                            </StackPanel>
+
+                            <TextBlock Text="Ignore ID patterns (one regular expression per line)"
+                                       Style="{StaticResource FieldLabel}"
+                                       Margin="0,14,0,4" />
+                            <TextBox Text="{Binding IgnorePatternsText, UpdateSourceTrigger=PropertyChanged}"
+                                     AcceptsReturn="True"
+                                     MinHeight="72"
+                                     VerticalScrollBarVisibility="Auto"
+                                     FontFamily="Consolas"
+                                     AutomationProperties.Name="Ignored ID regular expressions" />
+
+                            <TextBlock Text="Execution"
+                                       Style="{StaticResource SectionHeading}"
+                                       Margin="0,22,0,10" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Margin="0,0,10,0">
+                                    <TextBlock Text="Default step timeout (ms)" Style="{StaticResource FieldLabel}" />
+                                    <TextBox Text="{Binding DefaultStepTimeoutText, UpdateSourceTrigger=PropertyChanged}"
+                                             AutomationProperties.Name="Default step timeout" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="Page ready timeout (ms)" Style="{StaticResource FieldLabel}" />
+                                    <TextBox Text="{Binding PageReadyTimeoutText, UpdateSourceTrigger=PropertyChanged}"
+                                             AutomationProperties.Name="Page ready timeout" />
+                                </StackPanel>
+                            </Grid>
+                            <CheckBox Content="Capture a screenshot when a step fails"
+                                      IsChecked="{Binding CaptureScreenshotOnFailure}"
+                                      Foreground="{DynamicResource Cliq.Foreground}"
+                                      Margin="0,10,0,0" />
+
+                            <TextBlock Text="Scanning"
+                                       Style="{StaticResource SectionHeading}"
+                                       Margin="0,22,0,10" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Margin="0,0,10,0">
+                                    <TextBlock Text="Load timeout (ms)" Style="{StaticResource FieldLabel}" />
+                                    <TextBox Text="{Binding LoadTimeoutText, UpdateSourceTrigger=PropertyChanged}"
+                                             AutomationProperties.Name="Scan load timeout" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="Network idle grace (ms)" Style="{StaticResource FieldLabel}" />
+                                    <TextBox Text="{Binding NetworkIdleGraceText, UpdateSourceTrigger=PropertyChanged}"
+                                             AutomationProperties.Name="Network idle grace" />
+                                </StackPanel>
+                            </Grid>
+                            <CheckBox Content="Capture a screenshot after scanning"
+                                      IsChecked="{Binding CaptureScanScreenshot}"
+                                      Foreground="{DynamicResource Cliq.Foreground}"
+                                      Margin="0,10,0,0" />
+                            <TextBlock Text="{Binding ValidationSummary}"
+                                       Margin="0,12,0,0"
+                                       Foreground="{DynamicResource Cliq.Error}"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <TabItem Header="Secrets">
+                    <Grid Margin="18" Background="{DynamicResource Cliq.Background}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <DockPanel Margin="0,0,0,14">
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                <Button Content="+ Add secret"
+                                        Click="AddSecret_Click"
+                                        AutomationProperties.Name="Add secret" />
+                                <Button Content="Update value"
+                                        Click="UpdateSecret_Click"
+                                        AutomationProperties.Name="Update selected secret" />
+                                <Button Content="Delete"
+                                        Click="DeleteSecret_Click"
+                                        AutomationProperties.Name="Delete selected secret" />
+                            </StackPanel>
+                            <StackPanel>
+                                <TextBlock Text="Workspace secrets" FontSize="22" FontWeight="SemiBold" />
+                                <TextBlock Text="Values stay masked. Entering a new value replaces the stored secret."
+                                           Foreground="{DynamicResource Cliq.MutedForeground}"
+                                           Margin="0,3,0,0" />
+                            </StackPanel>
+                        </DockPanel>
+                        <DataGrid Grid.Row="1"
+                                  ItemsSource="{Binding Secrets}"
+                                  SelectedItem="{Binding SelectedSecret}"
+                                  AutoGenerateColumns="False"
+                                  IsReadOnly="True"
+                                  CanUserAddRows="False"
+                                  AutomationProperties.Name="Workspace secrets">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Key" Binding="{Binding Key}" Width="2*" />
+                                <DataGridTextColumn Header="Value" Binding="{Binding MaskedValue}" Width="*" />
+                                <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="130" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
+                </TabItem>
             </TabControl>
         </Grid>
 
@@ -421,14 +682,14 @@
                 Background="{DynamicResource Cliq.ToolbarBackground}"
                 BorderBrush="{DynamicResource Cliq.Border}"
                 BorderThickness="0,1,0,0">
-            <Grid>
+            <StackPanel>
                 <TextBlock Text="{Binding StatusMessage}"
                            Foreground="{DynamicResource Cliq.MutedForeground}" />
                 <TextBlock Text="{Binding ErrorMessage}"
                            Foreground="{DynamicResource Cliq.Error}"
                            TextWrapping="Wrap"
                            AutomationProperties.LiveSetting="Assertive" />
-            </Grid>
+            </StackPanel>
         </Border>
     </Grid>
 </UserControl>

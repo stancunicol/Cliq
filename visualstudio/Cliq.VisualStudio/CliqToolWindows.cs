@@ -28,14 +28,18 @@ public sealed class CliqWorkbenchToolWindow : ToolWindowPane
     }
 }
 
-internal sealed class DisconnectedWorkbenchStore : IWorkbenchStore
+internal sealed class DisconnectedWorkbenchStore : IWorkbenchStore, IWorkspaceConfigurationStore
 {
     private readonly Dictionary<string, TestCase> _tests =
         new Dictionary<string, TestCase>(StringComparer.Ordinal);
+    private readonly HashSet<string> _secretKeys =
+        new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    private ProjectManifest? _project;
+    private CliqSettings _settings = CreateDefaultSettings();
 
     public Task<WorkspaceSnapshot> LoadAsync(CancellationToken cancellationToken)
     {
-        var project = new ProjectManifest(
+        var project = _project ?? new ProjectManifest(
             ProjectManifest.CurrentSchemaVersion,
             "disconnected",
             "No Cliq workspace connected",
@@ -61,6 +65,64 @@ internal sealed class DisconnectedWorkbenchStore : IWorkbenchStore
     {
         _tests.Remove(testId);
         return Task.CompletedTask;
+    }
+
+    public Task<CliqSettings> LoadSettingsAsync(CancellationToken cancellationToken)
+    {
+        return Task.FromResult(_settings);
+    }
+
+    public Task<IReadOnlyList<SecretDescriptor>> LoadSecretsAsync(
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyList<SecretDescriptor> descriptors = new List<SecretDescriptor>(
+            System.Linq.Enumerable.Select(
+                _secretKeys,
+                key => new SecretDescriptor(key, true)));
+        return Task.FromResult(descriptors);
+    }
+
+    public Task<ProjectManifest> SaveProjectAsync(
+        ProjectManifest project,
+        CancellationToken cancellationToken)
+    {
+        _project = project;
+        return Task.FromResult(project);
+    }
+
+    public Task<CliqSettings> SaveSettingsAsync(
+        CliqSettings settings,
+        CancellationToken cancellationToken)
+    {
+        _settings = settings;
+        return Task.FromResult(settings);
+    }
+
+    public Task SaveSecretAsync(
+        string key,
+        string plaintextValue,
+        CancellationToken cancellationToken)
+    {
+        _secretKeys.Add(key);
+        return Task.CompletedTask;
+    }
+
+    public Task DeleteSecretAsync(string key, CancellationToken cancellationToken)
+    {
+        _secretKeys.Remove(key);
+        return Task.CompletedTask;
+    }
+
+    private static CliqSettings CreateDefaultSettings()
+    {
+        return new CliqSettings(
+            CliqSettings.CurrentSchemaVersion,
+            new ElementIdentificationSettings(
+                "data-testid",
+                new[] { "testId", "id", "name" },
+                Array.Empty<string>()),
+            new TestExecutionSettings(10000, 30000, true),
+            new ScanningSettings(30000, 1000, false));
     }
 }
 
