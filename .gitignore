@@ -29,6 +29,7 @@ Thumbs.db
 
 # Local runtime artifacts
 **/.cliq/runs/
+**/.cliq/timing-stats.json
 **/Screenshots/
 **/.venv/
 **/.pytest_cache/

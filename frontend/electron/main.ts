@@ -14,6 +14,7 @@ import { BackendSupervisor } from './backend-supervisor.js'
 import {
   BrowserController,
   type EmbeddedPage,
+  type EmbeddedSettings,
   type EmbeddedTest,
   type EmbeddedTestRun,
 } from './browser-controller.js'
@@ -146,6 +147,7 @@ function installIpc() {
       const test = snapshot.tests.find((item) => item.id === request.testId)
       if (!test) throw new Error(`Test '${request.testId}' was not found.`)
       const secrets = await backend.request<Record<string, string>>('/api/v1/secrets')
+      const settings = await backend.request<EmbeddedSettings>('/api/v1/settings')
       const run: EmbeddedTestRun = {
         id: randomUUID().replaceAll('-', ''),
         testId: test.id,
@@ -163,6 +165,8 @@ function installIpc() {
           snapshot.pages,
           secrets,
           snapshot.rootPath,
+          settings,
+          persistPage,
           cancellation.signal,
           (event) => shell?.webContents.send('workspace:run-event', event),
         )
@@ -232,6 +236,13 @@ function persistRun(run: EmbeddedTestRun) {
   return backend.request(`/api/v1/runs/${encodeURIComponent(run.id)}`, {
     method: 'PUT',
     body: JSON.stringify(run),
+  })
+}
+
+async function persistPage(page: EmbeddedPage) {
+  await backend.request(`/api/v1/pages/${encodeURIComponent(page.id)}`, {
+    method: 'PUT',
+    body: JSON.stringify(page),
   })
 }
 

@@ -127,6 +127,8 @@ export interface StepResult {
   selfHealed?: boolean
   locateMs?: number
   actionMs?: number
+  syncMs?: number
+  extendedTimeoutMs?: number
 }
 
 export interface TestRun {

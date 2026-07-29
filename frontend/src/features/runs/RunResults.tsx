@@ -1,7 +1,7 @@
-import { Camera, Check, CircleAlert, LoaderCircle, Square, Wrench, X } from 'lucide-react'
+import { Camera, Check, CircleAlert, Hourglass, LoaderCircle, Square, Wrench, X } from 'lucide-react'
 import { useState } from 'react'
 import { screenshotService } from '../../services'
-import type { TestCase, TestRun } from '../../types'
+import type { StepResult, TestCase, TestRun } from '../../types'
 
 export function RunResults({
   run,
@@ -16,7 +16,8 @@ export function RunResults({
   activeStepId?: string
   onCancel(): void
 }) {
-  const [screenshots, setScreenshots] = useState<Record<string, string | null>>({})
+  type ScreenshotState = { status: 'ready'; url: string } | { status: 'missing' } | { status: 'error'; message: string }
+  const [screenshots, setScreenshots] = useState<Record<string, ScreenshotState>>({})
   const [openScreenshot, setOpenScreenshot] = useState<string>()
 
   if (!run) {
@@ -32,8 +33,18 @@ export function RunResults({
     }
     setOpenScreenshot(fileName)
     if (!(fileName in screenshots) && run) {
-      const dataUrl = await screenshotService.get(run.id, fileName).catch(() => null)
-      setScreenshots((current) => ({ ...current, [fileName]: dataUrl }))
+      try {
+        const dataUrl = await screenshotService.get(run.id, fileName)
+        setScreenshots((current) => ({
+          ...current,
+          [fileName]: dataUrl ? { status: 'ready', url: dataUrl } : { status: 'missing' },
+        }))
+      } catch (cause) {
+        setScreenshots((current) => ({
+          ...current,
+          [fileName]: { status: 'error', message: cause instanceof Error ? cause.message : String(cause) },
+        }))
+      }
     }
   }
 
@@ -56,7 +67,7 @@ export function RunResults({
           </h2>
           <p>{test?.name}</p>
         </div>
-        {active && <button onClick={onCancel}><Square />Cancel run</button>}
+        {active && <button className="cancel-run" onClick={onCancel}><Square />Cancel run</button>}
       </div>
       <div className="result-panel">
         <h3>Step timeline</h3>
@@ -79,6 +90,14 @@ export function RunResults({
                       <Wrench />Self-healed
                     </span>
                   )}
+                  {result?.extendedTimeoutMs !== undefined && (
+                    <span
+                      className="extended-badge"
+                      title="This step's history shows it routinely takes longer, so the wait was extended automatically."
+                    >
+                      <Hourglass />Timeout extended to {result.extendedTimeoutMs}ms
+                    </span>
+                  )}
                 </strong>
                 <small>{isCurrent ? 'Executing in the Cliq browser…' : result?.error || result?.status || 'Waiting'}</small>
               </div>
@@ -92,27 +111,33 @@ export function RunResults({
               )}
               <time>
                 {result ? `${result.durationMs} ms` : ''}
-                {result && (result.locateMs !== undefined || result.actionMs !== undefined) && (
-                  <small className="timing-breakdown">
-                    {result.locateMs !== undefined ? `locate ${result.locateMs}ms` : ''}
-                    {result.locateMs !== undefined && result.actionMs !== undefined ? ' · ' : ''}
-                    {result.actionMs !== undefined ? `action ${result.actionMs}ms` : ''}
-                  </small>
+                {result && timingBreakdown(result) && (
+                  <small className="timing-breakdown">{timingBreakdown(result)}</small>
                 )}
               </time>
             </div>
-            {screenshotOpen && (
-              <div className="screenshot-panel">
-                {screenshots[result!.screenshotPath!] === undefined
-                  ? <LoaderCircle className="spin" />
-                  : screenshots[result!.screenshotPath!] === null
-                    ? <span>Screenshot is no longer available.</span>
-                    : <img src={screenshots[result!.screenshotPath!]!} alt={`Screenshot for step '${step.label}'`} />}
-              </div>
-            )}
+            {screenshotOpen && (() => {
+              const state = screenshots[result!.screenshotPath!]
+              return (
+                <div className="screenshot-panel">
+                  {!state && <LoaderCircle className="spin" />}
+                  {state?.status === 'ready' && <img src={state.url} alt={`Screenshot for step '${step.label}'`} />}
+                  {state?.status === 'missing' && <span>Screenshot is no longer available.</span>}
+                  {state?.status === 'error' && <span className="screenshot-error">Couldn't load screenshot: {state.message}</span>}
+                </div>
+              )
+            })()}
           </div>
         )})}
       </div>
     </section>
   )
+}
+
+function timingBreakdown(result: StepResult) {
+  const parts: string[] = []
+  if (result.locateMs !== undefined) parts.push(`locate ${result.locateMs}ms`)
+  if (result.actionMs !== undefined) parts.push(`action ${result.actionMs}ms`)
+  if (result.syncMs !== undefined) parts.push(`sync ${result.syncMs}ms`)
+  return parts.join(' · ')
 }

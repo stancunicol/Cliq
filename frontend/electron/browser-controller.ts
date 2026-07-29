@@ -1,11 +1,17 @@
 import { BaseWindow, session, WebContentsView, type Rectangle } from 'electron'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { recordedInteractionSchema } from './ipc-schemas.js'
 
 const partition = 'persist:cliq-browser'
-const beforeActionDelayMs = 650
-const afterActionDelayMs = 450
+const beforeActionCeilingMs = 650
+const afterActionCeilingMs = 450
+const locatePollIntervalMs = 200
+const syncPollIntervalMs = 80
+const timingStatsSampleWindow = 20
+const timingStatsMinSamples = 3
+const timingStatsSafetyFactor = 1.3
 
 type StepAction =
   | 'navigate'
@@ -25,12 +31,20 @@ interface EmbeddedLocator {
 interface EmbeddedPageElement {
   id: string
   name: string
+  tag: string
+  action: StepAction
   locator: EmbeddedLocator
+  expectedText?: string
+  notFound?: boolean
 }
 
 export interface EmbeddedPage {
+  schemaVersion: 1
   id: string
+  name: string
+  url: string
   elements: EmbeddedPageElement[]
+  updatedAt: string
 }
 
 export interface EmbeddedTestStep {
@@ -42,6 +56,7 @@ export interface EmbeddedTestStep {
   elementId?: string
   url?: string
   value?: { kind: 'literal' | 'secret'; value: string }
+  timeoutMs?: number
 }
 
 export interface EmbeddedTest {
@@ -55,6 +70,11 @@ export interface EmbeddedStepResult {
   durationMs: number
   error?: string
   screenshotPath?: string
+  selfHealed?: boolean
+  locateMs?: number
+  actionMs?: number
+  syncMs?: number
+  extendedTimeoutMs?: number
 }
 
 export interface EmbeddedTestRun {
@@ -71,6 +91,19 @@ export type EmbeddedRunEvent =
   | { type: 'step-start'; stepId: string }
   | { type: 'step'; step: EmbeddedStepResult }
 
+export interface EmbeddedSettings {
+  elementIdentification: {
+    testIdAttribute: string
+    strategyOrder: ('testId' | 'id' | 'name')[]
+    ignoreIdPatterns: string[]
+  }
+  testExecution: {
+    defaultStepTimeoutMs: number
+    pageReadyTimeoutMs: number
+    captureScreenshotOnFailure: boolean
+  }
+}
+
 export class BrowserController {
   readonly view: WebContentsView
   private recording = false
@@ -78,6 +111,7 @@ export class BrowserController {
   private error?: string
   private bounds: Rectangle = { x: 0, y: 102, width: 0, height: 0 }
   private pendingNavigation?: { url: string; promise: Promise<void> }
+  private testIdAttribute = 'data-testid'
 
   constructor(
     private readonly window: BaseWindow,
@@ -214,59 +248,74 @@ export class BrowserController {
     pages: EmbeddedPage[],
     secrets: Record<string, string>,
     workspaceRoot: string,
+    settings: EmbeddedSettings,
+    persistPage: (page: EmbeddedPage) => Promise<void>,
     signal: AbortSignal,
     onEvent: (event: EmbeddedRunEvent) => void,
   ): Promise<EmbeddedTestRun> {
+    this.testIdAttribute = settings.elementIdentification.testIdAttribute
+    const timingStats = await loadTimingStats(workspaceRoot)
     const results: EmbeddedStepResult[] = []
     try {
-      for (const step of test.steps.filter((candidate) => candidate.enabled)) {
-        signal.throwIfAborted()
-        onEvent({ type: 'step-start', stepId: step.id })
-        const started = Date.now()
-        try {
-          await this.executeStep(step, pages, secrets, signal)
-          const result: EmbeddedStepResult = {
-            stepId: step.id,
-            status: 'passed',
-            durationMs: Date.now() - started,
-          }
-          results.push(result)
-          onEvent({ type: 'step', step: result })
-        } catch (error) {
-          if (isAbortError(error)) throw error
-          const result: EmbeddedStepResult = {
-            stepId: step.id,
-            status: 'failed',
-            durationMs: Date.now() - started,
-            error: error instanceof Error ? error.message : String(error),
-            screenshotPath: await this.captureFailure(workspaceRoot, run.id, step.id),
-          }
-          results.push(result)
-          onEvent({ type: 'step', step: result })
-          return {
-            ...run,
-            status: 'failed',
-            completedAt: new Date().toISOString(),
-            steps: results,
-            error: `Step '${step.label}' failed.`,
+      try {
+        for (const step of test.steps.filter((candidate) => candidate.enabled)) {
+          signal.throwIfAborted()
+          onEvent({ type: 'step-start', stepId: step.id })
+          const started = Date.now()
+          try {
+            const timing = await this.executeStep(step, pages, secrets, settings, persistPage, timingStats, signal)
+            const result: EmbeddedStepResult = {
+              stepId: step.id,
+              status: 'passed',
+              durationMs: Date.now() - started,
+              selfHealed: timing.selfHealed,
+              locateMs: timing.locateMs,
+              actionMs: timing.actionMs,
+              syncMs: timing.syncMs,
+              extendedTimeoutMs: timing.extendedTimeoutMs,
+            }
+            results.push(result)
+            onEvent({ type: 'step', step: result })
+          } catch (error) {
+            if (isAbortError(error)) throw error
+            const result: EmbeddedStepResult = {
+              stepId: step.id,
+              status: 'failed',
+              durationMs: Date.now() - started,
+              error: error instanceof Error ? error.message : String(error),
+              screenshotPath: settings.testExecution.captureScreenshotOnFailure
+                ? await this.captureFailure(workspaceRoot, run.id, step.id)
+                : undefined,
+            }
+            results.push(result)
+            onEvent({ type: 'step', step: result })
+            return {
+              ...run,
+              status: 'failed',
+              completedAt: new Date().toISOString(),
+              steps: results,
+              error: `Step '${step.label}' failed.`,
+            }
           }
         }
+        return {
+          ...run,
+          status: 'passed',
+          completedAt: new Date().toISOString(),
+          steps: results,
+        }
+      } catch (error) {
+        if (!isAbortError(error)) throw error
+        return {
+          ...run,
+          status: 'cancelled',
+          completedAt: new Date().toISOString(),
+          steps: results,
+          error: 'Run cancelled.',
+        }
       }
-      return {
-        ...run,
-        status: 'passed',
-        completedAt: new Date().toISOString(),
-        steps: results,
-      }
-    } catch (error) {
-      if (!isAbortError(error)) throw error
-      return {
-        ...run,
-        status: 'cancelled',
-        completedAt: new Date().toISOString(),
-        steps: results,
-        error: 'Run cancelled.',
-      }
+    } finally {
+      await saveTimingStats(workspaceRoot, timingStats).catch(() => undefined)
     }
   }
 
@@ -305,8 +354,17 @@ export class BrowserController {
     step: EmbeddedTestStep,
     pages: EmbeddedPage[],
     secrets: Record<string, string>,
+    settings: EmbeddedSettings,
+    persistPage: (page: EmbeddedPage) => Promise<void>,
+    timingStats: TimingStats,
     signal: AbortSignal,
-  ): Promise<void> {
+  ): Promise<{
+    selfHealed: boolean
+    locateMs?: number
+    actionMs?: number
+    syncMs?: number
+    extendedTimeoutMs?: number
+  }> {
     if (step.action === 'navigate') {
       const url = step.url
       if (!url || !isHttpUrl(url)) throw new Error('Navigate step has no valid HTTP or HTTPS URL.')
@@ -315,25 +373,38 @@ export class BrowserController {
       await this.view.webContents.loadURL(url)
       this.applyBounds()
       this.publish()
-      await abortableDelay(afterActionDelayMs, signal)
-      return
+      await abortableDelay(afterActionCeilingMs, signal)
+      return { selfHealed: false }
     }
 
     if (step.action === 'assertUrl') {
-      await abortableDelay(beforeActionDelayMs, signal)
+      await abortableDelay(beforeActionCeilingMs, signal)
       const expected = resolveValue(step, secrets)
       if (!new RegExp(expected).test(this.view.webContents.getURL())) {
         throw new Error(`URL '${this.view.webContents.getURL()}' does not match '${expected}'.`)
       }
-      await abortableDelay(afterActionDelayMs, signal)
-      return
+      await abortableDelay(afterActionCeilingMs, signal)
+      return { selfHealed: false }
     }
 
-    const element = resolveElement(step, pages)
-    const highlight = await this.highlight(element.locator)
+    const { page, element } = resolveElement(step, pages)
+    const configuredTimeoutMs = step.timeoutMs && step.timeoutMs > 0
+      ? step.timeoutMs
+      : settings.testExecution.defaultStepTimeoutMs
+    const timeoutMs = suggestedTimeoutMs(timingStats, step.id, configuredTimeoutMs)
+    const extendedTimeoutMs = timeoutMs > configuredTimeoutMs ? timeoutMs : undefined
+    const locateStarted = Date.now()
+    const { locator, healed } = await this.locateElement(page, element, pages, settings, timeoutMs, persistPage, signal)
+    const locateMs = Date.now() - locateStarted
+    if (!healed) recordLocateSample(timingStats, step.id, locateMs)
+
+    const highlight = await this.highlight(locator)
+    let syncMs = 0
+    let actionMs: number
     try {
-      await abortableDelay(beforeActionDelayMs, signal)
+      syncMs += await this.waitForStable(locator, beforeActionCeilingMs, signal)
       signal.throwIfAborted()
+      const actionStarted = Date.now()
       switch (step.action) {
         case 'click':
           this.view.webContents.focus()
@@ -358,23 +429,23 @@ export class BrowserController {
           })
           break
         case 'fill':
-          await this.focusElement(element.locator, true)
+          await this.focusElement(locator, true)
           this.selectAll()
           await this.view.webContents.insertText(resolveValue(step, secrets))
-          await this.commitField(element.locator)
+          await this.commitField(locator)
           break
         case 'select':
-          await this.selectElement(element.locator, resolveValue(step, secrets))
+          await this.selectElement(locator, resolveValue(step, secrets))
           break
         case 'pressKey':
-          await this.focusElement(element.locator, false)
+          await this.focusElement(locator, false)
           this.pressKey(resolveValue(step, secrets))
           break
         case 'assertVisible':
           if (!highlight.visible) throw new Error(`Element '${element.name}' is not visible.`)
           break
         case 'assertText': {
-          const actual = await this.elementText(element.locator)
+          const actual = await this.elementText(locator)
           const expected = resolveValue(step, secrets)
           if (actual !== expected) {
             throw new Error(`Expected text '${expected}' but found '${actual}'.`)
@@ -382,19 +453,122 @@ export class BrowserController {
           break
         }
       }
-      await abortableDelay(afterActionDelayMs, signal)
+      actionMs = Date.now() - actionStarted
+      syncMs += await this.waitForQuiet(afterActionCeilingMs, signal)
       if (this.view.webContents.isLoading()) {
-        await this.waitForLoad(signal)
+        const loadStarted = Date.now()
+        await this.waitForLoad(signal, settings.testExecution.pageReadyTimeoutMs)
+        syncMs += Date.now() - loadStarted
       }
     } finally {
-      await this.restoreHighlight(element.locator, highlight).catch(() => undefined)
+      await this.restoreHighlight(locator, highlight).catch(() => undefined)
     }
+    return { selfHealed: healed, locateMs, actionMs, syncMs, extendedTimeoutMs }
+  }
+
+  private async locateElement(
+    page: EmbeddedPage,
+    element: EmbeddedPageElement,
+    pages: EmbeddedPage[],
+    settings: EmbeddedSettings,
+    timeoutMs: number,
+    persistPage: (page: EmbeddedPage) => Promise<void>,
+    signal: AbortSignal,
+  ): Promise<{ locator: EmbeddedLocator; healed: boolean }> {
+    const deadline = Date.now() + timeoutMs
+    let lastError: unknown
+    for (;;) {
+      signal.throwIfAborted()
+      try {
+        await this.view.webContents.executeJavaScript(elementLookupScript(element.locator, this.testIdAttribute))
+        return { locator: element.locator, healed: false }
+      } catch (error) {
+        lastError = error
+      }
+      if (Date.now() >= deadline) break
+      await abortableDelay(Math.min(locatePollIntervalMs, Math.max(0, deadline - Date.now())), signal)
+    }
+
+    const healedLocator = await this.tryHeal(element, settings).catch(() => null)
+    if (!healedLocator) {
+      throw lastError instanceof Error ? lastError : new Error(String(lastError))
+    }
+
+    const updatedPage: EmbeddedPage = {
+      ...page,
+      elements: page.elements.map((candidate) =>
+        candidate.id === element.id ? { ...candidate, locator: healedLocator } : candidate),
+    }
+    const pageIndex = pages.findIndex((candidate) => candidate.id === page.id)
+    if (pageIndex >= 0) pages[pageIndex] = updatedPage
+    await persistPage(updatedPage).catch(() => undefined)
+    return { locator: healedLocator, healed: true }
+  }
+
+  /** Waits (up to `ceilingMs`) for the target element's position/size to stop changing between
+   * two consecutive samples, instead of always sleeping the full ceiling. Returns actual elapsed ms. */
+  private async waitForStable(locator: EmbeddedLocator, ceilingMs: number, signal: AbortSignal): Promise<number> {
+    const started = Date.now()
+    const deadline = started + ceilingMs
+    let previous: string | undefined
+    for (;;) {
+      signal.throwIfAborted()
+      let current: string
+      try {
+        current = await this.view.webContents.executeJavaScript(`
+          (() => {
+            const element = ${elementLookupScript(locator, this.testIdAttribute)};
+            const rect = element.getBoundingClientRect();
+            return JSON.stringify([rect.x, rect.y, rect.width, rect.height]);
+          })()
+        `) as string
+      } catch {
+        break
+      }
+      if (current === previous) break
+      previous = current
+      if (Date.now() >= deadline) break
+      await abortableDelay(Math.min(syncPollIntervalMs, Math.max(0, deadline - Date.now())), signal)
+    }
+    return Date.now() - started
+  }
+
+  /** Waits (up to `ceilingMs`) for the DOM to stop changing shape between two consecutive samples,
+   * as a lightweight proxy for "the page settled after the action". Returns actual elapsed ms. */
+  private async waitForQuiet(ceilingMs: number, signal: AbortSignal): Promise<number> {
+    const started = Date.now()
+    const deadline = started + ceilingMs
+    let previous: string | undefined
+    for (;;) {
+      signal.throwIfAborted()
+      const current = await this.view.webContents.executeJavaScript(
+        `document.body ? document.body.childElementCount + ':' + document.readyState : 'none'`,
+      ) as string
+      if (current === previous) break
+      previous = current
+      if (Date.now() >= deadline) break
+      await abortableDelay(Math.min(syncPollIntervalMs, Math.max(0, deadline - Date.now())), signal)
+    }
+    return Date.now() - started
+  }
+
+  private async tryHeal(element: EmbeddedPageElement, settings: EmbeddedSettings): Promise<EmbeddedLocator | null> {
+    const json = await this.view.webContents.executeJavaScript(
+      healCandidatesScript(
+        element.tag,
+        this.testIdAttribute,
+        settings.elementIdentification.strategyOrder,
+        settings.elementIdentification.ignoreIdPatterns,
+      ),
+    ) as string
+    const candidates = JSON.parse(json) as HealCandidate[]
+    return selectHealMatch(candidates, element.name, this.testIdAttribute)
   }
 
   private async highlight(locator: EmbeddedLocator) {
     return this.view.webContents.executeJavaScript(`
       (() => {
-        const element = ${elementLookupScript(locator)};
+        const element = ${elementLookupScript(locator, this.testIdAttribute)};
         element.scrollIntoView({ block: 'center', inline: 'center' });
         const previous = {
           outline: element.style.outline,
@@ -428,7 +602,7 @@ export class BrowserController {
   ) {
     await this.view.webContents.executeJavaScript(`
       (() => {
-        const element = ${elementLookupScript(locator)};
+        const element = ${elementLookupScript(locator, this.testIdAttribute)};
         const previous = ${JSON.stringify(state.previous)};
         element.style.outline = previous.outline;
         element.style.outlineOffset = previous.outlineOffset;
@@ -440,7 +614,7 @@ export class BrowserController {
   private async focusElement(locator: EmbeddedLocator, selectText: boolean) {
     await this.view.webContents.executeJavaScript(`
       (() => {
-        const element = ${elementLookupScript(locator)};
+        const element = ${elementLookupScript(locator, this.testIdAttribute)};
         element.focus();
         if (${selectText} && typeof element.select === 'function') element.select();
       })()
@@ -462,7 +636,7 @@ export class BrowserController {
   private async commitField(locator: EmbeddedLocator) {
     await this.view.webContents.executeJavaScript(`
       (() => {
-        const element = ${elementLookupScript(locator)};
+        const element = ${elementLookupScript(locator, this.testIdAttribute)};
         element.dispatchEvent(new Event('change', { bubbles: true }));
         element.blur();
       })()
@@ -472,7 +646,7 @@ export class BrowserController {
   private async selectElement(locator: EmbeddedLocator, value: string) {
     await this.view.webContents.executeJavaScript(`
       (() => {
-        const element = ${elementLookupScript(locator)};
+        const element = ${elementLookupScript(locator, this.testIdAttribute)};
         if (!(element instanceof HTMLSelectElement)) throw new Error('Recorded select target is not a select element.');
         const value = ${JSON.stringify(value)};
         if (![...element.options].some(option => option.value === value)) {
@@ -488,17 +662,17 @@ export class BrowserController {
   private async elementText(locator: EmbeddedLocator) {
     return this.view.webContents.executeJavaScript(`
       (() => {
-        const element = ${elementLookupScript(locator)};
+        const element = ${elementLookupScript(locator, this.testIdAttribute)};
         return (element.innerText ?? element.textContent ?? '').replace(/\\s+/g, ' ').trim();
       })()
     `) as Promise<string>
   }
 
-  private async waitForLoad(signal: AbortSignal) {
-    const deadline = Date.now() + 15_000
+  private async waitForLoad(signal: AbortSignal, timeoutMs: number) {
+    const deadline = Date.now() + timeoutMs
     while (this.view.webContents.isLoading()) {
       signal.throwIfAborted()
-      if (Date.now() >= deadline) throw new Error('The page did not finish loading within 15 seconds.')
+      if (Date.now() >= deadline) throw new Error(`The page did not finish loading within ${timeoutMs}ms.`)
       await abortableDelay(100, signal)
     }
   }
@@ -507,24 +681,161 @@ export class BrowserController {
     try {
       const directory = path.join(workspaceRoot, '.cliq', 'runs', safeFilePart(runId))
       await mkdir(directory, { recursive: true })
-      const screenshotPath = path.join(directory, `${safeFilePart(stepId)}.png`)
+      const fileName = `${safeFilePart(stepId)}.png`
       const image = await this.view.webContents.capturePage()
-      await writeFile(screenshotPath, image.toPNG())
-      return screenshotPath
+      await writeFile(path.join(directory, fileName), image.toPNG())
+      return fileName
     } catch {
       return undefined
     }
   }
 }
 
-function elementLookupScript(locator: EmbeddedLocator) {
+interface HealCandidate {
+  testId: string | null
+  id: string | null
+  name: string | null
+  placeholder: string | null
+  text: string | null
+  locatorStrategy: string
+  locatorValue: string
+}
+
+// Ported from Cliq.Infrastructure.SelfHealingLocator / backend/tools/puppeteer-scanner/extract-elements.js -
+// keep these three in sync if the identification priority rules ever change.
+const RESERVED_WORDS = new Set([
+  'abstract', 'as', 'base', 'bool', 'break', 'byte', 'case', 'catch', 'char', 'checked', 'class',
+  'const', 'continue', 'decimal', 'default', 'delegate', 'do', 'double', 'else', 'enum', 'event',
+  'explicit', 'extern', 'false', 'finally', 'fixed', 'float', 'for', 'foreach', 'goto', 'if',
+  'implicit', 'in', 'int', 'interface', 'internal', 'is', 'lock', 'long', 'namespace', 'new',
+  'null', 'object', 'operator', 'out', 'override', 'params', 'private', 'protected', 'public',
+  'readonly', 'ref', 'return', 'sbyte', 'sealed', 'short', 'sizeof', 'stackalloc', 'static',
+  'string', 'struct', 'switch', 'this', 'throw', 'true', 'try', 'typeof', 'uint', 'ulong',
+  'unchecked', 'unsafe', 'ushort', 'using', 'virtual', 'void', 'volatile', 'while',
+])
+
+function sanitizeName(raw: string, fallback: string): string {
+  let value = raw.replace(/[^0-9a-zA-Z]+/g, '_').replace(/^_+|_+$/g, '').toLowerCase()
+  value = value.replace(/^[0-9_]+/, '')
+  if (!value || RESERVED_WORDS.has(value)) value = fallback
+  return value
+}
+
+function selectHealMatch(candidates: HealCandidate[], expectedName: string, testIdAttribute: string): EmbeddedLocator | null {
+  let match: EmbeddedLocator | null = null
+  let matchCount = 0
+  for (const candidate of candidates) {
+    const baseName = candidate.testId ?? candidate.id ?? candidate.name ?? candidate.placeholder ?? candidate.text ?? ''
+    const sanitized = sanitizeName(baseName, randomUUID().replaceAll('-', ''))
+    if (sanitized !== expectedName) continue
+    matchCount++
+    match = toLocator(candidate.locatorStrategy, candidate.locatorValue, testIdAttribute)
+  }
+  return matchCount === 1 ? match : null
+}
+
+function toLocator(strategy: string, value: string, testIdAttribute: string): EmbeddedLocator {
+  const testIdPrefix = `[${testIdAttribute}="`
+  if (strategy === 'css' && value.startsWith(testIdPrefix) && value.endsWith('"]')) {
+    return { strategy: 'testId', value: value.slice(testIdPrefix.length, -2) }
+  }
+  if (strategy === 'id') return { strategy: 'id', value }
+  if (strategy === 'name') return { strategy: 'name', value }
+  return { strategy: 'css', value }
+}
+
+function healCandidatesScript(
+  tag: string,
+  testIdAttribute: string,
+  strategyOrder: string[],
+  ignoreIdPatterns: string[],
+) {
+  return `(() => {
+    const tag = ${JSON.stringify(tag)};
+    const testIdAttribute = ${JSON.stringify(testIdAttribute)};
+    const strategyOrder = ${JSON.stringify(strategyOrder)};
+    const ignoreIdRegexes = ${JSON.stringify(ignoreIdPatterns)}.map((pattern) => new RegExp(pattern, 'i'));
+
+    function isIgnoredId(id) {
+      return ignoreIdRegexes.some((regex) => regex.test(id));
+    }
+    function cssEscape(value) {
+      return value.replace(/["\\\\]/g, '\\\\$&');
+    }
+    function isVisible(el) {
+      const rect = el.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return false;
+      const style = window.getComputedStyle(el);
+      return style.visibility !== 'hidden' && style.display !== 'none';
+    }
+    function isUniqueMatch(selector, el) {
+      try {
+        const matches = document.querySelectorAll(selector);
+        return matches.length === 1 && matches[0] === el;
+      } catch {
+        return false;
+      }
+    }
+    function structuralSelector(el) {
+      const parts = [];
+      let node = el;
+      while (node && node.parentElement && node.nodeName.toLowerCase() !== 'body') {
+        const siblings = Array.from(node.parentElement.children);
+        const index = siblings.indexOf(node) + 1;
+        parts.unshift(node.nodeName.toLowerCase() + ':nth-child(' + index + ')');
+        node = node.parentElement;
+      }
+      return parts.join(' > ');
+    }
+    const strategyChecks = {
+      testId: (el) => {
+        const testId = el.getAttribute(testIdAttribute);
+        if (!testId) return null;
+        const candidate = '[' + testIdAttribute + '="' + cssEscape(testId) + '"]';
+        return isUniqueMatch(candidate, el) ? { strategy: 'css', value: candidate } : null;
+      },
+      id: (el) => (el.id && !isIgnoredId(el.id) && isUniqueMatch('#' + CSS.escape(el.id), el))
+        ? { strategy: 'id', value: el.id }
+        : null,
+      name: (el) => {
+        if (!el.name) return null;
+        const candidate = el.tagName.toLowerCase() + '[name="' + cssEscape(el.name) + '"]';
+        return isUniqueMatch(candidate, el) ? { strategy: 'name', value: el.name } : null;
+      },
+    };
+    function locatorFor(el) {
+      for (const key of strategyOrder) {
+        const result = strategyChecks[key] && strategyChecks[key](el);
+        if (result) return result;
+      }
+      return { strategy: 'css', value: structuralSelector(el) };
+    }
+    const candidates = Array.from(document.querySelectorAll(tag)).filter(isVisible);
+    return JSON.stringify(candidates.map((el) => {
+      const locator = locatorFor(el);
+      const text = (el.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 40);
+      return {
+        testId: el.getAttribute(testIdAttribute),
+        id: (el.id && !isIgnoredId(el.id)) ? el.id : null,
+        name: el.getAttribute('name'),
+        placeholder: el.getAttribute('placeholder'),
+        text: text,
+        locatorStrategy: locator.strategy,
+        locatorValue: locator.value,
+      };
+    }));
+  })()`
+}
+
+function elementLookupScript(locator: EmbeddedLocator, testIdAttribute: string) {
   const serialized = JSON.stringify(locator)
   return `(() => {
     const locator = ${serialized};
+    const testIdAttribute = ${JSON.stringify(testIdAttribute)};
     let element;
     if (locator.strategy === 'testId') {
-      element = [...document.querySelectorAll('[data-testid]')]
-        .find(candidate => candidate.getAttribute('data-testid') === locator.value);
+      element = [...document.querySelectorAll('[' + testIdAttribute + ']')]
+        .find(candidate => candidate.getAttribute(testIdAttribute) === locator.value);
     } else if (locator.strategy === 'id') {
       element = document.getElementById(locator.value);
     } else if (locator.strategy === 'name') {
@@ -543,11 +854,63 @@ function elementLookupScript(locator: EmbeddedLocator) {
   })()`
 }
 
+interface TimingStats {
+  schemaVersion: 1
+  steps: Record<string, { locateMsSamples: number[]; updatedAt: string }>
+}
+
+function emptyTimingStats(): TimingStats {
+  return { schemaVersion: 1, steps: {} }
+}
+
+async function loadTimingStats(workspaceRoot: string): Promise<TimingStats> {
+  try {
+    const raw = await readFile(timingStatsPath(workspaceRoot), 'utf8')
+    const parsed = JSON.parse(raw) as Partial<TimingStats>
+    if (parsed.schemaVersion === 1 && parsed.steps) return parsed as TimingStats
+  } catch {
+    // Missing or corrupt file - start with a clean slate rather than fail the run over stats.
+  }
+  return emptyTimingStats()
+}
+
+async function saveTimingStats(workspaceRoot: string, stats: TimingStats): Promise<void> {
+  const directory = path.join(workspaceRoot, '.cliq')
+  await mkdir(directory, { recursive: true })
+  const filePath = timingStatsPath(workspaceRoot)
+  const temporary = `${filePath}.${randomUUID()}.tmp`
+  await writeFile(temporary, JSON.stringify(stats, null, 2), 'utf8')
+  await rename(temporary, filePath)
+}
+
+function timingStatsPath(workspaceRoot: string) {
+  return path.join(workspaceRoot, '.cliq', 'timing-stats.json')
+}
+
+/** Only call for a locate that resolved without healing - a healed locate's duration is
+ * dominated by "waited out the timeout, then healed", not representative of normal speed. */
+function recordLocateSample(stats: TimingStats, stepId: string, locateMs: number): void {
+  const entry = stats.steps[stepId] ?? { locateMsSamples: [], updatedAt: '' }
+  entry.locateMsSamples = [...entry.locateMsSamples, locateMs].slice(-timingStatsSampleWindow)
+  entry.updatedAt = new Date().toISOString()
+  stats.steps[stepId] = entry
+}
+
+/** Never returns less than `configuredMs` (the user's setting is always a floor) - only extends
+ * the wait when history shows this step routinely needs longer, to cut down on spurious timeouts. */
+function suggestedTimeoutMs(stats: TimingStats, stepId: string, configuredMs: number): number {
+  const samples = stats.steps[stepId]?.locateMsSamples ?? []
+  if (samples.length < timingStatsMinSamples) return configuredMs
+  const sorted = [...samples].sort((a, b) => a - b)
+  const p95 = sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * 0.95) - 1)]
+  return Math.max(configuredMs, Math.round(p95 * timingStatsSafetyFactor))
+}
+
 function resolveElement(step: EmbeddedTestStep, pages: EmbeddedPage[]) {
   const page = pages.find((candidate) => candidate.id === step.pageId)
   const element = page?.elements.find((candidate) => candidate.id === step.elementId)
-  if (!element) throw new Error(`Step '${step.label}' has no valid page and element reference.`)
-  return element
+  if (!page || !element) throw new Error(`Step '${step.label}' has no valid page and element reference.`)
+  return { page, element }
 }
 
 function resolveValue(step: EmbeddedTestStep, secrets: Record<string, string>) {
