@@ -2,7 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const puppeteer = require('puppeteer');
+const puppeteer = require('puppeteer-core');
 const { extractElements } = require('./extract-elements');
 
 function parseArgs(argv) {
@@ -18,23 +18,59 @@ function parseArgs(argv) {
   return args;
 }
 
-// Puppeteer only bundles Chromium; a real Edge install has to be located on
-// disk and launched via executablePath, the same way Selenium's EdgeDriver
-// pointed at the system browser.
-function resolveEdgeExecutable() {
-  if (process.env.CLIQ_EDGE_PATH) return process.env.CLIQ_EDGE_PATH;
+function resolveBrowserExecutable(browser) {
+  const configuration = browser === 'chrome'
+    ? {
+        displayName: 'Google Chrome or Chromium',
+        environmentVariables: ['CLIQ_CHROME_PATH', 'CLIQ_BROWSER_PATH', 'PUPPETEER_EXECUTABLE_PATH'],
+        candidates: [
+          path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Google', 'Chrome', 'Application', 'chrome.exe'),
+          path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Google', 'Chrome', 'Application', 'chrome.exe'),
+          process.env.LOCALAPPDATA
+            ? path.join(process.env.LOCALAPPDATA, 'Google', 'Chrome', 'Application', 'chrome.exe')
+            : undefined,
+          '/usr/bin/google-chrome-stable',
+          '/usr/bin/google-chrome',
+          '/opt/google/chrome/chrome',
+          '/usr/bin/chromium',
+          '/usr/bin/chromium-browser',
+          '/snap/bin/chromium',
+          '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        ],
+      }
+    : browser === 'edge'
+      ? {
+          displayName: 'Microsoft Edge',
+          environmentVariables: ['CLIQ_EDGE_PATH', 'CLIQ_BROWSER_PATH', 'PUPPETEER_EXECUTABLE_PATH'],
+          candidates: [
+            path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
+            path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
+            process.env.LOCALAPPDATA
+              ? path.join(process.env.LOCALAPPDATA, 'Microsoft', 'Edge', 'Application', 'msedge.exe')
+              : undefined,
+            '/usr/bin/microsoft-edge-stable',
+            '/usr/bin/microsoft-edge',
+            '/opt/microsoft/msedge/msedge',
+            '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+          ],
+        }
+      : undefined;
 
-  const candidates = [
-    path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
-    path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
-    '/usr/bin/microsoft-edge',
-    '/opt/microsoft/msedge/msedge',
-  ];
+  if (!configuration) {
+    throw new Error(`Unsupported browser '${browser}'. Expected 'chrome' or 'edge'.`);
+  }
 
-  const found = candidates.find((candidate) => fs.existsSync(candidate));
+  for (const variable of configuration.environmentVariables) {
+    const configuredPath = process.env[variable];
+    if (!configuredPath) continue;
+    if (fs.existsSync(configuredPath)) return configuredPath;
+    throw new Error(`${variable} points to a browser executable that does not exist.`);
+  }
+
+  const found = configuration.candidates.find((candidate) => candidate && fs.existsSync(candidate));
   if (!found) {
     throw new Error(
-      'Could not locate an installed Microsoft Edge executable. Set CLIQ_EDGE_PATH to override.'
+      `Could not locate ${configuration.displayName}. Set ${configuration.environmentVariables[0]} to its executable path.`
     );
   }
   return found;
@@ -53,10 +89,10 @@ async function main() {
   const loadTimeoutMs = args['load-timeout-ms'] ? Number(args['load-timeout-ms']) : 30_000;
   const networkIdleTimeoutMs = args['network-idle-timeout-ms'] ? Number(args['network-idle-timeout-ms']) : 3_000;
 
-  const launchOptions = { headless };
-  if (browser === 'edge') {
-    launchOptions.executablePath = resolveEdgeExecutable();
-  }
+  const launchOptions = {
+    headless,
+    executablePath: resolveBrowserExecutable(browser),
+  };
 
   const browserInstance = await puppeteer.launch(launchOptions);
   try {
