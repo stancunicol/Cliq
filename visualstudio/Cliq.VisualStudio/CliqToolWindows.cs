@@ -22,6 +22,7 @@ public sealed class CliqWorkbenchToolWindow : ToolWindowPane
     {
         Caption = CliqExtensionConstants.WorkbenchTitle;
         Content = new WorkbenchControl(
+            CliqPackage.Current?.Workbench ??
             new WorkbenchViewModel(
                 new DisconnectedWorkbenchStore(),
                 new MessageBoxWorkbenchPrompt()));

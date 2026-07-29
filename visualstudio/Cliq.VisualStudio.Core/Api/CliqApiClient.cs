@@ -99,6 +99,13 @@ namespace Cliq.VisualStudio.Core.Api
             CancellationToken cancellationToken) =>
             SendNoContentAsync(HttpMethod.Put, "api/v1/secrets", values, cancellationToken);
 
+        public Task DeleteSecretAsync(string key, CancellationToken cancellationToken) =>
+            SendNoContentAsync(
+                HttpMethod.Delete,
+                $"api/v1/secrets/{Escape(key)}",
+                null,
+                cancellationToken);
+
         public Task<GenerationResult> GenerateAsync(
             GenerationRequest request,
             CancellationToken cancellationToken) =>

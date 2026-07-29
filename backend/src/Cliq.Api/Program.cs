@@ -226,6 +226,15 @@ api.MapGet("/secrets", async (
     CancellationToken cancellationToken) =>
     Results.Ok(await secretStore.ReadAsync(cancellationToken)));
 
+api.MapDelete("/secrets/{key}", async (
+    string key,
+    ISecretStore secretStore,
+    CancellationToken cancellationToken) =>
+{
+    await secretStore.DeleteAsync(key, cancellationToken);
+    return Results.NoContent();
+});
+
 api.MapPost("/generation", async (
     GenerationRequest request,
     IWorkspaceRepository repository,
@@ -233,14 +242,24 @@ api.MapPost("/generation", async (
     CancellationToken cancellationToken) =>
 {
     var snapshot = await repository.GetSnapshotAsync(cancellationToken);
-    var pageIds = request.PageIds?.ToHashSet(StringComparer.Ordinal);
     var testIds = request.TestIds?.ToHashSet(StringComparer.Ordinal);
-    var pages = pageIds is null
-        ? snapshot.Pages
-        : snapshot.Pages.Where(page => pageIds.Contains(page.Id)).ToList();
     var tests = testIds is null
         ? snapshot.Tests
         : snapshot.Tests.Where(test => testIds.Contains(test.Id)).ToList();
+    var pageIds = request.PageIds?.ToHashSet(StringComparer.Ordinal);
+    if (pageIds is null && testIds is not null)
+    {
+        pageIds = tests
+            .SelectMany(test => test.Steps)
+            .Select(step => step.PageId)
+            .Where(pageId => !string.IsNullOrWhiteSpace(pageId))
+            .Cast<string>()
+            .ToHashSet(StringComparer.Ordinal);
+    }
+
+    var pages = pageIds is null
+        ? snapshot.Pages
+        : snapshot.Pages.Where(page => pageIds.Contains(page.Id)).ToList();
     return Results.Ok(await generation.GenerateAsync(
         snapshot.Project,
         pages,

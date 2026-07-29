@@ -23,6 +23,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Cliq.VisualStudio.Core\Cliq.VisualStudio.Core.csproj" />
     <ProjectReference Include="..\..\backend\src\Cliq.Domain\Cliq.Domain.csproj" />
+    <Reference Include="System.Net.Http" />
   </ItemGroup>
   <ItemGroup>
     <VSCTCompile Include="Commands.vsct" />

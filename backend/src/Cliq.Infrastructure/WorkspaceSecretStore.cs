@@ -44,6 +44,31 @@ public sealed class WorkspaceSecretStore(WorkspaceRepository repository) : ISecr
         await JsonSerializer.SerializeAsync(stream, merged, JsonOptions, cancellationToken);
     }
 
+    public async Task DeleteAsync(string key, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            throw new WorkspaceValidationException("Secret key must not be empty.");
+        }
+
+        var path = GetPath();
+        if (!File.Exists(path))
+        {
+            return;
+        }
+
+        var values = new Dictionary<string, string>(
+            await ReadAsync(cancellationToken),
+            StringComparer.Ordinal);
+        if (!values.Remove(key))
+        {
+            return;
+        }
+
+        await using var stream = File.Create(path);
+        await JsonSerializer.SerializeAsync(stream, values, JsonOptions, cancellationToken);
+    }
+
     private string GetPath() =>
         Path.Combine(repository.RootPath ?? throw new WorkspaceNotOpenException(), ".cliq", "secrets.local.json");
 }

@@ -59,6 +59,7 @@ public interface ISecretStore
 {
     Task<IReadOnlyDictionary<string, string>> ReadAsync(CancellationToken cancellationToken);
     Task SaveAsync(IReadOnlyDictionary<string, string> secrets, CancellationToken cancellationToken);
+    Task DeleteAsync(string key, CancellationToken cancellationToken);
 }
 
 public sealed class WorkspaceNotOpenException : InvalidOperationException
