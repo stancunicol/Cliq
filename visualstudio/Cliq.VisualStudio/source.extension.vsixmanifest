@@ -10,6 +10,7 @@
     <DisplayName>Cliq for Visual Studio</DisplayName>
     <Description xml:space="preserve">Integrates Cliq UI test automation into Visual Studio.</Description>
     <License>LICENSE.txt</License>
+    <ReleaseNotes>RELEASE-NOTES.txt</ReleaseNotes>
     <Tags>Cliq, testing, UI automation</Tags>
     <Preview>true</Preview>
   </Metadata>

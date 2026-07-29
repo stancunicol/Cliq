@@ -1,0 +1,11 @@
+Cliq for Visual Studio 0.1.0 Preview
+
+This preview integrates Cliq UI test authoring, scanning, generation, execution,
+results, and desktop recording handoff into Visual Studio.
+
+Platform requirements:
+- Windows x64
+- Visual Studio 17.0 or later
+- Installed Microsoft Edge or Google Chrome
+
+The extension is unsigned and intended for controlled preview evaluation.
