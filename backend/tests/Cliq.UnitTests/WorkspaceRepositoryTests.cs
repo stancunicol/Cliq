@@ -323,6 +323,23 @@ public sealed class WorkspaceRepositoryTests
     }
 
     [Test]
+    public async Task OpenAsync_NormalizesTrailingSeparatorForContainedOutputPaths()
+    {
+        using var repository = new WorkspaceRepository();
+        await repository.OpenAsync(_root + Path.DirectorySeparatorChar, CancellationToken.None);
+
+        var generatedPath = repository.GetContainedPath("Generated/PageObjects");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(repository.RootPath, Is.EqualTo(Path.GetFullPath(_root)));
+            Assert.That(
+                generatedPath,
+                Is.EqualTo(Path.Combine(Path.GetFullPath(_root), "Generated", "PageObjects")));
+        });
+    }
+
+    [Test]
     public void OpenAsync_RejectsMissingDirectory()
     {
         using var repository = new WorkspaceRepository();

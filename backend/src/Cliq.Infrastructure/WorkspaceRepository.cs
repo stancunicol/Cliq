@@ -25,7 +25,7 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
     public async Task<WorkspaceSnapshot> OpenAsync(string rootPath, CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        var fullPath = Path.GetFullPath(rootPath);
+        var fullPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(rootPath));
         if (!Directory.Exists(fullPath))
         {
             throw new DirectoryNotFoundException($"Workspace '{fullPath}' does not exist.");
@@ -352,7 +352,7 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
     {
         EnsureOpen();
         ValidateRelativeDirectory(relativeDirectory, nameof(relativeDirectory));
-        var root = Path.GetFullPath(RootPath!);
+        var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(RootPath!));
         var candidate = Path.GetFullPath(Path.Combine(root, relativeDirectory));
         if (!candidate.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.Ordinal))
         {
