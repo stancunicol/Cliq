@@ -388,7 +388,7 @@ function Test-VsixArchive {
             $binaryText = $binaryEncoding.GetString($bytes)
             $unicodeText = [Text.Encoding]::Unicode.GetString($bytes)
             if ($entry.FullName -match '(?i)\.pkgdef$' -and
-                $unicodeText -match '(?i),\s*Commands\.ctmenu,\s*1') {
+                $unicodeText -match '(?i),\s*Menus\.ctmenu,\s*4') {
                 $hasCommandTableRegistration = $true
             }
 
@@ -400,7 +400,7 @@ function Test-VsixArchive {
                     try {
                         $resourceEnumerator = $resourceReader.GetEnumerator()
                         while ($resourceEnumerator.MoveNext()) {
-                            if ($resourceEnumerator.Key -ceq 'Commands.CTMENU') {
+                            if ($resourceEnumerator.Key -ceq 'Menus.ctmenu') {
                                 $hasEmbeddedCommandTable = $true
                                 break
                             }
@@ -427,7 +427,7 @@ function Test-VsixArchive {
         }
 
         if (-not $hasCommandTableRegistration -or -not $hasEmbeddedCommandTable) {
-            throw 'VSIX command-table registration does not match the embedded Commands.CTMENU resource.'
+            throw 'VSIX command-table registration does not match the embedded Menus.ctmenu resource.'
         }
 
         $archiveSize = (Get-Item -LiteralPath $archiveFullPath).Length

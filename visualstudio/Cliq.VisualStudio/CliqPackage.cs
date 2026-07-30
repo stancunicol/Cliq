@@ -26,7 +26,7 @@ namespace Cliq.VisualStudio;
     "Cliq for Visual Studio",
     "Integrates Cliq UI test automation into Visual Studio.",
     "0.1.0")]
-[ProvideMenuResource("Commands.ctmenu", 1)]
+[ProvideMenuResource("Menus.ctmenu", 4)]
 [ProvideToolWindow(typeof(CliqWorkbenchToolWindow))]
 [ProvideToolWindow(typeof(CliqRunResultsToolWindow))]
 [ProvideOptionPage(typeof(CliqOptionsPage), "Cliq", "General", 0, 0, true)]
