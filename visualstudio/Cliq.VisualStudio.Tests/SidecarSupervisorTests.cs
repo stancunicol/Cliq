@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Cliq.VisualStudio.Core.Runtime;
 using NUnit.Framework;
 
@@ -214,6 +215,39 @@ public sealed class SidecarSupervisorTests
             Assert.That(process.KillCount, Is.EqualTo(1));
             Assert.That(process.IsDisposed, Is.True);
         });
+    }
+
+    [Test]
+    [Platform("Win")]
+    public async Task SystemProcess_DisposeKillsSidecarThroughJobObject()
+    {
+        var factory = new SystemSidecarProcessFactory();
+        var process = factory.Start(
+            new SidecarProcessStartInfo(
+                Path.Combine(Environment.SystemDirectory, "cmd.exe"),
+                "/d /s /c \"ping.exe -t 127.0.0.1 >nul\"",
+                Path.GetTempPath(),
+                new Dictionary<string, string>()));
+        var processId = process.Id;
+
+        process.Dispose();
+        await WaitUntilAsync(
+            () =>
+            {
+                try
+                {
+                    using var child = Process.GetProcessById(processId);
+                    return child.HasExited;
+                }
+                catch (ArgumentException)
+                {
+                    return true;
+                }
+            });
+
+        Assert.That(
+            () => Process.GetProcessById(processId),
+            Throws.TypeOf<ArgumentException>());
     }
 
     private static SidecarSupervisor CreateSupervisor(

@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
+using Microsoft.Win32.SafeHandles;
 
 namespace Cliq.VisualStudio.Core.Runtime
 {
@@ -32,13 +35,27 @@ namespace Cliq.VisualStudio.Core.Runtime
                 throw new SidecarStartupException("The Cliq sidecar process could not be started.");
             }
 
-            return new SystemSidecarProcess(process);
+            try
+            {
+                return new SystemSidecarProcess(process);
+            }
+            catch
+            {
+                if (!process.HasExited)
+                {
+                    process.Kill();
+                }
+
+                process.Dispose();
+                throw;
+            }
         }
     }
 
     internal sealed class SystemSidecarProcess : ISidecarProcess
     {
         private readonly Process _process;
+        private readonly SafeJobHandle _job;
         private readonly TaskCompletionSource<int> _exit =
             new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
         private bool _disposed;
@@ -46,6 +63,7 @@ namespace Cliq.VisualStudio.Core.Runtime
         public SystemSidecarProcess(Process process)
         {
             _process = process;
+            _job = ProcessJob.Create(process);
             _process.Exited += OnExited;
             if (_process.HasExited)
             {
@@ -100,6 +118,7 @@ namespace Cliq.VisualStudio.Core.Runtime
 
             _disposed = true;
             _process.Exited -= OnExited;
+            _job.Dispose();
             _process.Dispose();
         }
 
@@ -114,5 +133,118 @@ namespace Cliq.VisualStudio.Core.Runtime
                 _exit.TrySetResult(-1);
             }
         }
+    }
+
+    internal static class ProcessJob
+    {
+        private const uint JobObjectLimitKillOnJobClose = 0x00002000;
+        private const int ExtendedLimitInformationClass = 9;
+
+        public static SafeJobHandle Create(Process process)
+        {
+            var job = CreateJobObject(IntPtr.Zero, null);
+            if (job.IsInvalid)
+            {
+                throw CreateException("create a sidecar job object");
+            }
+
+            try
+            {
+                var information = new JobObjectExtendedLimitInformation
+                {
+                    BasicLimitInformation = new JobObjectBasicLimitInformation
+                    {
+                        LimitFlags = JobObjectLimitKillOnJobClose,
+                    },
+                };
+                var length = Marshal.SizeOf(typeof(JobObjectExtendedLimitInformation));
+                if (!SetInformationJobObject(
+                        job,
+                        ExtendedLimitInformationClass,
+                        ref information,
+                        (uint)length))
+                {
+                    throw CreateException("configure sidecar crash cleanup");
+                }
+
+                if (!AssignProcessToJobObject(job, process.Handle))
+                {
+                    throw CreateException("assign the sidecar to its crash-cleanup job");
+                }
+
+                return job;
+            }
+            catch
+            {
+                job.Dispose();
+                throw;
+            }
+        }
+
+        private static SidecarStartupException CreateException(string operation) =>
+            new SidecarStartupException(
+                $"Windows could not {operation}.",
+                new Win32Exception(Marshal.GetLastWin32Error()));
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern SafeJobHandle CreateJobObject(IntPtr securityAttributes, string? name);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool SetInformationJobObject(
+            SafeJobHandle job,
+            int informationClass,
+            ref JobObjectExtendedLimitInformation information,
+            uint informationLength);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool AssignProcessToJobObject(SafeJobHandle job, IntPtr process);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct JobObjectBasicLimitInformation
+        {
+            public long PerProcessUserTimeLimit;
+            public long PerJobUserTimeLimit;
+            public uint LimitFlags;
+            public UIntPtr MinimumWorkingSetSize;
+            public UIntPtr MaximumWorkingSetSize;
+            public uint ActiveProcessLimit;
+            public UIntPtr Affinity;
+            public uint PriorityClass;
+            public uint SchedulingClass;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct IoCounters
+        {
+            public ulong ReadOperationCount;
+            public ulong WriteOperationCount;
+            public ulong OtherOperationCount;
+            public ulong ReadTransferCount;
+            public ulong WriteTransferCount;
+            public ulong OtherTransferCount;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct JobObjectExtendedLimitInformation
+        {
+            public JobObjectBasicLimitInformation BasicLimitInformation;
+            public IoCounters IoInfo;
+            public UIntPtr ProcessMemoryLimit;
+            public UIntPtr JobMemoryLimit;
+            public UIntPtr PeakProcessMemoryUsed;
+            public UIntPtr PeakJobMemoryUsed;
+        }
+    }
+
+    internal sealed class SafeJobHandle : SafeHandleZeroOrMinusOneIsInvalid
+    {
+        private SafeJobHandle() : base(true)
+        {
+        }
+
+        protected override bool ReleaseHandle() => CloseHandle(handle);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool CloseHandle(IntPtr handle);
     }
 }
