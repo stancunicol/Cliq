@@ -194,6 +194,13 @@ function Stage-Payload {
         $script:BackendProject,
         '--locked-mode'
     )
+    # Packaging properties such as DebugType=None must be applied to every
+    # project reference even when a developer built the backend earlier.
+    Invoke-NativeCommand -Command 'dotnet' -Arguments @(
+        'clean',
+        (Join-Path $script:RepositoryRoot 'backend\Cliq.slnx'),
+        '--configuration', $script:Versions.BackendConfiguration
+    )
     # Self-contained publishing needs runtime-pack assets that are intentionally not
     # recorded in the repository's portable lock files. Restore those SDK-owned
     # assets without rewriting packages.lock.json after the locked dependency check.
