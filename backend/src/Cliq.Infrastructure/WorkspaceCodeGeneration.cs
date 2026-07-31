@@ -42,7 +42,9 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
             var className = EnsurePageSuffix(IdentifierNaming.ToPascalCase(
                 IdentifierNaming.Sanitize(page.Name, "GeneratedPage")));
             pageClassNames[page.Id] = className;
-            var descriptors = page.Elements.Select(ToDescriptor).ToList();
+            var descriptors = page.Elements
+                .Select(element => ToDescriptor(element, settings.ElementIdentification.TestIdAttribute))
+                .ToList();
             var pageCode = PageObjectCodeGenerator.Generate(
                 className,
                 project.Output.PageObjectsNamespace,
@@ -70,7 +72,8 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
         {
             cancellationToken.ThrowIfCancellationRequested();
             var className = IdentifierNaming.ToPascalCase(IdentifierNaming.Sanitize(test.Name, "GeneratedTest"));
-            var code = GenerateWorkflowTest(project, test, pagesById, pageClassNames, className);
+            var code = GenerateWorkflowTest(
+                project, test, pagesById, pageClassNames, className, settings.ElementIdentification.TestIdAttribute);
             var path = Path.Combine(testDirectory, $"{className}Tests.cs");
             await WriteAtomicTextAsync(path, code, cancellationToken);
             artifacts.Add(new GeneratedArtifact("test", $"{className}Tests", path, true));
@@ -79,7 +82,7 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
         return new WorkspaceGenerationResult(artifacts);
     }
 
-    private static ElementDescriptor ToDescriptor(PageElement element) =>
+    private static ElementDescriptor ToDescriptor(PageElement element, string testIdAttribute) =>
         new(
             element.Tag,
             element.Action switch
@@ -98,7 +101,7 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
                 _ => GenerationLocator.CssSelector,
             },
             element.Locator.Strategy == DomainLocator.TestId
-                ? $"[data-testid=\"{CssAttributeEscape(element.Locator.Value)}\"]"
+                ? $"[{testIdAttribute}=\"{CssAttributeEscape(element.Locator.Value)}\"]"
                 : element.Locator.Value,
             element.Name,
             element.ExpectedText);
@@ -108,7 +111,8 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
         TestCase test,
         IReadOnlyDictionary<string, PageDefinition> pages,
         IReadOnlyDictionary<string, string> pageClassNames,
-        string className)
+        string className,
+        string testIdAttribute)
     {
         var driverType = project.DefaultBrowser == DomainBrowser.Edge ? "EdgeDriver" : "ChromeDriver";
         var driverUsing = project.DefaultBrowser == DomainBrowser.Edge
@@ -158,7 +162,7 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
 
         foreach (var step in test.Steps.Where(step => step.Enabled))
         {
-            AppendStep(sb, step, pages, pageClassNames);
+            AppendStep(sb, step, pages, pageClassNames, testIdAttribute);
         }
 
         sb.AppendLine("    }");
@@ -174,7 +178,8 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
         StringBuilder sb,
         TestStep step,
         IReadOnlyDictionary<string, PageDefinition> pages,
-        IReadOnlyDictionary<string, string> pageClassNames)
+        IReadOnlyDictionary<string, string> pageClassNames,
+        string testIdAttribute)
     {
         if (step.Action == StepAction.Navigate)
         {
@@ -223,15 +228,15 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
                 sb.AppendLine($"        Assert.That({pageVariable}.Get{member}Text(), Is.EqualTo({value}));");
                 break;
             case StepAction.AssertVisible:
-                sb.AppendLine($"        Assert.That(_driver.FindElement({ByExpression(element)}).Displayed, Is.True);");
+                sb.AppendLine($"        Assert.That(_driver.FindElement({ByExpression(element, testIdAttribute)}).Displayed, Is.True);");
                 break;
         }
     }
 
-    private static string ByExpression(PageElement element)
+    private static string ByExpression(PageElement element, string testIdAttribute)
     {
         var locatorValue = element.Locator.Strategy == DomainLocator.TestId
-            ? $"[data-testid=\"{CssAttributeEscape(element.Locator.Value)}\"]"
+            ? $"[{testIdAttribute}=\"{CssAttributeEscape(element.Locator.Value)}\"]"
             : element.Locator.Value;
         var value = Literal(locatorValue);
         return element.Locator.Strategy switch
