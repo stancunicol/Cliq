@@ -49,7 +49,7 @@ public class PageObjectCodeGeneratorTests
             new("input", ElementActionKind.Fill, LocatorStrategy.Id, "username", "username"),
         };
 
-        var code = PageObjectCodeGenerator.Generate("LoginPage", "Generated", elements);
+        var code = PageObjectCodeGenerator.Generate("LoginPage", "Generated", elements, 10_000);
 
         Assert.That(code, Does.Contain("public void FillUsername(string value)"));
         Assert.That(code, Does.Contain("d.FindElement(By.Id(\"username\"))"));
@@ -65,7 +65,7 @@ public class PageObjectCodeGeneratorTests
             new("button", ElementActionKind.Click, LocatorStrategy.Id, "submit", "submit"),
         };
 
-        var code = PageObjectCodeGenerator.Generate("Page", "Generated", elements);
+        var code = PageObjectCodeGenerator.Generate("Page", "Generated", elements, 10_000);
 
         Assert.That(code, Does.Contain("public void ClickSubmit()"));
         Assert.That(code, Does.Contain("public void HoverSubmit()"));
@@ -80,7 +80,7 @@ public class PageObjectCodeGeneratorTests
             new("input", ElementActionKind.Radio, LocatorStrategy.Name, "snack", "snack"),
         };
 
-        var code = PageObjectCodeGenerator.Generate("Page", "Generated", elements);
+        var code = PageObjectCodeGenerator.Generate("Page", "Generated", elements, 10_000);
 
         Assert.That(code, Does.Contain("public void SelectSnack(string value)"));
         Assert.That(code, Does.Contain("\"input[name='snack'][value='\" + escapedValue + \"']\""));
@@ -102,7 +102,7 @@ public class PageObjectCodeGeneratorTests
             new("input", ElementActionKind.Radio, LocatorStrategy.Name, "o'clock", "snack"),
         };
 
-        var code = PageObjectCodeGenerator.Generate("Page", "Generated", elements);
+        var code = PageObjectCodeGenerator.Generate("Page", "Generated", elements, 10_000);
         var expectedPrefix = PageObjectCodeGenerator.ToCSharpStringLiteral(
             "input[name='" + PageObjectCodeGenerator.CssEscapeSingleQuoted("o'clock") + "'][value='");
 
@@ -117,7 +117,7 @@ public class PageObjectCodeGeneratorTests
             new("select", ElementActionKind.MultiSelect, LocatorStrategy.Id, "multi", "multi"),
         };
 
-        var code = PageObjectCodeGenerator.Generate("Page", "Generated", elements);
+        var code = PageObjectCodeGenerator.Generate("Page", "Generated", elements, 10_000);
 
         Assert.That(code, Does.Contain("public void SelectMultiMultiple(IEnumerable<string> values)"));
         Assert.That(code, Does.Contain("select.DeselectAll();"));
@@ -131,7 +131,7 @@ public class PageObjectCodeGeneratorTests
             new("h2", ElementActionKind.Assert, LocatorStrategy.CssSelector, "h2", "login_page", ExpectedText: "Login Page"),
         };
 
-        var code = PageObjectCodeGenerator.Generate("Page", "Generated", elements);
+        var code = PageObjectCodeGenerator.Generate("Page", "Generated", elements, 10_000);
 
         Assert.That(code, Does.Contain("public string GetLoginPageText()"));
         Assert.That(code, Does.Contain("return element.Text;"));
@@ -140,7 +140,7 @@ public class PageObjectCodeGeneratorTests
     [Test]
     public void Generate_NoElements_ProducesNoMethods()
     {
-        var code = PageObjectCodeGenerator.Generate("EmptyPage", "Generated", new List<ElementDescriptor>());
+        var code = PageObjectCodeGenerator.Generate("EmptyPage", "Generated", new List<ElementDescriptor>(), 10_000);
 
         Assert.That(code, Does.Contain("public sealed partial class EmptyPage"));
         Assert.That(code, Does.Not.Contain("public void"));
@@ -149,7 +149,7 @@ public class PageObjectCodeGeneratorTests
     [Test]
     public void Generate_ClassDeclaration_IsPartial()
     {
-        var code = PageObjectCodeGenerator.Generate("LoginPage", "Generated", new List<ElementDescriptor>());
+        var code = PageObjectCodeGenerator.Generate("LoginPage", "Generated", new List<ElementDescriptor>(), 10_000);
 
         Assert.That(code, Does.Contain("public sealed partial class LoginPage"));
     }

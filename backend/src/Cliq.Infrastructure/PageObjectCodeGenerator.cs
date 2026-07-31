@@ -4,7 +4,11 @@ namespace Cliq.Infrastructure.Generation;
 
 public static class PageObjectCodeGenerator
 {
-    public static string Generate(string className, string @namespace, IReadOnlyList<ElementDescriptor> elements)
+    public static string Generate(
+        string className,
+        string @namespace,
+        IReadOnlyList<ElementDescriptor> elements,
+        int defaultStepTimeoutMs)
     {
         var sb = new StringBuilder();
         sb.AppendLine("using System.Collections.Generic;");
@@ -22,7 +26,7 @@ public static class PageObjectCodeGenerator
         sb.AppendLine($"    public {className}(IWebDriver driver)");
         sb.AppendLine("    {");
         sb.AppendLine("        _driver = driver;");
-        sb.AppendLine("        _wait = new WebDriverWait(driver, TimeSpan.FromSeconds(10));");
+        sb.AppendLine($"        _wait = new WebDriverWait(driver, TimeSpan.FromMilliseconds({defaultStepTimeoutMs}));");
         sb.AppendLine("    }");
 
         foreach (var element in elements)

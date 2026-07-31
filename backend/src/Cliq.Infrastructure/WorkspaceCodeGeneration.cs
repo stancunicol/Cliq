@@ -32,6 +32,8 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
         Directory.CreateDirectory(pageObjectDirectory);
         Directory.CreateDirectory(testDirectory);
 
+        var settings = await repository.GetSettingsAsync(cancellationToken);
+
         var artifacts = new List<GeneratedArtifact>();
         var pageClassNames = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var page in pages)
@@ -44,7 +46,8 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
             var pageCode = PageObjectCodeGenerator.Generate(
                 className,
                 project.Output.PageObjectsNamespace,
-                descriptors);
+                descriptors,
+                settings.TestExecution.DefaultStepTimeoutMs);
             var generatedPath = Path.Combine(pageObjectDirectory, $"{className}.cs");
             await WriteAtomicTextAsync(generatedPath, pageCode, cancellationToken);
             artifacts.Add(new GeneratedArtifact("pageObject", className, generatedPath, true));
