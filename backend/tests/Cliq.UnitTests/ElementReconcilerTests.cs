@@ -47,10 +47,10 @@ public sealed class ElementReconcilerTests
     }
 
     [Test]
-    public void Reconcile_IdStrategyMatch_PreservesOldId()
+    public void Reconcile_CssStrategyMatch_PreservesOldId()
     {
-        var previous = new[] { El("old-2", "username", "input", StepAction.Fill, LocatorStrategy.Id, "username") };
-        var fresh = new[] { El("fresh-1", "username", "input", StepAction.Fill, LocatorStrategy.Id, "username") };
+        var previous = new[] { El("old-2", "submit", "button", StepAction.Click, LocatorStrategy.Css, "*:nth-child(2) > button:nth-child(1)") };
+        var fresh = new[] { El("fresh-1", "submit", "button", StepAction.Click, LocatorStrategy.Css, "*:nth-child(2) > button:nth-child(1)") };
 
         var (elements, report) = ElementReconciler.Reconcile(fresh, previous);
 
@@ -59,36 +59,29 @@ public sealed class ElementReconcilerTests
     }
 
     [Test]
-    public void Reconcile_NameStrategyMatch_PreservesOldId()
+    public void Reconcile_CssValueDrifted_ReportsNewAndMissingRatherThanGuessing()
     {
-        var previous = new[] { El("old-3", "country", "select", StepAction.Select, LocatorStrategy.Name, "country") };
-        var fresh = new[] { El("fresh-1", "country", "select", StepAction.Select, LocatorStrategy.Name, "country") };
-
-        var (elements, report) = ElementReconciler.Reconcile(fresh, previous);
-
-        Assert.That(elements.Single().Id, Is.EqualTo("old-3"));
-        Assert.That(report.MatchedCount, Is.EqualTo(1));
-    }
-
-    [Test]
-    public void Reconcile_SanitizedNameFallback_MatchesDespiteLocatorDrift()
-    {
-        // Structural CSS locator shifted (DOM changed elsewhere), but the sanitized name -
-        // derived from the same placeholder/text either scan finds - still lines up.
+        // No fallback beyond the exact-value tiers: once the css value itself changes (DOM
+        // shifted), the fresh element is unrelated as far as reconciliation is concerned, even
+        // though a human would recognize it as "the same" button.
         var previous = new[]
         {
-            El("old-4", "submit", "button", StepAction.Click, LocatorStrategy.Css, "div:nth-child(2) > button:nth-child(1)"),
+            El("old-4", "submit", "button", StepAction.Click, LocatorStrategy.Css, "*:nth-child(2) > button:nth-child(1)"),
         };
         var fresh = new[]
         {
-            El("fresh-1", "submit", "button", StepAction.Click, LocatorStrategy.Css, "div:nth-child(3) > button:nth-child(2)"),
+            El("fresh-1", "submit", "button", StepAction.Click, LocatorStrategy.Css, "*:nth-child(3) > button:nth-child(2)"),
         };
 
         var (elements, report) = ElementReconciler.Reconcile(fresh, previous);
 
-        Assert.That(elements.Single().Id, Is.EqualTo("old-4"));
-        Assert.That(elements.Single().Locator.Value, Is.EqualTo("div:nth-child(3) > button:nth-child(2)"));
-        Assert.That(report.MatchedCount, Is.EqualTo(1));
+        Assert.Multiple(() =>
+        {
+            Assert.That(elements, Has.Count.EqualTo(2));
+            Assert.That(elements, Has.Some.Matches<PageElement>(e => e.Id == "fresh-1" && !e.NotFound));
+            Assert.That(elements, Has.Some.Matches<PageElement>(e => e.Id == "old-4" && e.NotFound));
+            Assert.That(report, Is.EqualTo(new ScanReconciliationReport(0, 1, 1)));
+        });
     }
 
     [Test]
@@ -105,32 +98,6 @@ public sealed class ElementReconcilerTests
             Assert.That(elements, Has.Some.Matches<PageElement>(e => e.Id == "fresh-2" && !e.NotFound));
             Assert.That(elements, Has.Some.Matches<PageElement>(e => e.Id == "old-5" && e.NotFound));
             Assert.That(report, Is.EqualTo(new ScanReconciliationReport(0, 1, 1)));
-        });
-    }
-
-    [Test]
-    public void Reconcile_PositionFallback_PairsIndistinguishableElementsInOrder()
-    {
-        var previous = new[]
-        {
-            El("old-a", "link_x", "a", StepAction.Click, LocatorStrategy.Css, "old-selector-1"),
-            El("old-b", "link_y", "a", StepAction.Click, LocatorStrategy.Css, "old-selector-2"),
-        };
-        var fresh = new[]
-        {
-            El("fresh-a", "link_p", "a", StepAction.Click, LocatorStrategy.Css, "new-selector-1"),
-            El("fresh-b", "link_q", "a", StepAction.Click, LocatorStrategy.Css, "new-selector-2"),
-        };
-
-        var (elements, report) = ElementReconciler.Reconcile(fresh, previous);
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(elements[0].Id, Is.EqualTo("old-a"));
-            Assert.That(elements[0].Name, Is.EqualTo("link_p"));
-            Assert.That(elements[1].Id, Is.EqualTo("old-b"));
-            Assert.That(elements[1].Name, Is.EqualTo("link_q"));
-            Assert.That(report, Is.EqualTo(new ScanReconciliationReport(2, 0, 0)));
         });
     }
 

@@ -46,9 +46,11 @@ framework-generated ids are too often volatile - and is only ever used as a nami
 and `scanning` (load/network-idle timeouts, screenshot toggle).
 
 Re-scanning a page reconciles against its previous `PageDefinition` (`ElementReconciler`): elements
-still present (matched by test id, xpath, id, name, or sanitized name, in that order) keep their
-original `Id` so existing test references stay valid; elements no longer found are kept, flagged
-`NotFound`, rather than silently dropped. The scan response reports matched/new/missing counts.
+still present (matched by test id, then xpath, then an exact css-value match, in that order - no
+positional or other fuzzy fallback beyond these) keep their original `Id` so existing test
+references stay valid; anything that matches none of the three tiers is reported as a new element,
+with its previous counterpart kept and flagged `NotFound` rather than silently dropped. The scan
+response reports matched/new/missing counts.
 At test-run time, if a saved locator stops resolving, the step simply fails with the Selenium
 timeout - there is no self-healing.
 

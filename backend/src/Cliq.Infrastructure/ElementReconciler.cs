@@ -8,21 +8,20 @@ namespace Cliq.Infrastructure;
 /// <c>TestStep</c> referencing them) across re-scans, instead of every scan silently reassigning
 /// new IDs. Tiers are tried from most to least reliable; a pair is only accepted where exactly one
 /// old and one new element share a key, so ambiguous ties fall through to the next tier rather
-/// than risk a wrong match.
+/// than risk a wrong match. There is no positional or other fuzzy fallback beyond these tiers: an
+/// element that matches none of them is reported as new, and its previous counterpart as missing.
 /// </summary>
 internal static class ElementReconciler
 {
+    // Mirrors the discovery locator priority exactly (testId > xpath > css) - id/name/sanitized-name
+    // tiers were dropped rather than kept as extra fallbacks, so an element with no stable testId or
+    // xpath is reconciled only by an exact css-value match; if that value drifted too, the element is
+    // simply reported as new/missing rather than guessed at.
     private static readonly Func<PageElement, string?>[] UniqueTierKeys =
     [
         pe => pe.Locator.Strategy == LocatorStrategy.TestId ? $"{pe.Tag}|testId|{pe.Locator.Value}" : null,
-        // Same full XPath = same element, per the current discovery priority (testId > xpath > css).
         pe => pe.Locator.Strategy == LocatorStrategy.XPath ? $"{pe.Tag}|xpath|{pe.Locator.Value}" : null,
-        pe => pe.Locator.Strategy == LocatorStrategy.Id ? $"{pe.Tag}|id|{pe.Locator.Value}" : null,
-        pe => pe.Locator.Strategy == LocatorStrategy.Name ? $"{pe.Tag}|name|{pe.Locator.Value}" : null,
-        // Name was derived from testId ?? id ?? name ?? placeholder ?? text (see
-        // PuppeteerPageDiscovery.BuildElements), so comparing it recovers placeholder/text-based
-        // matching for elements with no stable id/name/testId, without persisting new raw fields.
-        pe => $"{pe.Tag}|sanitizedName|{pe.Name}",
+        pe => pe.Locator.Strategy == LocatorStrategy.Css ? $"{pe.Tag}|css|{pe.Locator.Value}" : null,
     ];
 
     public static (IReadOnlyList<PageElement> Elements, ScanReconciliationReport Report) Reconcile(
@@ -37,8 +36,6 @@ internal static class ElementReconciler
         {
             MatchByUniqueKey(freshElements, previousElements, unmatchedNew, unmatchedOld, matches, keyOf);
         }
-
-        MatchByPosition(freshElements, previousElements, unmatchedNew, unmatchedOld, matches);
 
         var result = new List<PageElement>(freshElements.Count + unmatchedOld.Count);
         for (var i = 0; i < freshElements.Count; i++)
@@ -111,42 +108,5 @@ internal static class ElementReconciler
         }
 
         return groups;
-    }
-
-    // Last-resort tie-breaker for elements with no stable id/name/testId at all: pair whatever's
-    // left in original-scan order, within the same (tag, action) group - the same fallback role
-    // the structural CSS selector already plays for locators.
-    private static void MatchByPosition(
-        IReadOnlyList<PageElement> freshElements,
-        IReadOnlyList<PageElement> previousElements,
-        HashSet<int> unmatchedNew,
-        HashSet<int> unmatchedOld,
-        Dictionary<int, int> matches)
-    {
-        var oldGroups = unmatchedOld
-            .OrderBy(i => i)
-            .GroupBy(i => (previousElements[i].Tag, previousElements[i].Action))
-            .ToDictionary(g => g.Key, g => g.ToList());
-
-        var newGroups = unmatchedNew
-            .OrderBy(i => i)
-            .GroupBy(i => (freshElements[i].Tag, freshElements[i].Action))
-            .ToDictionary(g => g.Key, g => g.ToList());
-
-        foreach (var (key, oldIndices) in oldGroups)
-        {
-            if (!newGroups.TryGetValue(key, out var newIndices))
-            {
-                continue;
-            }
-
-            var pairCount = Math.Min(oldIndices.Count, newIndices.Count);
-            for (var i = 0; i < pairCount; i++)
-            {
-                matches[newIndices[i]] = oldIndices[i];
-                unmatchedOld.Remove(oldIndices[i]);
-                unmatchedNew.Remove(newIndices[i]);
-            }
-        }
     }
 }
