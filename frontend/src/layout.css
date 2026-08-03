@@ -47,6 +47,19 @@
 .error-banner { position: relative; z-index: 30; width: 100%; border: 0; border-bottom: 1px solid #673d38; padding: 9px 16px; background: #3a2421; color: #f2b3aa; text-align: left; }
 .welcome-card .error-banner { margin-top: 18px; border: 1px solid #673d38; border-radius: 8px; }
 .working-banner { position: absolute; z-index: 40; top: 94px; left: 50%; transform: translateX(-50%); border: 1px solid #4c455e; border-radius: 8px; padding: 8px 12px; background: #282332; color: #c9baf2; font-size: 12px; }
+.locator-diff-banner { position: relative; z-index: 45; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 16px 0; padding: 8px 12px; border: 1px solid #4c455e; border-radius: 8px; background: #282332; color: #c9baf2; font-size: 12px; }
+.locator-diff-summary { display: flex; align-items: center; gap: 6px; border: 0; background: transparent; color: inherit; font: inherit; padding: 0; cursor: pointer; }
+.locator-diff-summary svg { width: 14px; flex: none; }
+.locator-diff-dismiss { margin-left: auto; border: 0; background: transparent; color: inherit; padding: 3px; border-radius: 4px; }
+.locator-diff-dismiss:hover { background: #ffffff1a; }
+.locator-diff-dismiss svg { width: 13px; display: block; }
+.locator-diff-details { flex-basis: 100%; min-width: 0; display: flex; gap: 24px; padding-top: 8px; margin-top: 4px; border-top: 1px solid #4c455e55; }
+.locator-diff-details section { flex: 1; min-width: 0; }
+.locator-diff-details strong { display: block; margin-bottom: 4px; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: #9a9d97; }
+.locator-diff-details ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 160px; overflow: auto; }
+.locator-diff-details li { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.locator-diff-details li span { flex: none; white-space: nowrap; }
+.locator-diff-details li code { flex: 1; min-width: 0; color: #9a9d97; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sidebar-empty { padding: 22px 14px; color: #747772; display: flex; align-items: center; gap: 8px; font-size: 12px; }
 .sidebar-empty svg { width: 14px; }
 .result-icon.failed { background: #552b26; color: #f0a194; }

@@ -16,6 +16,15 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     };
 
+    // Separate from JsonOptions above (which only deserializes the scanner's own JS output and
+    // is never read by a person): this report is meant to be opened and read, so it's indented
+    // and spells out the locator strategy name instead of its underlying enum ordinal.
+    private static readonly JsonSerializerOptions DiffReportJsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        WriteIndented = true,
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
+    };
+
     public async Task<PageScanResult> ScanAsync(
         string url,
         string name,
@@ -46,7 +55,7 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
 
             var freshElements = BuildElements(scanOutput.Elements, settings.ElementIdentification.TestIdAttribute);
             var previous = await repository.GetPageAsync(pageId, cancellationToken);
-            var (elements, report) = ElementReconciler.Reconcile(freshElements, previous?.Elements ?? []);
+            var (elements, report, newElements) = ElementReconciler.Reconcile(freshElements, previous?.Elements ?? []);
 
             var page = new PageDefinition(
                 PageDefinition.CurrentSchemaVersion,
@@ -55,7 +64,17 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
                 url,
                 elements,
                 DateTimeOffset.UtcNow);
-            return new PageScanResult(page, report);
+
+            // Only worth producing once there's a previous scan to diff against, and only when
+            // something actually moved - a clean re-scan writes nothing, per the "minimal
+            // information surfaced" principle this replaced self-healing with.
+            var missingElements = elements.Where(element => element.NotFound).ToList();
+            var scannedAt = DateTimeOffset.UtcNow;
+            var locatorDiff = previous is not null && (newElements.Count > 0 || missingElements.Count > 0)
+                ? await WriteLocatorDiffReportAsync(root, pageId, scannedAt, newElements, missingElements, cancellationToken)
+                : null;
+
+            return new PageScanResult(page, report, locatorDiff);
         }
         finally
         {
@@ -69,6 +88,31 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
             }
         }
     }
+
+    internal static async Task<LocatorDiffReport> WriteLocatorDiffReportAsync(
+        string root,
+        string pageId,
+        DateTimeOffset scannedAt,
+        IReadOnlyList<PageElement> newElements,
+        IReadOnlyList<PageElement> missingElements,
+        CancellationToken cancellationToken)
+    {
+        var diff = new LocatorDiffReport(
+            pageId,
+            scannedAt,
+            [.. newElements.Select(ToDiffEntry)],
+            [.. missingElements.Select(ToDiffEntry)]);
+
+        var directory = Path.Combine(root, ".cliq", "runs", "diffs");
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, $"{pageId}_{scannedAt:yyyyMMddTHHmmssfffZ}.json");
+        await File.WriteAllTextAsync(path, JsonSerializer.Serialize(diff, DiffReportJsonOptions), cancellationToken);
+
+        return diff;
+    }
+
+    private static LocatorDiffEntry ToDiffEntry(PageElement element) =>
+        new(element.Id, element.Name, element.Tag, element.Locator);
 
     private static async Task<ScanOutput> RunScanProcessAsync(
         string url,

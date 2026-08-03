@@ -172,8 +172,8 @@ public sealed class WorkspaceRepositoryTests
             Assert.That(settings.TestExecution.PageReadyTimeoutMs, Is.EqualTo(15_000));
             Assert.That(settings.Scanning.LoadTimeoutMs, Is.EqualTo(30_000));
             Assert.That(settings.Scanning.NetworkIdleGraceMs, Is.EqualTo(3_000));
-            Assert.That(settings.Scanning.CaptureScreenshot, Is.True);
-            Assert.That(settings.TestExecution.CaptureScreenshotOnFailure, Is.True);
+            Assert.That(settings.Scanning.CaptureScreenshot, Is.False);
+            Assert.That(settings.TestExecution.CaptureScreenshotOnFailure, Is.False);
             Assert.That(settings.ElementIdentification.IgnoreIdPatterns, Is.Not.Empty);
         });
     }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { CirclePlay, Code2, LoaderCircle, Radio, ScanSearch, Square } from 'lucide-react'
 import { BrowserPane } from './features/browser/BrowserPane'
 import { RunResults } from './features/runs/RunResults'
+import { LocatorDiffBanner } from './features/scanning/LocatorDiffBanner'
 import { SettingsPanel } from './features/settings/SettingsPanel'
 import { TestEditor } from './features/tests/TestEditor'
 import { Sidebar } from './features/workspace/Sidebar'
@@ -9,6 +10,7 @@ import { settingsService, workspaceService } from './services'
 import type {
   BrowserState,
   CliqSettings,
+  LocatorDiffReport,
   PageDefinition,
   PageElement,
   RecordedInteraction,
@@ -43,6 +45,7 @@ export function App() {
   const [activeStepId, setActiveStepId] = useState<string>()
   const [working, setWorking] = useState<string>()
   const [error, setError] = useState<string>()
+  const [locatorDiff, setLocatorDiff] = useState<LocatorDiffReport>()
   const snapshotRef = useRef<WorkspaceSnapshot | undefined>(undefined)
   const selectedIdRef = useRef<string | undefined>(undefined)
   const mutationQueue = useRef(Promise.resolve())
@@ -299,11 +302,13 @@ export function App() {
   async function scanPage() {
     if (!snapshot || !url) return
     setWorking('Scanning')
+    setLocatorDiff(undefined)
     try {
-      const { page, reconciliation } = await workspaceService.scanPage(url, pageNameFor(url), snapshot.project.defaultBrowser)
+      const { page, reconciliation, locatorDiff } = await workspaceService.scanPage(url, pageNameFor(url), snapshot.project.defaultBrowser)
       updateSnapshot({ ...snapshot, pages: upsert(snapshot.pages, page) })
       setWorking(`Scanned: ${reconciliation.matchedCount} matched · ${reconciliation.newCount} new · ${reconciliation.missingCount} missing`)
       setTimeout(() => setWorking(undefined), 3000)
+      setLocatorDiff(locatorDiff)
     } catch (cause) {
       setError(message(cause))
       setWorking(undefined)
@@ -402,6 +407,7 @@ export function App() {
         </header>
         {error && <button className="error-banner" onClick={() => setError(undefined)}>{error}</button>}
         {working && <div className="working-banner">{working}</div>}
+        {locatorDiff && <LocatorDiffBanner diff={locatorDiff} onDismiss={() => setLocatorDiff(undefined)} />}
         {active === 'tests' && <TestEditor test={selected} pages={snapshot.pages} onChange={saveTest} />}
         {active === 'runs' && (
           <RunResults

@@ -24,7 +24,7 @@ internal static class ElementReconciler
         pe => pe.Locator.Strategy == LocatorStrategy.Css ? $"{pe.Tag}|css|{pe.Locator.Value}" : null,
     ];
 
-    public static (IReadOnlyList<PageElement> Elements, ScanReconciliationReport Report) Reconcile(
+    public static (IReadOnlyList<PageElement> Elements, ScanReconciliationReport Report, IReadOnlyList<PageElement> NewElements) Reconcile(
         IReadOnlyList<PageElement> freshElements,
         IReadOnlyList<PageElement> previousElements)
     {
@@ -36,6 +36,8 @@ internal static class ElementReconciler
         {
             MatchByUniqueKey(freshElements, previousElements, unmatchedNew, unmatchedOld, matches, keyOf);
         }
+
+        var newElements = unmatchedNew.OrderBy(i => i).Select(i => freshElements[i]).ToList();
 
         var result = new List<PageElement>(freshElements.Count + unmatchedOld.Count);
         for (var i = 0; i < freshElements.Count; i++)
@@ -55,7 +57,7 @@ internal static class ElementReconciler
             NewCount: freshElements.Count - matches.Count,
             MissingCount: unmatchedOld.Count);
 
-        return (result, report);
+        return (result, report, newElements);
     }
 
     private static void MatchByUniqueKey(

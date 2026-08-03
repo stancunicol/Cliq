@@ -77,9 +77,24 @@ export interface ScanReconciliationReport {
   missingCount: number
 }
 
+export interface LocatorDiffEntry {
+  elementId: string
+  name: string
+  tag: string
+  locator: Locator
+}
+
+export interface LocatorDiffReport {
+  pageId: string
+  scannedAt: string
+  new: LocatorDiffEntry[]
+  missing: LocatorDiffEntry[]
+}
+
 export interface PageScanResult {
   page: PageDefinition
   reconciliation: ScanReconciliationReport
+  locatorDiff?: LocatorDiffReport
 }
 
 export interface PageDefinition {

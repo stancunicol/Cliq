@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Cliq.Domain;
 
 public enum BrowserKind
@@ -12,6 +14,11 @@ public enum LocatorStrategy
     Id,
     Name,
     Css,
+    // The default camelCase JsonStringEnumConverter lowercases only the leading run of capitals
+    // before a lowercase letter, so XPath would otherwise serialize as "xPath" - override it to
+    // match the "xpath" string used as a strategy identifier everywhere else (the JS scanner,
+    // settings.json's strategyOrder, the frontend's LocatorStrategy type).
+    [JsonStringEnumMemberName("xpath")]
     XPath,
 }
 
@@ -97,9 +104,28 @@ public sealed record ScanReconciliationReport(
     int NewCount,
     int MissingCount);
 
+public sealed record LocatorDiffEntry(
+    string ElementId,
+    string Name,
+    string Tag,
+    Locator Locator);
+
+/// <summary>
+/// Locators-only diff between a page's previous and freshly scanned element sets. Reconciliation
+/// tiers match on an exact locator value (see <c>ElementReconciler</c>), so there is no "changed"
+/// category: anything that doesn't match becomes an entry in exactly one of these two lists, never
+/// both, and this replaces the earlier self-healing approach of guessing a live replacement.
+/// </summary>
+public sealed record LocatorDiffReport(
+    string PageId,
+    DateTimeOffset ScannedAt,
+    IReadOnlyList<LocatorDiffEntry> New,
+    IReadOnlyList<LocatorDiffEntry> Missing);
+
 public sealed record PageScanResult(
     PageDefinition Page,
-    ScanReconciliationReport Reconciliation);
+    ScanReconciliationReport Reconciliation,
+    LocatorDiffReport? LocatorDiff = null);
 
 public sealed record PageDefinition(
     int SchemaVersion,

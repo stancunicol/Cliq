@@ -178,7 +178,7 @@ api.MapPost("/pages/scan", async (
         request.Headless,
         cancellationToken);
     var saved = await repository.SavePageAsync(result.Page, cancellationToken);
-    return Results.Ok(new ScanPageResponse(saved, result.Reconciliation));
+    return Results.Ok(new ScanPageResponse(saved, result.Reconciliation, result.LocatorDiff));
 });
 
 api.MapGet("/tests", async (

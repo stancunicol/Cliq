@@ -50,9 +50,12 @@ still present (matched by test id, then xpath, then an exact css-value match, in
 positional or other fuzzy fallback beyond these) keep their original `Id` so existing test
 references stay valid; anything that matches none of the three tiers is reported as a new element,
 with its previous counterpart kept and flagged `NotFound` rather than silently dropped. The scan
-response reports matched/new/missing counts.
-At test-run time, if a saved locator stops resolving, the step simply fails with the Selenium
-timeout - there is no self-healing.
+response reports matched/new/missing counts, and - only when there was a previous scan to diff
+against and something actually changed - a locators-only `LocatorDiffReport` (new/missing entries,
+each with tag, name and locator) is written to `.cliq/runs/diffs/<pageId>_<timestamp>.json` and
+returned alongside the scan result. This replaces self-healing: at test-run time, if a saved
+locator stops resolving, the step simply fails with the Selenium timeout, and the next scan's diff
+report is how a stale locator gets surfaced for a human to fix.
 
 Test steps reference page and element IDs rather than duplicating selectors; saving a test
 validates that every element-touching step's page/element reference actually exists, so a broken
