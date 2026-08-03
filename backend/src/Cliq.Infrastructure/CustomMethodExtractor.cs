@@ -52,11 +52,39 @@ internal static class CustomMethodExtractor
         return blocks;
     }
 
+    // Walks back past the marker's own line to also capture any XML doc comment (///) or other
+    // attribute ([...]) lines stacked directly above it, so a user's docstring or an extra
+    // attribute above [CliqCustomMethod] isn't silently dropped on the next regeneration. Stops
+    // at the first line that isn't one of those (including a blank line, treated as a deliberate
+    // separator).
     private static int LineStart(string source, int index)
+    {
+        var start = ImmediateLineStart(source, index);
+        while (start > 0)
+        {
+            var newlineBeforeStart = start - 1;
+            var previousStart = ImmediateLineStart(source, newlineBeforeStart);
+            var previousLine = source[previousStart..newlineBeforeStart].TrimEnd('\r').Trim();
+            if (!IsAttributeOrDocCommentLine(previousLine))
+            {
+                break;
+            }
+
+            start = previousStart;
+        }
+
+        return start;
+    }
+
+    private static int ImmediateLineStart(string source, int index)
     {
         var newline = source.LastIndexOf('\n', Math.Max(0, index - 1));
         return newline + 1;
     }
+
+    private static bool IsAttributeOrDocCommentLine(string trimmedLine) =>
+        trimmedLine.StartsWith("///", StringComparison.Ordinal)
+        || (trimmedLine.StartsWith('[') && trimmedLine.EndsWith(']'));
 
     // Re-walks from the start of the file to decide whether `position` falls inside a comment or
     // string literal that opened before it - the same skip rules FindMethodEnd/SkipBlock use, run

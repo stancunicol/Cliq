@@ -174,15 +174,17 @@ function extractElements(config) {
     return parts.join('/');
   }
 
-  // Last resort within the xpath tier: anchor on the nearest ancestor that has any id at all,
-  // rather than an absolute /html/body/... chain that breaks on any unrelated layout change.
-  // If nothing up the tree has an id either, this - and the whole xpath tier - gives up, and
-  // locatorFor() falls through to the structural CSS selector.
+  // Last resort within the xpath tier: anchor on the nearest ancestor that has a non-volatile id,
+  // rather than an absolute /html/body/... chain that breaks on any unrelated layout change. Reuses
+  // the same isIgnoredId check as everything else, so a framework-regenerated ancestor id (a React
+  // Select/Ember/Angular Material wrapper, say) can't end up baked into a "stable" xpath either.
+  // If nothing qualifies up the tree, this - and the whole xpath tier - gives up, and locatorFor()
+  // falls through to the structural CSS selector.
   function xpathByNearestIdAncestor(el) {
     let node = el.parentElement;
     let depth = 0;
     while (node && depth < 8) {
-      if (node.id) {
+      if (node.id && !isIgnoredId(node.id)) {
         const relative = relativePositionPath(el, node);
         const xp = `//*[@id=${xpathLiteral(node.id)}]/${relative}`;
         if (isUniqueXPathMatch(xp, el)) return xp;

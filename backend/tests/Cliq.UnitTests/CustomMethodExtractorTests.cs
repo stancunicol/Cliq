@@ -44,6 +44,72 @@ public sealed class CustomMethodExtractorTests
     }
 
     [Test]
+    public void Extract_XmlDocCommentAboveMarker_IsCapturedNotDropped()
+    {
+        const string source = """
+            public sealed class LoginPage
+            {
+                /// <summary>Waits for the loading spinner to clear.</summary>
+                [CliqCustomMethod]
+                public void WaitForSpinnerToClear()
+                {
+                    _wait.Until(d => !d.FindElements(By.CssSelector(".spinner")).Any());
+                }
+            }
+            """;
+
+        var blocks = CustomMethodExtractor.Extract(source);
+
+        Assert.That(blocks, Has.Count.EqualTo(1));
+        Assert.That(blocks[0], Does.StartWith("    /// <summary>Waits for the loading spinner to clear.</summary>"));
+        Assert.That(blocks[0], Does.Contain("[CliqCustomMethod]"));
+    }
+
+    [Test]
+    public void Extract_StackedAttributesAboveMarker_AreAllCaptured()
+    {
+        const string source = """
+            public sealed class LoginPage
+            {
+                [Obsolete("use WaitForSpinnerToClear instead")]
+                [CliqCustomMethod]
+                public void OldWait()
+                {
+                    Thread.Sleep(500);
+                }
+            }
+            """;
+
+        var blocks = CustomMethodExtractor.Extract(source);
+
+        Assert.That(blocks, Has.Count.EqualTo(1));
+        Assert.That(blocks[0], Does.StartWith("    [Obsolete(\"use WaitForSpinnerToClear instead\")]"));
+    }
+
+    [Test]
+    public void Extract_BlankLineAboveMarker_StopsWalkingBackFurther()
+    {
+        const string source = """
+            public sealed class LoginPage
+            {
+                public void Generated() { }
+
+                [CliqCustomMethod]
+                public void Custom()
+                {
+                    DoSomething();
+                }
+            }
+            """;
+
+        var blocks = CustomMethodExtractor.Extract(source);
+
+        Assert.That(blocks, Has.Count.EqualTo(1));
+        Assert.That(blocks[0], Does.StartWith("    [CliqCustomMethod]"));
+        Assert.That(blocks[0], Does.Not.Contain("Generated"));
+    }
+
+    [Test]
     public void Extract_ExpressionBodiedMethod_EndsAtTheSemicolon()
     {
         const string source = """

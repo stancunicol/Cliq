@@ -64,6 +64,27 @@ public class PageObjectCodeGeneratorTests
     }
 
     [Test]
+    public void Generate_LocatorValueWithEmbeddedNewline_StaysOnOneCommentLine()
+    {
+        // Defensive: nothing upstream is expected to produce a locator value containing a raw
+        // newline, but if it ever did, an unescaped one here would end the // comment early and
+        // turn the rest of the line into code - collapsing it to a single line avoids that.
+        var elements = new List<ElementDescriptor>
+        {
+            new("input", ElementActionKind.Fill, LocatorStrategy.XPath, "//input[@aria-label=\"line one\nline two\"]", "username"),
+        };
+
+        var code = PageObjectCodeGenerator.Generate("LoginPage", "Generated", elements, 10_000, []);
+        var commentLine = code.Split('\n').Single(line => line.Contains("// Locator"));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(commentLine, Does.Contain("line one line two"));
+            Assert.That(code, Does.Contain("public void FillUsername(string value)"));
+        });
+    }
+
+    [Test]
     public void Generate_Fill_ProducesClearAndSendKeys()
     {
         var elements = new List<ElementDescriptor>

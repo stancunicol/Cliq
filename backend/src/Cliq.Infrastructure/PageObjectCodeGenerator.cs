@@ -81,8 +81,10 @@ public static class PageObjectCodeGenerator
 
         // One line of provenance per generated element - for an xpath-strategy element this is
         // the full xpath, so the identifier stays short and readable while the exact expression
-        // it resolves to is still visible right above it.
-        sb.AppendLine($"    // Locator ({StrategyLabel(element.Strategy)}): {element.LocatorValue}");
+        // it resolves to is still visible right above it. A raw newline in the value would end
+        // the // comment early and turn the rest of it into (very likely non-compiling) code, so
+        // it's collapsed to a single line first regardless of how unlikely that input is upstream.
+        sb.AppendLine($"    // Locator ({StrategyLabel(element.Strategy)}): {SingleLine(element.LocatorValue)}");
 
         switch (element.Kind)
         {
@@ -202,6 +204,8 @@ public static class PageObjectCodeGenerator
         LocatorStrategy.XPath => "xpath",
         _ => strategy.ToString(),
     };
+
+    private static string SingleLine(string value) => value.Replace("\r", "").Replace("\n", " ");
 
     // Must escape everything a normal (non-verbatim) C# string literal can't
     // contain literally - not just backslash/quote. A page's visible text
