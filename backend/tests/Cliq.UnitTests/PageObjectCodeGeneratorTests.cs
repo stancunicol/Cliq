@@ -26,7 +26,9 @@ public class PageObjectCodeGeneratorTests
     [Test]
     public void ToCSharpStringLiteral_EscapesOtherControlCharactersAsUnicode()
     {
-        var literal = PageObjectCodeGenerator.ToCSharpStringLiteral("ab");
+        // Built from a char code rather than embedding a raw BEL byte in source, which editors
+        // and text-based tooling can silently drop or mangle.
+        var literal = PageObjectCodeGenerator.ToCSharpStringLiteral("a" + (char)7 + "b");
 
         Assert.That(literal, Is.EqualTo("\"a\\u0007b\""));
     }
@@ -49,7 +51,7 @@ public class PageObjectCodeGeneratorTests
             new("input", ElementActionKind.Fill, LocatorStrategy.Id, "username", "username"),
         };
 
-        var code = PageObjectCodeGenerator.Generate("LoginPage", "Generated", elements, 10_000);
+        var code = PageObjectCodeGenerator.Generate("LoginPage", "Generated", elements, 10_000, []);
 
         Assert.That(code, Does.Contain("public void FillUsername(string value)"));
         Assert.That(code, Does.Contain("d.FindElement(By.Id(\"username\"))"));
@@ -65,7 +67,7 @@ public class PageObjectCodeGeneratorTests
             new("button", ElementActionKind.Click, LocatorStrategy.Id, "submit", "submit"),
         };
 
-        var code = PageObjectCodeGenerator.Generate("Page", "Generated", elements, 10_000);
+        var code = PageObjectCodeGenerator.Generate("Page", "Generated", elements, 10_000, []);
 
         Assert.That(code, Does.Contain("public void ClickSubmit()"));
         Assert.That(code, Does.Contain("public void HoverSubmit()"));
@@ -80,7 +82,7 @@ public class PageObjectCodeGeneratorTests
             new("input", ElementActionKind.Radio, LocatorStrategy.Name, "snack", "snack"),
         };
 
-        var code = PageObjectCodeGenerator.Generate("Page", "Generated", elements, 10_000);
+        var code = PageObjectCodeGenerator.Generate("Page", "Generated", elements, 10_000, []);
 
         Assert.That(code, Does.Contain("public void SelectSnack(string value)"));
         Assert.That(code, Does.Contain("\"input[name='snack'][value='\" + escapedValue + \"']\""));
@@ -102,7 +104,7 @@ public class PageObjectCodeGeneratorTests
             new("input", ElementActionKind.Radio, LocatorStrategy.Name, "o'clock", "snack"),
         };
 
-        var code = PageObjectCodeGenerator.Generate("Page", "Generated", elements, 10_000);
+        var code = PageObjectCodeGenerator.Generate("Page", "Generated", elements, 10_000, []);
         var expectedPrefix = PageObjectCodeGenerator.ToCSharpStringLiteral(
             "input[name='" + PageObjectCodeGenerator.CssEscapeSingleQuoted("o'clock") + "'][value='");
 
@@ -117,7 +119,7 @@ public class PageObjectCodeGeneratorTests
             new("select", ElementActionKind.MultiSelect, LocatorStrategy.Id, "multi", "multi"),
         };
 
-        var code = PageObjectCodeGenerator.Generate("Page", "Generated", elements, 10_000);
+        var code = PageObjectCodeGenerator.Generate("Page", "Generated", elements, 10_000, []);
 
         Assert.That(code, Does.Contain("public void SelectMultiMultiple(IEnumerable<string> values)"));
         Assert.That(code, Does.Contain("select.DeselectAll();"));
@@ -131,36 +133,69 @@ public class PageObjectCodeGeneratorTests
             new("h2", ElementActionKind.Assert, LocatorStrategy.CssSelector, "h2", "login_page", ExpectedText: "Login Page"),
         };
 
-        var code = PageObjectCodeGenerator.Generate("Page", "Generated", elements, 10_000);
+        var code = PageObjectCodeGenerator.Generate("Page", "Generated", elements, 10_000, []);
 
         Assert.That(code, Does.Contain("public string GetLoginPageText()"));
         Assert.That(code, Does.Contain("return element.Text;"));
     }
 
     [Test]
-    public void Generate_NoElements_ProducesNoMethods()
+    public void Generate_NoElementsOrCustomMethods_ProducesNoMethods()
     {
-        var code = PageObjectCodeGenerator.Generate("EmptyPage", "Generated", new List<ElementDescriptor>(), 10_000);
+        var code = PageObjectCodeGenerator.Generate("EmptyPage", "Generated", new List<ElementDescriptor>(), 10_000, []);
 
-        Assert.That(code, Does.Contain("public sealed partial class EmptyPage"));
+        Assert.That(code, Does.Contain("public sealed class EmptyPage"));
         Assert.That(code, Does.Not.Contain("public void"));
     }
 
     [Test]
-    public void Generate_ClassDeclaration_IsPartial()
+    public void Generate_ClassDeclaration_IsSealedNotPartial()
     {
-        var code = PageObjectCodeGenerator.Generate("LoginPage", "Generated", new List<ElementDescriptor>(), 10_000);
+        var code = PageObjectCodeGenerator.Generate("LoginPage", "Generated", new List<ElementDescriptor>(), 10_000, []);
 
-        Assert.That(code, Does.Contain("public sealed partial class LoginPage"));
+        Assert.That(code, Does.Contain("public sealed class LoginPage"));
+        Assert.That(code, Does.Not.Contain("partial"));
     }
 
     [Test]
-    public void GenerateCustomStub_ProducesEmptyMatchingPartialClass()
+    public void Generate_WithCustomMethods_AppendsThemVerbatimAfterGeneratedMethods()
     {
-        var stub = PageObjectCodeGenerator.GenerateCustomStub("LoginPage", "Generated");
+        const string customMethod = """
+                [CliqCustomMethod]
+                public void WaitForSpinnerToClear()
+                {
+                    _wait.Until(d => !d.FindElements(By.CssSelector(".spinner")).Any());
+                }
+            """;
+        var elements = new List<ElementDescriptor>
+        {
+            new("input", ElementActionKind.Fill, LocatorStrategy.Id, "username", "username"),
+        };
 
-        Assert.That(stub, Does.Contain("namespace Generated;"));
-        Assert.That(stub, Does.Contain("public sealed partial class LoginPage"));
-        Assert.That(stub, Does.Not.Contain("public void"));
+        var code = PageObjectCodeGenerator.Generate("LoginPage", "Generated", elements, 10_000, [customMethod]);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(code, Does.Contain("public void FillUsername(string value)"));
+            Assert.That(code, Does.Contain("[CliqCustomMethod]"));
+            Assert.That(code, Does.Contain("public void WaitForSpinnerToClear()"));
+            Assert.That(
+                code.IndexOf("FillUsername", StringComparison.Ordinal),
+                Is.LessThan(code.IndexOf("WaitForSpinnerToClear", StringComparison.Ordinal)),
+                "generated methods should come before preserved custom ones");
+        });
+    }
+
+    [Test]
+    public void GenerateAttributeFile_ProducesTheMarkerAttributeDefinition()
+    {
+        var code = PageObjectCodeGenerator.GenerateAttributeFile("Generated");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(code, Does.Contain("namespace Generated;"));
+            Assert.That(code, Does.Contain("[AttributeUsage(AttributeTargets.Method)]"));
+            Assert.That(code, Does.Contain("class CliqCustomMethodAttribute : Attribute"));
+        });
     }
 }

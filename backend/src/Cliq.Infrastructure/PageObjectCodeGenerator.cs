@@ -4,11 +4,17 @@ namespace Cliq.Infrastructure.Generation;
 
 public static class PageObjectCodeGenerator
 {
+    /// <summary>Attribute name (without the "Attribute" suffix) a hand-written method must carry
+    /// to survive regeneration - see <see cref="CustomMethodExtractor"/> and
+    /// <see cref="GenerateAttributeFile"/>.</summary>
+    public const string CustomMethodAttributeName = "CliqCustomMethod";
+
     public static string Generate(
         string className,
         string @namespace,
         IReadOnlyList<ElementDescriptor> elements,
-        int defaultStepTimeoutMs)
+        int defaultStepTimeoutMs,
+        IReadOnlyList<string> customMethods)
     {
         var sb = new StringBuilder();
         sb.AppendLine("using System.Collections.Generic;");
@@ -18,7 +24,7 @@ public static class PageObjectCodeGenerator
         sb.AppendLine();
         sb.AppendLine($"namespace {@namespace};");
         sb.AppendLine();
-        sb.AppendLine($"public sealed partial class {className}");
+        sb.AppendLine($"public sealed class {className}");
         sb.AppendLine("{");
         sb.AppendLine("    private readonly IWebDriver _driver;");
         sb.AppendLine("    private readonly WebDriverWait _wait;");
@@ -35,7 +41,36 @@ public static class PageObjectCodeGenerator
             AppendMethod(sb, element);
         }
 
+        if (customMethods.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("    // Added by hand - kept across regeneration because each method below carries");
+            sb.AppendLine($"    // the {CustomMethodAttributeName} attribute. Remove it to let a method be dropped.");
+            foreach (var method in customMethods)
+            {
+                sb.AppendLine();
+                sb.AppendLine(method);
+            }
+        }
+
         sb.AppendLine("}");
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// The marker attribute's own definition, generated once per namespace (not per page) since
+    /// every Page Object class in the same generated namespace shares it.
+    /// </summary>
+    public static string GenerateAttributeFile(string @namespace)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"namespace {@namespace};");
+        sb.AppendLine();
+        sb.AppendLine("// Put this on a hand-written method inside a generated Page Object class to keep");
+        sb.AppendLine("// it across regeneration - anything not marked with it is replaced on the next");
+        sb.AppendLine("// generation along with the rest of the class.");
+        sb.AppendLine("[AttributeUsage(AttributeTargets.Method)]");
+        sb.AppendLine($"public sealed class {CustomMethodAttributeName}Attribute : Attribute;");
         return sb.ToString();
     }
 
@@ -129,24 +164,6 @@ public static class PageObjectCodeGenerator
             default:
                 throw new ArgumentOutOfRangeException(nameof(element));
         }
-    }
-
-    /// <summary>
-    /// The other half of the "{className}.cs" partial class - written only once
-    /// by WorkspaceCodeGeneration and never touched again, so a developer
-    /// can add hand-written methods here without losing them on regeneration.
-    /// </summary>
-    public static string GenerateCustomStub(string className, string @namespace)
-    {
-        var sb = new StringBuilder();
-        sb.AppendLine($"namespace {@namespace};");
-        sb.AppendLine();
-        sb.AppendLine($"// Hand-written additions to {className} - this file is never regenerated");
-        sb.AppendLine("// or overwritten by the tool, so it's safe to add your own methods here.");
-        sb.AppendLine($"public sealed partial class {className}");
-        sb.AppendLine("{");
-        sb.AppendLine("}");
-        return sb.ToString();
     }
 
     /// <summary>

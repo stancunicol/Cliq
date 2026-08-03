@@ -35,6 +35,14 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
         var settings = await repository.GetSettingsAsync(cancellationToken);
 
         var artifacts = new List<GeneratedArtifact>();
+
+        var attributePath = Path.Combine(pageObjectDirectory, "CliqCustomMethodAttribute.cs");
+        await WriteAtomicTextAsync(
+            attributePath,
+            PageObjectCodeGenerator.GenerateAttributeFile(project.Output.PageObjectsNamespace),
+            cancellationToken);
+        artifacts.Add(new GeneratedArtifact("attribute", "CliqCustomMethodAttribute", attributePath, true));
+
         var pageClassNames = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var page in pages)
         {
@@ -45,26 +53,18 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
             var descriptors = page.Elements
                 .Select(element => ToDescriptor(element, settings.ElementIdentification.TestIdAttribute))
                 .ToList();
+            var generatedPath = Path.Combine(pageObjectDirectory, $"{className}.cs");
+            var customMethods = File.Exists(generatedPath)
+                ? CustomMethodExtractor.Extract(await File.ReadAllTextAsync(generatedPath, cancellationToken))
+                : [];
             var pageCode = PageObjectCodeGenerator.Generate(
                 className,
                 project.Output.PageObjectsNamespace,
                 descriptors,
-                settings.TestExecution.DefaultStepTimeoutMs);
-            var generatedPath = Path.Combine(pageObjectDirectory, $"{className}.cs");
+                settings.TestExecution.DefaultStepTimeoutMs,
+                customMethods);
             await WriteAtomicTextAsync(generatedPath, pageCode, cancellationToken);
             artifacts.Add(new GeneratedArtifact("pageObject", className, generatedPath, true));
-
-            var customPath = Path.Combine(pageObjectDirectory, $"{className}.Custom.cs");
-            var created = !File.Exists(customPath);
-            if (created)
-            {
-                await WriteAtomicTextAsync(
-                    customPath,
-                    PageObjectCodeGenerator.GenerateCustomStub(className, project.Output.PageObjectsNamespace),
-                    cancellationToken);
-            }
-
-            artifacts.Add(new GeneratedArtifact("custom", className, customPath, created));
         }
 
         var pagesById = pages.ToDictionary(page => page.Id, StringComparer.Ordinal);

@@ -59,9 +59,13 @@ report is how a stale locator gets surfaced for a human to fix.
 
 Test steps reference page and element IDs rather than duplicating selectors; saving a test
 validates that every element-touching step's page/element reference actually exists, so a broken
-reference is caught at save time rather than discovered mid-run. Generation emits one partial Page
-Object per page plus an NUnit workflow per test. Generated files may be replaced; matching
-`.Custom.cs` files are created once and never overwritten.
+reference is caught at save time rather than discovered mid-run. Generation emits one Page Object
+class per page plus an NUnit workflow per test, and a shared `CliqCustomMethodAttribute.cs` once
+per namespace. Every generation run replaces the Page Object file outright, but first extracts any
+method marked `[CliqCustomMethod]` from the existing file (`CustomMethodExtractor`, a
+comment/string-aware brace scan, not a full C# parse) and re-emits it verbatim at the end of the
+new one - that attribute is the only thing that survives regeneration; anything else hand-added
+without it is replaced like the rest of the file.
 
 ## Security posture
 

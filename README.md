@@ -20,8 +20,7 @@ Given a workspace and an HTTP or HTTPS page, Cliq can:
 5. compose or edit complete workflows with navigation, keyboard actions, and assertions;
 6. replay the workflow visibly, report each step, support cancellation, and capture a screenshot
    when a step fails; and
-7. generate partial C# Page Objects and NUnit workflow tests in configurable workspace
-   directories.
+7. generate C# Page Objects and NUnit workflow tests in configurable workspace directories.
 
 Discovery and generation are rule-based. There is no AI component in the current pipeline.
 
@@ -94,7 +93,7 @@ UI.
 | `Cliq.Application` | Coordinates use cases without depending on the UI or persistence details |
 | `WorkspaceRepository` | Reads and atomically writes versioned workspace JSON |
 | `SeleniumPageDiscovery` | Scans the live DOM and produces stable page definitions |
-| `WorkspaceCodeGeneration` | Emits Page Objects, protected custom partials and NUnit workflows |
+| `WorkspaceCodeGeneration` | Emits Page Objects (preserving `[CliqCustomMethod]`-marked methods) and NUnit workflows |
 
 The detailed runtime and security boundaries are documented in
 [`docs/architecture.md`](docs/architecture.md).
@@ -124,14 +123,16 @@ Generated source defaults to:
 Generated/
   PageObjects/
     <PageName>Page.cs
-    <PageName>Page.Custom.cs
+    CliqCustomMethodAttribute.cs
   Tests/
     <TestName>Tests.cs
 ```
 
-The directories and namespaces are configurable in `.cliq/project.json`. Generated `.cs` files
-may be replaced on the next generation. A matching `.Custom.cs` partial is created only once, so
-hand-written extensions survive regeneration.
+The directories and namespaces are configurable in `.cliq/project.json`. Each `<PageName>Page.cs`
+is a single file, replaced on every generation. A hand-written method survives regeneration only
+if it's marked with `[CliqCustomMethod]` (defined once in the generated `CliqCustomMethodAttribute.cs`,
+shared by every Page Object in the namespace); anything else in the file is regenerated content and
+is not preserved.
 
 Test steps reference stable page and element IDs instead of copying selectors. Automatic scans
 and browser recording both produce the same `PageDefinition` model.

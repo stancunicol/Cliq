@@ -25,7 +25,7 @@ public sealed class WorkspaceCodeGenerationTests
     }
 
     [Test]
-    public async Task GenerateAsync_CreatesPageObjectWorkflowAndPreservesCustomFile()
+    public async Task GenerateAsync_CreatesPageObjectWorkflowAndAttributeFile()
     {
         var repository = new WorkspaceRepository();
         var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
@@ -63,15 +63,7 @@ public sealed class WorkspaceCodeGenerationTests
             DateTimeOffset.UtcNow);
         var generator = new WorkspaceCodeGeneration(repository);
 
-        var first = await generator.GenerateAsync(
-            snapshot.Project,
-            [page],
-            [test],
-            _root,
-            CancellationToken.None);
-        var custom = first.Artifacts.Single(item => item.Kind == "custom");
-        await File.WriteAllTextAsync(custom.Path, "// developer code");
-        var second = await generator.GenerateAsync(
+        var result = await generator.GenerateAsync(
             snapshot.Project,
             [page],
             [test],
@@ -80,11 +72,65 @@ public sealed class WorkspaceCodeGenerationTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(File.ReadAllText(custom.Path), Is.EqualTo("// developer code"));
-            Assert.That(second.Artifacts.Single(item => item.Kind == "custom").Created, Is.False);
             Assert.That(
-                File.ReadAllText(second.Artifacts.Single(item => item.Kind == "test").Path),
+                File.ReadAllText(result.Artifacts.Single(item => item.Kind == "attribute").Path),
+                Does.Contain("class CliqCustomMethodAttribute : Attribute"));
+            Assert.That(
+                File.ReadAllText(result.Artifacts.Single(item => item.Kind == "pageObject").Path),
+                Does.Contain("public sealed class LoginPage"));
+            Assert.That(
+                File.ReadAllText(result.Artifacts.Single(item => item.Kind == "test").Path),
                 Does.Contain("RequiredSecret(\"USERNAME\")"));
+        });
+    }
+
+    [Test]
+    public async Task GenerateAsync_PreservesMethodsMarkedAsCustomAcrossRegeneration()
+    {
+        var repository = new WorkspaceRepository();
+        var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
+        var page = new PageDefinition(
+            PageDefinition.CurrentSchemaVersion,
+            "login",
+            "Login",
+            "https://example.com/login",
+            [
+                new PageElement(
+                    "username",
+                    "username",
+                    "input",
+                    StepAction.Fill,
+                    new Locator(LocatorStrategy.TestId, "username")),
+            ],
+            DateTimeOffset.UtcNow);
+        var generator = new WorkspaceCodeGeneration(repository);
+
+        var first = await generator.GenerateAsync(snapshot.Project, [page], [], _root, CancellationToken.None);
+        var pageObjectPath = first.Artifacts.Single(item => item.Kind == "pageObject").Path;
+        var generated = await File.ReadAllTextAsync(pageObjectPath);
+        const string handWrittenMethod = """
+                [CliqCustomMethod]
+                public void WaitForSpinnerToClear()
+                {
+                    _wait.Until(d => !d.FindElements(By.CssSelector(".spinner")).Any());
+                }
+
+            """;
+        // Insert just before the class's own closing brace (the last one in the file).
+        var classCloseIndex = generated.LastIndexOf('}');
+        var withHandWrittenMethod = generated[..classCloseIndex] + handWrittenMethod + generated[classCloseIndex..];
+
+        await File.WriteAllTextAsync(pageObjectPath, withHandWrittenMethod);
+
+        var second = await generator.GenerateAsync(snapshot.Project, [page], [], _root, CancellationToken.None);
+        var regenerated = await File.ReadAllTextAsync(
+            second.Artifacts.Single(item => item.Kind == "pageObject").Path);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(regenerated, Does.Contain("[CliqCustomMethod]"));
+            Assert.That(regenerated, Does.Contain("public void WaitForSpinnerToClear()"));
+            Assert.That(regenerated, Does.Contain("public void FillUsername(string value)"));
         });
     }
 
