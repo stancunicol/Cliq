@@ -44,6 +44,26 @@ public class PageObjectCodeGeneratorTests
     }
 
     [Test]
+    public void Generate_XPathElement_EmitsFullXPathInAPrecedingComment()
+    {
+        const string fullXPath = "//label[contains(normalize-space(string(.)), \"Username\")]/following::input[1]";
+        var elements = new List<ElementDescriptor>
+        {
+            new("input", ElementActionKind.Fill, LocatorStrategy.XPath, fullXPath, "username"),
+        };
+
+        var code = PageObjectCodeGenerator.Generate("LoginPage", "Generated", elements, 10_000, []);
+        var commentIndex = code.IndexOf($"// Locator (xpath): {fullXPath}", StringComparison.Ordinal);
+        var methodIndex = code.IndexOf("public void FillUsername(string value)", StringComparison.Ordinal);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(commentIndex, Is.GreaterThanOrEqualTo(0), "expected the full xpath in a comment above the method");
+            Assert.That(commentIndex, Is.LessThan(methodIndex), "the comment should precede the method it documents");
+        });
+    }
+
+    [Test]
     public void Generate_Fill_ProducesClearAndSendKeys()
     {
         var elements = new List<ElementDescriptor>

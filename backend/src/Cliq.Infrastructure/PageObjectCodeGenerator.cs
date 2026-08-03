@@ -79,6 +79,11 @@ public static class PageObjectCodeGenerator
         var name = IdentifierNaming.ToPascalCase(element.SuggestedName);
         var by = ByExpression(element);
 
+        // One line of provenance per generated element - for an xpath-strategy element this is
+        // the full xpath, so the identifier stays short and readable while the exact expression
+        // it resolves to is still visible right above it.
+        sb.AppendLine($"    // Locator ({StrategyLabel(element.Strategy)}): {element.LocatorValue}");
+
         switch (element.Kind)
         {
             case ElementActionKind.Fill:
@@ -188,6 +193,15 @@ public static class PageObjectCodeGenerator
             _ => throw new ArgumentOutOfRangeException(nameof(element)),
         };
     }
+
+    private static string StrategyLabel(LocatorStrategy strategy) => strategy switch
+    {
+        LocatorStrategy.Id => "id",
+        LocatorStrategy.Name => "name",
+        LocatorStrategy.CssSelector => "css",
+        LocatorStrategy.XPath => "xpath",
+        _ => strategy.ToString(),
+    };
 
     // Must escape everything a normal (non-verbatim) C# string literal can't
     // contain literally - not just backslash/quote. A page's visible text
