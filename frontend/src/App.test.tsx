@@ -137,7 +137,7 @@ function bridgeFor(
 function testSettings(): CliqSettings {
   return {
     schemaVersion: 1,
-    elementIdentification: { testIdAttribute: 'data-testid', strategyOrder: ['testId', 'id', 'name'], ignoreIdPatterns: [] },
+    elementIdentification: { testIdAttribute: 'data-testid', strategyOrder: ['testId', 'xpath'], ignoreIdPatterns: [] },
     testExecution: { defaultStepTimeoutMs: 10_000, pageReadyTimeoutMs: 15_000, captureScreenshotOnFailure: true },
     scanning: { loadTimeoutMs: 30_000, networkIdleGraceMs: 3_000, captureScreenshot: true },
   }

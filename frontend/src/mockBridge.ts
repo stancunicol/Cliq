@@ -215,7 +215,7 @@ function mockSettings(): CliqSettings {
     schemaVersion: 1,
     elementIdentification: {
       testIdAttribute: 'data-testid',
-      strategyOrder: ['testId', 'id', 'name'],
+      strategyOrder: ['testId', 'xpath'],
       ignoreIdPatterns: [
         '^ember\\d+$',
         '^react-select-\\d+-',

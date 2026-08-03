@@ -53,12 +53,11 @@ public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRu
                 DomainStepResult result;
                 try
                 {
-                    var timing = ExecuteStep(driver, step, pages, secrets, settings, cancellationToken);
+                    var timing = ExecuteStep(driver, step, pages, secrets, settings);
                     result = new DomainStepResult(
                         step.Id,
                         RunStatus.Passed,
                         stopwatch.ElapsedMilliseconds,
-                        SelfHealed: timing.Healed,
                         LocateMs: timing.LocateMs,
                         ActionMs: timing.ActionMs);
                 }
@@ -95,19 +94,18 @@ public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRu
             failed ? "One or more test steps failed." : null);
     }
 
-    private StepTiming ExecuteStep(
+    private static StepTiming ExecuteStep(
         IWebDriver driver,
         TestStep step,
         IReadOnlyDictionary<string, PageDefinition> pages,
         IReadOnlyDictionary<string, string> secrets,
-        CliqSettings settings,
-        CancellationToken cancellationToken)
+        CliqSettings settings)
     {
         if (step.Action == StepAction.Navigate)
         {
             driver.Navigate().GoToUrl(step.Url ?? throw new WorkspaceValidationException("Navigate step has no URL."));
             PageReadiness.WaitForComplete(driver, TimeSpan.FromMilliseconds(settings.TestExecution.PageReadyTimeoutMs));
-            return new StepTiming(false, null, null);
+            return new StepTiming(null, null);
         }
 
         if (step.Action == StepAction.AssertUrl)
@@ -118,7 +116,7 @@ public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRu
                 throw new InvalidOperationException($"URL '{driver.Url}' does not match '{expected}'.");
             }
 
-            return new StepTiming(false, null, null);
+            return new StepTiming(null, null);
         }
 
         var element = ResolveElement(step, pages);
@@ -126,25 +124,7 @@ public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRu
         var testIdAttribute = settings.ElementIdentification.TestIdAttribute;
 
         var locateStopwatch = Stopwatch.StartNew();
-        IWebElement webElement;
-        var healed = false;
-        try
-        {
-            webElement = new WebDriverWait(driver, timeout).Until(current => current.FindElement(ByFor(element.Locator, testIdAttribute)));
-        }
-        catch (WebDriverTimeoutException)
-        {
-            var healedLocator = SelfHealingLocator.TryHeal(driver, element, settings.ElementIdentification);
-            if (healedLocator is null)
-            {
-                throw;
-            }
-
-            webElement = driver.FindElement(ByFor(healedLocator, testIdAttribute));
-            PersistHealedLocator(step, pages, element, healedLocator, cancellationToken);
-            healed = true;
-        }
-
+        var webElement = new WebDriverWait(driver, timeout).Until(current => current.FindElement(ByFor(element.Locator, testIdAttribute)));
         var locateMs = locateStopwatch.ElapsedMilliseconds;
 
         var actionStopwatch = Stopwatch.StartNew();
@@ -178,29 +158,10 @@ public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRu
                 break;
         }
 
-        return new StepTiming(healed, locateMs, actionStopwatch.ElapsedMilliseconds);
+        return new StepTiming(locateMs, actionStopwatch.ElapsedMilliseconds);
     }
 
-    private readonly record struct StepTiming(bool Healed, long? LocateMs, long? ActionMs);
-
-    private void PersistHealedLocator(
-        TestStep step,
-        IReadOnlyDictionary<string, PageDefinition> pages,
-        PageElement element,
-        Locator healedLocator,
-        CancellationToken cancellationToken)
-    {
-        if (step.PageId is null || !pages.TryGetValue(step.PageId, out var page))
-        {
-            return;
-        }
-
-        var updatedElements = page.Elements
-            .Select(candidate => candidate.Id == element.Id ? candidate with { Locator = healedLocator } : candidate)
-            .ToList();
-        var updatedPage = page with { Elements = updatedElements };
-        repository.SavePageAsync(updatedPage, cancellationToken).GetAwaiter().GetResult();
-    }
+    private readonly record struct StepTiming(long? LocateMs, long? ActionMs);
 
     private static PageElement ResolveElement(
         TestStep step,

@@ -7,8 +7,8 @@ namespace Cliq.UnitTests;
 [TestFixture]
 public sealed class WorkspaceRepositoryTests
 {
-    private static readonly string[] DefaultStrategyOrder = ["testId", "id", "name"];
-    private static readonly string[] CustomStrategyOrder = ["id", "testId"];
+    private static readonly string[] DefaultStrategyOrder = ["testId", "xpath"];
+    private static readonly string[] CustomStrategyOrder = ["xpath", "testId"];
 
     private string _root = null!;
 

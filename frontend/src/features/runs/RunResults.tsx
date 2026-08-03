@@ -1,4 +1,4 @@
-import { Camera, Check, CircleAlert, Hourglass, LoaderCircle, Square, Wrench, X } from 'lucide-react'
+import { Camera, Check, CircleAlert, Hourglass, LoaderCircle, Square, X } from 'lucide-react'
 import { useState } from 'react'
 import { screenshotService } from '../../services'
 import type { StepResult, TestCase, TestRun } from '../../types'
@@ -85,11 +85,6 @@ export function RunResults({
               <div>
                 <strong>
                   {step.label}
-                  {result?.selfHealed && (
-                    <span className="healed-badge" title="Locator was re-derived automatically after the original one no longer matched.">
-                      <Wrench />Self-healed
-                    </span>
-                  )}
                   {result?.extendedTimeoutMs !== undefined && (
                     <span
                       className="extended-badge"

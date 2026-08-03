@@ -149,7 +149,6 @@ public sealed record StepResult(
     long DurationMs,
     string? Error = null,
     string? ScreenshotPath = null,
-    bool SelfHealed = false,
     long? LocateMs = null,
     long? ActionMs = null);
 

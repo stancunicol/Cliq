@@ -11,7 +11,7 @@ export type StepAction =
   | 'assertUrl'
 export type RunStatus = 'queued' | 'running' | 'passed' | 'failed' | 'cancelled'
 
-export type IdentificationStrategy = 'testId' | 'id' | 'name'
+export type IdentificationStrategy = 'testId' | 'xpath'
 
 export interface ElementIdentificationSettings {
   testIdAttribute: string
@@ -124,7 +124,6 @@ export interface StepResult {
   durationMs: number
   error?: string
   screenshotPath?: string
-  selfHealed?: boolean
   locateMs?: number
   actionMs?: number
   syncMs?: number

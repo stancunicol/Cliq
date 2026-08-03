@@ -15,6 +15,8 @@ internal static class ElementReconciler
     private static readonly Func<PageElement, string?>[] UniqueTierKeys =
     [
         pe => pe.Locator.Strategy == LocatorStrategy.TestId ? $"{pe.Tag}|testId|{pe.Locator.Value}" : null,
+        // Same full XPath = same element, per the current discovery priority (testId > xpath > css).
+        pe => pe.Locator.Strategy == LocatorStrategy.XPath ? $"{pe.Tag}|xpath|{pe.Locator.Value}" : null,
         pe => pe.Locator.Strategy == LocatorStrategy.Id ? $"{pe.Tag}|id|{pe.Locator.Value}" : null,
         pe => pe.Locator.Strategy == LocatorStrategy.Name ? $"{pe.Tag}|name|{pe.Locator.Value}" : null,
         // Name was derived from testId ?? id ?? name ?? placeholder ?? text (see

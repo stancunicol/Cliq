@@ -166,7 +166,6 @@ function installIpc() {
           secrets,
           snapshot.rootPath,
           settings,
-          persistPage,
           cancellation.signal,
           (event) => shell?.webContents.send('workspace:run-event', event),
         )
@@ -236,13 +235,6 @@ function persistRun(run: EmbeddedTestRun) {
   return backend.request(`/api/v1/runs/${encodeURIComponent(run.id)}`, {
     method: 'PUT',
     body: JSON.stringify(run),
-  })
-}
-
-async function persistPage(page: EmbeddedPage) {
-  await backend.request(`/api/v1/pages/${encodeURIComponent(page.id)}`, {
-    method: 'PUT',
-    body: JSON.stringify(page),
   })
 }
 

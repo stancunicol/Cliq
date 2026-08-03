@@ -108,7 +108,7 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
         return settings;
     }
 
-    private static readonly HashSet<string> KnownIdentificationStrategies = new(StringComparer.Ordinal) { "testId", "id", "name" };
+    private static readonly HashSet<string> KnownIdentificationStrategies = new(StringComparer.Ordinal) { "testId", "xpath" };
 
     private static void ValidateSettings(CliqSettings settings)
     {
@@ -127,7 +127,7 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
             if (!KnownIdentificationStrategies.Contains(strategy))
             {
                 throw new WorkspaceValidationException(
-                    $"elementIdentification.strategyOrder contains unknown strategy '{strategy}'. Expected one of: testId, id, name.");
+                    $"elementIdentification.strategyOrder contains unknown strategy '{strategy}'. Expected one of: testId, xpath.");
             }
         }
 
@@ -178,7 +178,7 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
 
     private static CliqSettings DefaultSettings() => new(
         CliqSettings.CurrentSchemaVersion,
-        new ElementIdentificationSettings("data-testid", ["testId", "id", "name"], DefaultIgnoreIdPatterns),
+        new ElementIdentificationSettings("data-testid", ["testId", "xpath"], DefaultIgnoreIdPatterns),
         new TestExecutionSettings(DefaultStepTimeoutMs: 10_000, PageReadyTimeoutMs: 15_000, CaptureScreenshotOnFailure: true),
         new ScanningSettings(LoadTimeoutMs: 30_000, NetworkIdleGraceMs: 3_000, CaptureScreenshot: true));
 

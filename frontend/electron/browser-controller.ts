@@ -70,7 +70,6 @@ export interface EmbeddedStepResult {
   durationMs: number
   error?: string
   screenshotPath?: string
-  selfHealed?: boolean
   locateMs?: number
   actionMs?: number
   syncMs?: number
@@ -249,7 +248,6 @@ export class BrowserController {
     secrets: Record<string, string>,
     workspaceRoot: string,
     settings: EmbeddedSettings,
-    persistPage: (page: EmbeddedPage) => Promise<void>,
     signal: AbortSignal,
     onEvent: (event: EmbeddedRunEvent) => void,
   ): Promise<EmbeddedTestRun> {
@@ -263,12 +261,11 @@ export class BrowserController {
           onEvent({ type: 'step-start', stepId: step.id })
           const started = Date.now()
           try {
-            const timing = await this.executeStep(step, pages, secrets, settings, persistPage, timingStats, signal)
+            const timing = await this.executeStep(step, pages, secrets, settings, timingStats, signal)
             const result: EmbeddedStepResult = {
               stepId: step.id,
               status: 'passed',
               durationMs: Date.now() - started,
-              selfHealed: timing.selfHealed,
               locateMs: timing.locateMs,
               actionMs: timing.actionMs,
               syncMs: timing.syncMs,
@@ -355,11 +352,9 @@ export class BrowserController {
     pages: EmbeddedPage[],
     secrets: Record<string, string>,
     settings: EmbeddedSettings,
-    persistPage: (page: EmbeddedPage) => Promise<void>,
     timingStats: TimingStats,
     signal: AbortSignal,
   ): Promise<{
-    selfHealed: boolean
     locateMs?: number
     actionMs?: number
     syncMs?: number
@@ -374,7 +369,7 @@ export class BrowserController {
       this.applyBounds()
       this.publish()
       await abortableDelay(afterActionCeilingMs, signal)
-      return { selfHealed: false }
+      return {}
     }
 
     if (step.action === 'assertUrl') {
@@ -384,19 +379,19 @@ export class BrowserController {
         throw new Error(`URL '${this.view.webContents.getURL()}' does not match '${expected}'.`)
       }
       await abortableDelay(afterActionCeilingMs, signal)
-      return { selfHealed: false }
+      return {}
     }
 
-    const { page, element } = resolveElement(step, pages)
+    const element = resolveElement(step, pages)
     const configuredTimeoutMs = step.timeoutMs && step.timeoutMs > 0
       ? step.timeoutMs
       : settings.testExecution.defaultStepTimeoutMs
     const timeoutMs = suggestedTimeoutMs(timingStats, step.id, configuredTimeoutMs)
     const extendedTimeoutMs = timeoutMs > configuredTimeoutMs ? timeoutMs : undefined
     const locateStarted = Date.now()
-    const { locator, healed } = await this.locateElement(page, element, pages, settings, timeoutMs, persistPage, signal)
+    const locator = await this.locateElement(element, timeoutMs, signal)
     const locateMs = Date.now() - locateStarted
-    if (!healed) recordLocateSample(timingStats, step.id, locateMs)
+    recordLocateSample(timingStats, step.id, locateMs)
 
     const highlight = await this.highlight(locator)
     let syncMs = 0
@@ -463,25 +458,21 @@ export class BrowserController {
     } finally {
       await this.restoreHighlight(locator, highlight).catch(() => undefined)
     }
-    return { selfHealed: healed, locateMs, actionMs, syncMs, extendedTimeoutMs }
+    return { locateMs, actionMs, syncMs, extendedTimeoutMs }
   }
 
   private async locateElement(
-    page: EmbeddedPage,
     element: EmbeddedPageElement,
-    pages: EmbeddedPage[],
-    settings: EmbeddedSettings,
     timeoutMs: number,
-    persistPage: (page: EmbeddedPage) => Promise<void>,
     signal: AbortSignal,
-  ): Promise<{ locator: EmbeddedLocator; healed: boolean }> {
+  ): Promise<EmbeddedLocator> {
     const deadline = Date.now() + timeoutMs
     let lastError: unknown
     for (;;) {
       signal.throwIfAborted()
       try {
         await this.view.webContents.executeJavaScript(elementLookupScript(element.locator, this.testIdAttribute))
-        return { locator: element.locator, healed: false }
+        return element.locator
       } catch (error) {
         lastError = error
       }
@@ -489,20 +480,7 @@ export class BrowserController {
       await abortableDelay(Math.min(locatePollIntervalMs, Math.max(0, deadline - Date.now())), signal)
     }
 
-    const healedLocator = await this.tryHeal(element, settings).catch(() => null)
-    if (!healedLocator) {
-      throw lastError instanceof Error ? lastError : new Error(String(lastError))
-    }
-
-    const updatedPage: EmbeddedPage = {
-      ...page,
-      elements: page.elements.map((candidate) =>
-        candidate.id === element.id ? { ...candidate, locator: healedLocator } : candidate),
-    }
-    const pageIndex = pages.findIndex((candidate) => candidate.id === page.id)
-    if (pageIndex >= 0) pages[pageIndex] = updatedPage
-    await persistPage(updatedPage).catch(() => undefined)
-    return { locator: healedLocator, healed: true }
+    throw lastError instanceof Error ? lastError : new Error(String(lastError))
   }
 
   /** Waits (up to `ceilingMs`) for the target element's position/size to stop changing between
@@ -550,19 +528,6 @@ export class BrowserController {
       await abortableDelay(Math.min(syncPollIntervalMs, Math.max(0, deadline - Date.now())), signal)
     }
     return Date.now() - started
-  }
-
-  private async tryHeal(element: EmbeddedPageElement, settings: EmbeddedSettings): Promise<EmbeddedLocator | null> {
-    const json = await this.view.webContents.executeJavaScript(
-      healCandidatesScript(
-        element.tag,
-        this.testIdAttribute,
-        settings.elementIdentification.strategyOrder,
-        settings.elementIdentification.ignoreIdPatterns,
-      ),
-    ) as string
-    const candidates = JSON.parse(json) as HealCandidate[]
-    return selectHealMatch(candidates, element.name, this.testIdAttribute)
   }
 
   private async highlight(locator: EmbeddedLocator) {
@@ -691,142 +656,6 @@ export class BrowserController {
   }
 }
 
-interface HealCandidate {
-  testId: string | null
-  id: string | null
-  name: string | null
-  placeholder: string | null
-  text: string | null
-  locatorStrategy: string
-  locatorValue: string
-}
-
-// Ported from Cliq.Infrastructure.SelfHealingLocator / backend/tools/puppeteer-scanner/extract-elements.js -
-// keep these three in sync if the identification priority rules ever change.
-const RESERVED_WORDS = new Set([
-  'abstract', 'as', 'base', 'bool', 'break', 'byte', 'case', 'catch', 'char', 'checked', 'class',
-  'const', 'continue', 'decimal', 'default', 'delegate', 'do', 'double', 'else', 'enum', 'event',
-  'explicit', 'extern', 'false', 'finally', 'fixed', 'float', 'for', 'foreach', 'goto', 'if',
-  'implicit', 'in', 'int', 'interface', 'internal', 'is', 'lock', 'long', 'namespace', 'new',
-  'null', 'object', 'operator', 'out', 'override', 'params', 'private', 'protected', 'public',
-  'readonly', 'ref', 'return', 'sbyte', 'sealed', 'short', 'sizeof', 'stackalloc', 'static',
-  'string', 'struct', 'switch', 'this', 'throw', 'true', 'try', 'typeof', 'uint', 'ulong',
-  'unchecked', 'unsafe', 'ushort', 'using', 'virtual', 'void', 'volatile', 'while',
-])
-
-function sanitizeName(raw: string, fallback: string): string {
-  let value = raw.replace(/[^0-9a-zA-Z]+/g, '_').replace(/^_+|_+$/g, '').toLowerCase()
-  value = value.replace(/^[0-9_]+/, '')
-  if (!value || RESERVED_WORDS.has(value)) value = fallback
-  return value
-}
-
-function selectHealMatch(candidates: HealCandidate[], expectedName: string, testIdAttribute: string): EmbeddedLocator | null {
-  let match: EmbeddedLocator | null = null
-  let matchCount = 0
-  for (const candidate of candidates) {
-    const baseName = candidate.testId ?? candidate.id ?? candidate.name ?? candidate.placeholder ?? candidate.text ?? ''
-    const sanitized = sanitizeName(baseName, randomUUID().replaceAll('-', ''))
-    if (sanitized !== expectedName) continue
-    matchCount++
-    match = toLocator(candidate.locatorStrategy, candidate.locatorValue, testIdAttribute)
-  }
-  return matchCount === 1 ? match : null
-}
-
-function toLocator(strategy: string, value: string, testIdAttribute: string): EmbeddedLocator {
-  const testIdPrefix = `[${testIdAttribute}="`
-  if (strategy === 'css' && value.startsWith(testIdPrefix) && value.endsWith('"]')) {
-    return { strategy: 'testId', value: value.slice(testIdPrefix.length, -2) }
-  }
-  if (strategy === 'id') return { strategy: 'id', value }
-  if (strategy === 'name') return { strategy: 'name', value }
-  return { strategy: 'css', value }
-}
-
-function healCandidatesScript(
-  tag: string,
-  testIdAttribute: string,
-  strategyOrder: string[],
-  ignoreIdPatterns: string[],
-) {
-  return `(() => {
-    const tag = ${JSON.stringify(tag)};
-    const testIdAttribute = ${JSON.stringify(testIdAttribute)};
-    const strategyOrder = ${JSON.stringify(strategyOrder)};
-    const ignoreIdRegexes = ${JSON.stringify(ignoreIdPatterns)}.map((pattern) => new RegExp(pattern, 'i'));
-
-    function isIgnoredId(id) {
-      return ignoreIdRegexes.some((regex) => regex.test(id));
-    }
-    function cssEscape(value) {
-      return value.replace(/["\\\\]/g, '\\\\$&');
-    }
-    function isVisible(el) {
-      const rect = el.getBoundingClientRect();
-      if (rect.width <= 0 || rect.height <= 0) return false;
-      const style = window.getComputedStyle(el);
-      return style.visibility !== 'hidden' && style.display !== 'none';
-    }
-    function isUniqueMatch(selector, el) {
-      try {
-        const matches = document.querySelectorAll(selector);
-        return matches.length === 1 && matches[0] === el;
-      } catch {
-        return false;
-      }
-    }
-    function structuralSelector(el) {
-      const parts = [];
-      let node = el;
-      while (node && node.parentElement && node.nodeName.toLowerCase() !== 'body') {
-        const siblings = Array.from(node.parentElement.children);
-        const index = siblings.indexOf(node) + 1;
-        parts.unshift(node.nodeName.toLowerCase() + ':nth-child(' + index + ')');
-        node = node.parentElement;
-      }
-      return parts.join(' > ');
-    }
-    const strategyChecks = {
-      testId: (el) => {
-        const testId = el.getAttribute(testIdAttribute);
-        if (!testId) return null;
-        const candidate = '[' + testIdAttribute + '="' + cssEscape(testId) + '"]';
-        return isUniqueMatch(candidate, el) ? { strategy: 'css', value: candidate } : null;
-      },
-      id: (el) => (el.id && !isIgnoredId(el.id) && isUniqueMatch('#' + CSS.escape(el.id), el))
-        ? { strategy: 'id', value: el.id }
-        : null,
-      name: (el) => {
-        if (!el.name) return null;
-        const candidate = el.tagName.toLowerCase() + '[name="' + cssEscape(el.name) + '"]';
-        return isUniqueMatch(candidate, el) ? { strategy: 'name', value: el.name } : null;
-      },
-    };
-    function locatorFor(el) {
-      for (const key of strategyOrder) {
-        const result = strategyChecks[key] && strategyChecks[key](el);
-        if (result) return result;
-      }
-      return { strategy: 'css', value: structuralSelector(el) };
-    }
-    const candidates = Array.from(document.querySelectorAll(tag)).filter(isVisible);
-    return JSON.stringify(candidates.map((el) => {
-      const locator = locatorFor(el);
-      const text = (el.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 40);
-      return {
-        testId: el.getAttribute(testIdAttribute),
-        id: (el.id && !isIgnoredId(el.id)) ? el.id : null,
-        name: el.getAttribute('name'),
-        placeholder: el.getAttribute('placeholder'),
-        text: text,
-        locatorStrategy: locator.strategy,
-        locatorValue: locator.value,
-      };
-    }));
-  })()`
-}
-
 function elementLookupScript(locator: EmbeddedLocator, testIdAttribute: string) {
   const serialized = JSON.stringify(locator)
   return `(() => {
@@ -887,8 +716,6 @@ function timingStatsPath(workspaceRoot: string) {
   return path.join(workspaceRoot, '.cliq', 'timing-stats.json')
 }
 
-/** Only call for a locate that resolved without healing - a healed locate's duration is
- * dominated by "waited out the timeout, then healed", not representative of normal speed. */
 function recordLocateSample(stats: TimingStats, stepId: string, locateMs: number): void {
   const entry = stats.steps[stepId] ?? { locateMsSamples: [], updatedAt: '' }
   entry.locateMsSamples = [...entry.locateMsSamples, locateMs].slice(-timingStatsSampleWindow)
@@ -906,11 +733,11 @@ function suggestedTimeoutMs(stats: TimingStats, stepId: string, configuredMs: nu
   return Math.max(configuredMs, Math.round(p95 * timingStatsSafetyFactor))
 }
 
-function resolveElement(step: EmbeddedTestStep, pages: EmbeddedPage[]) {
+function resolveElement(step: EmbeddedTestStep, pages: EmbeddedPage[]): EmbeddedPageElement {
   const page = pages.find((candidate) => candidate.id === step.pageId)
   const element = page?.elements.find((candidate) => candidate.id === step.elementId)
   if (!page || !element) throw new Error(`Step '${step.label}' has no valid page and element reference.`)
-  return { page, element }
+  return element
 }
 
 function resolveValue(step: EmbeddedTestStep, secrets: Record<string, string>) {

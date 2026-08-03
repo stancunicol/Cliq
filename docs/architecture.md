@@ -37,19 +37,20 @@ still drives interactive runs the same way it always has - only discovery's engi
 Writes are atomic and all configured output paths are checked to remain inside the open workspace.
 
 Automatic DOM scans and Electron recordings create the same `PageDefinition` and stable locator
-model. Locator priority - by default `data-testid`, unique `id`, unique `name`, then verified CSS
-(XPath accepted for manually maintained definitions) - is configurable per workspace via
-`settings.json`'s `elementIdentification` section (custom test-id attribute, strategy order),
-validated on save. `settings.json` also carries `testExecution` (step/page-ready timeouts,
-failure-screenshot toggle) and `scanning` (load/network-idle timeouts, screenshot toggle).
+model. Locator priority - by default `data-testid`, then a generated XPath (label, ancestor test-id,
+own text/attribute, or nearest-id-ancestor based), then a structural CSS fallback - is configurable
+per workspace via `settings.json`'s `elementIdentification` section (custom test-id attribute,
+strategy order), validated on save. `id` is deliberately excluded from locator strategies -
+framework-generated ids are too often volatile - and is only ever used as a naming hint.
+`settings.json` also carries `testExecution` (step/page-ready timeouts, failure-screenshot toggle)
+and `scanning` (load/network-idle timeouts, screenshot toggle).
 
 Re-scanning a page reconciles against its previous `PageDefinition` (`ElementReconciler`): elements
-still present keep their original `Id` so existing test references stay valid; elements no longer
-found are kept, flagged `NotFound`, rather than silently dropped. The scan response reports
-matched/new/missing counts. At test-run time, if a saved locator stops resolving,
-`SelfHealingLocator` re-derives it live from the current page - but only acts on an unambiguous
-match, and persists the healed locator back so future runs don't repeat the work; a healed step
-reports `SelfHealed` on its result, never silently.
+still present (matched by test id, xpath, id, name, or sanitized name, in that order) keep their
+original `Id` so existing test references stay valid; elements no longer found are kept, flagged
+`NotFound`, rather than silently dropped. The scan response reports matched/new/missing counts.
+At test-run time, if a saved locator stops resolving, the step simply fails with the Selenium
+timeout - there is no self-healing.
 
 Test steps reference page and element IDs rather than duplicating selectors; saving a test
 validates that every element-touching step's page/element reference actually exists, so a broken

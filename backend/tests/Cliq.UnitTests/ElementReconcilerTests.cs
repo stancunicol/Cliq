@@ -29,6 +29,24 @@ public sealed class ElementReconcilerTests
     }
 
     [Test]
+    public void Reconcile_XPathStrategyMatch_PreservesOldId()
+    {
+        var previous = new[]
+        {
+            El("old-2b", "username", "input", StepAction.Fill, LocatorStrategy.XPath, "//label[contains(.,'Username')]/following::input[1]"),
+        };
+        var fresh = new[]
+        {
+            El("fresh-1b", "username", "input", StepAction.Fill, LocatorStrategy.XPath, "//label[contains(.,'Username')]/following::input[1]"),
+        };
+
+        var (elements, report) = ElementReconciler.Reconcile(fresh, previous);
+
+        Assert.That(elements.Single().Id, Is.EqualTo("old-2b"));
+        Assert.That(report.MatchedCount, Is.EqualTo(1));
+    }
+
+    [Test]
     public void Reconcile_IdStrategyMatch_PreservesOldId()
     {
         var previous = new[] { El("old-2", "username", "input", StepAction.Fill, LocatorStrategy.Id, "username") };

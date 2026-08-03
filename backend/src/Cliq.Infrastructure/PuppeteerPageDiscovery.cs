@@ -253,8 +253,8 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
         return new Locator(
             strategy switch
             {
-                "id" => DomainLocator.Id,
                 "name" => DomainLocator.Name,
+                "xpath" => DomainLocator.XPath,
                 _ => DomainLocator.Css,
             },
             value,

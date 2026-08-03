@@ -14,8 +14,8 @@ Given a workspace and an HTTP or HTTPS page, Cliq can:
 1. open the page in an isolated browser embedded in the Electron application;
 2. discover its rendered elements with Selenium, including pages produced by React, Angular,
    Vue, or another client-side framework;
-3. choose stable locators in priority order: `data-testid` > unique `id` > unique `name` >
-   verified CSS fallback;
+3. choose stable locators in priority order: `data-testid` > generated `XPath` > structural CSS
+   fallback (`id` is excluded as a locator, used only as a naming hint);
 4. record clicks, text entry, and selections as reusable test steps;
 5. compose or edit complete workflows with navigation, keyboard actions, and assertions;
 6. replay the workflow visibly, report each step, support cancellation, and capture a screenshot

@@ -4,11 +4,10 @@ import type { CliqSettings, IdentificationStrategy } from '../../types'
 
 const strategyLabels: Record<IdentificationStrategy, string> = {
   testId: 'Test ID attribute',
-  id: 'id attribute',
-  name: 'name attribute',
+  xpath: 'XPath',
 }
 
-const allStrategies: IdentificationStrategy[] = ['testId', 'id', 'name']
+const allStrategies: IdentificationStrategy[] = ['testId', 'xpath']
 
 export function SettingsPanel({
   settings,
@@ -101,7 +100,7 @@ export function SettingsPanel({
         <div>
           <span className="eyebrow">WORKSPACE SETTINGS</span>
           <h1 className="title-input">Settings</h1>
-          <p>Controls element identification, self-healing, timeouts, and screenshot capture for this workspace.</p>
+          <p>Controls element identification, timeouts, and screenshot capture for this workspace.</p>
         </div>
       </div>
 

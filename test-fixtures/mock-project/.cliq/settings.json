@@ -4,8 +4,7 @@
     "testIdAttribute": "data-testid",
     "strategyOrder": [
       "testId",
-      "id",
-      "name"
+      "xpath"
     ],
     "ignoreIdPatterns": [
       "^ember\\d\u002B$",
