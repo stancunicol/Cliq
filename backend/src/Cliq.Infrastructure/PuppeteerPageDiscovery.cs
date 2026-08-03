@@ -193,14 +193,25 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
             "Could not locate the repository root to find the Puppeteer scanner script. Set CLIQ_PUPPETEER_SCANNER_PATH.");
     }
 
-    private static IReadOnlyList<PageElement> BuildElements(IReadOnlyList<RawElement> rawElements, string testIdAttribute)
+    internal static IReadOnlyList<PageElement> BuildElements(IReadOnlyList<RawElement> rawElements, string testIdAttribute)
     {
         var elements = new List<PageElement>();
         var usedNames = new Dictionary<string, int>();
+        // Defensive: the scanner only ever accepts a testId/xpath candidate after verifying it
+        // resolves to exactly one DOM node (see extract-elements.js's isUniqueMatch/
+        // isUniqueXPathMatch), so two distinct elements should never legitimately share a
+        // locator - but if they somehow did, keep only the first rather than emitting duplicate
+        // Page Object entries for what would read as "the same" element.
+        var seenLocators = new HashSet<string>();
 
         for (var i = 0; i < rawElements.Count; i++)
         {
             var el = rawElements[i];
+            if (!seenLocators.Add($"{el.Tag}|{el.Strategy}|{el.LocatorValue}"))
+            {
+                continue;
+            }
+
             var baseName = el.Kind == "radio"
                 ? el.GroupName
                 : el.TestId ?? el.Id ?? el.Name ?? el.Placeholder ?? el.Text;
@@ -274,7 +285,7 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
         public string? ScreenshotPath { get; set; }
     }
 
-    private sealed class RawElement
+    internal sealed class RawElement
     {
         public string Tag { get; set; } = "";
         public string Kind { get; set; } = "";
