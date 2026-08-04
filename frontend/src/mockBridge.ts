@@ -65,6 +65,7 @@ export function installMockBridge() {
             created: true,
           })),
         ],
+        warnings: [],
       }),
       startRun: async (testId) => {
         const test = snapshot.tests.find((candidate) => candidate.id === testId)

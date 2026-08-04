@@ -199,4 +199,18 @@ public sealed record GeneratedArtifact(
     string Path,
     bool Created);
 
-public sealed record GenerationResult(IReadOnlyList<GeneratedArtifact> Artifacts);
+/// <summary>
+/// Raised when regenerating a Page Object recovers fewer <c>[CliqCustomMethod]</c>-marked methods
+/// than the previous file's marker count suggests it should have (see
+/// <c>CustomMethodExtractor.CountMarkerOccurrences</c>) - the pre-regeneration file is backed up
+/// to <see cref="BackupPath"/> rather than the difference being silently dropped.
+/// </summary>
+public sealed record CustomMethodRecoveryWarning(
+    string PageObjectName,
+    int ExpectedCount,
+    int RecoveredCount,
+    string BackupPath);
+
+public sealed record GenerationResult(
+    IReadOnlyList<GeneratedArtifact> Artifacts,
+    IReadOnlyList<CustomMethodRecoveryWarning> Warnings);

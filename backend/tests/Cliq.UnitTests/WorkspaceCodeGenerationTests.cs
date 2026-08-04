@@ -131,6 +131,54 @@ public sealed class WorkspaceCodeGenerationTests
             Assert.That(regenerated, Does.Contain("[CliqCustomMethod]"));
             Assert.That(regenerated, Does.Contain("public void WaitForSpinnerToClear()"));
             Assert.That(regenerated, Does.Contain("public void FillUsername(string value)"));
+            Assert.That(second.Warnings, Is.Empty);
+        });
+    }
+
+    [Test]
+    public async Task GenerateAsync_MarkerCountExceedsRecoveredMethods_BacksUpFileAndReturnsWarning()
+    {
+        var repository = new WorkspaceRepository();
+        var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
+        var page = new PageDefinition(
+            PageDefinition.CurrentSchemaVersion,
+            "login",
+            "Login",
+            "https://example.com/login",
+            [
+                new PageElement(
+                    "username",
+                    "username",
+                    "input",
+                    StepAction.Fill,
+                    new Locator(LocatorStrategy.TestId, "username")),
+            ],
+            DateTimeOffset.UtcNow);
+        var generator = new WorkspaceCodeGeneration(repository);
+
+        var first = await generator.GenerateAsync(snapshot.Project, [page], [], _root, CancellationToken.None);
+        var pageObjectPath = first.Artifacts.Single(item => item.Kind == "pageObject").Path;
+        var generated = await File.ReadAllTextAsync(pageObjectPath);
+
+        // A stray mention of the marker text inside a comment is not a real attribute application -
+        // CustomMethodExtractor.Extract correctly skips it, but the naive marker-count cross-check
+        // does not, so this deliberately produces a mismatch to exercise the warning path.
+        var withStrayMention = generated.Replace(
+            "public sealed class LoginPage",
+            "// TODO: remove [CliqCustomMethod] before merging\npublic sealed class LoginPage");
+        await File.WriteAllTextAsync(pageObjectPath, withStrayMention);
+
+        var second = await generator.GenerateAsync(snapshot.Project, [page], [], _root, CancellationToken.None);
+
+        Assert.That(second.Warnings, Has.Count.EqualTo(1));
+        var warning = second.Warnings[0];
+        Assert.Multiple(() =>
+        {
+            Assert.That(warning.PageObjectName, Is.EqualTo("LoginPage"));
+            Assert.That(warning.ExpectedCount, Is.EqualTo(1));
+            Assert.That(warning.RecoveredCount, Is.Zero);
+            Assert.That(File.Exists(warning.BackupPath), Is.True);
+            Assert.That(File.ReadAllText(warning.BackupPath), Is.EqualTo(withStrayMention));
         });
     }
 

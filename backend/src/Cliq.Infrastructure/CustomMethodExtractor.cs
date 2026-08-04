@@ -14,6 +14,32 @@ internal static class CustomMethodExtractor
 {
     private const string Marker = "[" + PageObjectCodeGenerator.CustomMethodAttributeName + "]";
 
+    /// <summary>
+    /// Independent, deliberately naive count of how many times the marker text appears in
+    /// <paramref name="source"/> - a plain substring scan with no comment/string/brace awareness
+    /// at all. Used as a cross-check against <see cref="Extract"/>: since it shares no code path
+    /// with the brace-walking scanner, it can't miss a method for the same reason that scanner
+    /// might (e.g. a raw string literal desynchronizing the depth count). A lower
+    /// <see cref="Extract"/> result than this count means something didn't come out cleanly, even
+    /// without knowing why.
+    /// </summary>
+    public static int CountMarkerOccurrences(string source)
+    {
+        var count = 0;
+        var searchFrom = 0;
+        while (true)
+        {
+            var index = source.IndexOf(Marker, searchFrom, StringComparison.Ordinal);
+            if (index < 0)
+            {
+                return count;
+            }
+
+            count++;
+            searchFrom = index + Marker.Length;
+        }
+    }
+
     public static IReadOnlyList<string> Extract(string source)
     {
         var blocks = new List<string>();

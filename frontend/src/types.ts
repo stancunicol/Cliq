@@ -169,8 +169,16 @@ export interface GeneratedArtifact {
   created: boolean
 }
 
+export interface CustomMethodRecoveryWarning {
+  pageObjectName: string
+  expectedCount: number
+  recoveredCount: number
+  backupPath: string
+}
+
 export interface GenerationResult {
   artifacts: GeneratedArtifact[]
+  warnings: CustomMethodRecoveryWarning[]
 }
 
 export interface BrowserState {

@@ -132,7 +132,9 @@ The directories and namespaces are configurable in `.cliq/project.json`. Each `<
 is a single file, replaced on every generation. A hand-written method survives regeneration only
 if it's marked with `[CliqCustomMethod]` (defined once in the generated `CliqCustomMethodAttribute.cs`,
 shared by every Page Object in the namespace); anything else in the file is regenerated content and
-is not preserved.
+is not preserved. If fewer marked methods come back out than the previous file's marker count
+suggests it should, generation backs that file up under `.cliq/runs/custom-method-backups/` and
+reports it as a warning instead of silently dropping the difference.
 
 Test steps reference stable page and element IDs instead of copying selectors. Automatic scans
 and browser recording both produce the same `PageDefinition` model.

@@ -188,6 +188,41 @@ public sealed class CustomMethodExtractorTests
     }
 
     [Test]
+    public void CountMarkerOccurrences_NoMarkers_ReturnsZero()
+    {
+        const string source = """
+            public sealed class LoginPage
+            {
+                public void ClickSubmit() { }
+            }
+            """;
+
+        Assert.That(CustomMethodExtractor.CountMarkerOccurrences(source), Is.Zero);
+    }
+
+    [Test]
+    public void CountMarkerOccurrences_CountsEveryOccurrenceEvenInsideCommentsOrStrings()
+    {
+        const string source = """
+            public sealed class LoginPage
+            {
+                // TODO: remove [CliqCustomMethod] before merging
+
+                [CliqCustomMethod]
+                public void First()
+                {
+                    DoSomething();
+                }
+            }
+            """;
+
+        // Deliberately naive: unlike Extract, this counts the stray mention inside the comment
+        // too - that asymmetry is what makes it useful as an independent cross-check.
+        Assert.That(CustomMethodExtractor.CountMarkerOccurrences(source), Is.EqualTo(2));
+        Assert.That(CustomMethodExtractor.Extract(source), Has.Count.EqualTo(1));
+    }
+
+    [Test]
     public void Extract_RoundTrip_ReExtractingAppendedBlockYieldsTheSameBlock()
     {
         const string customMethod = """

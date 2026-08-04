@@ -35,6 +35,7 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
         var settings = await repository.GetSettingsAsync(cancellationToken);
 
         var artifacts = new List<GeneratedArtifact>();
+        var warnings = new List<CustomMethodRecoveryWarning>();
 
         var attributePath = Path.Combine(pageObjectDirectory, "CliqCustomMethodAttribute.cs");
         await WriteAtomicTextAsync(
@@ -54,9 +55,22 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
                 .Select(element => ToDescriptor(element, settings.ElementIdentification.TestIdAttribute))
                 .ToList();
             var generatedPath = Path.Combine(pageObjectDirectory, $"{className}.cs");
-            var customMethods = File.Exists(generatedPath)
-                ? CustomMethodExtractor.Extract(await File.ReadAllTextAsync(generatedPath, cancellationToken))
-                : [];
+            var existingSource = File.Exists(generatedPath)
+                ? await File.ReadAllTextAsync(generatedPath, cancellationToken)
+                : null;
+            var customMethods = existingSource is null ? [] : CustomMethodExtractor.Extract(existingSource);
+            if (existingSource is not null)
+            {
+                var expectedCount = CustomMethodExtractor.CountMarkerOccurrences(existingSource);
+                if (customMethods.Count < expectedCount)
+                {
+                    var backupPath = await BackupBeforeOverwriteAsync(
+                        className, existingSource, cancellationToken);
+                    warnings.Add(new CustomMethodRecoveryWarning(
+                        className, expectedCount, customMethods.Count, backupPath));
+                }
+            }
+
             var pageCode = PageObjectCodeGenerator.Generate(
                 className,
                 project.Output.PageObjectsNamespace,
@@ -79,7 +93,25 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
             artifacts.Add(new GeneratedArtifact("test", $"{className}Tests", path, true));
         }
 
-        return new WorkspaceGenerationResult(artifacts);
+        return new WorkspaceGenerationResult(artifacts, warnings);
+    }
+
+    /// <summary>
+    /// Copies a Page Object file's pre-regeneration contents to <c>.cliq/runs/custom-method-backups</c>
+    /// before it gets overwritten - called only when <see cref="CustomMethodExtractor.CountMarkerOccurrences"/>
+    /// disagrees with what <see cref="CustomMethodExtractor.Extract"/> actually recovered, so nothing
+    /// is lost even though the mismatch means the cause isn't known.
+    /// </summary>
+    private async Task<string> BackupBeforeOverwriteAsync(
+        string className,
+        string existingSource,
+        CancellationToken cancellationToken)
+    {
+        var directory = Path.Combine(repository.RootPath!, ".cliq", "runs", "custom-method-backups");
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, $"{className}_{DateTimeOffset.UtcNow:yyyyMMddTHHmmssfffZ}.cs");
+        await File.WriteAllTextAsync(path, existingSource, cancellationToken);
+        return path;
     }
 
     private static ElementDescriptor ToDescriptor(PageElement element, string testIdAttribute) =>

@@ -1,6 +1,5 @@
 import type {
   BrowserKind,
-  CliqSettings,
   GenerationResult,
   PageDefinition,
   PageScanResult,
@@ -30,11 +29,6 @@ export const workspaceService = {
   startRun: (testId: string, browser?: BrowserKind): Promise<TestRun> =>
     bridge().startRun(testId, browser),
   cancelRun: (runId: string): Promise<void> => bridge().cancelRun(runId),
-}
-
-export const settingsService = {
-  get: (): Promise<CliqSettings> => bridge().getSettings(),
-  save: (settings: CliqSettings): Promise<CliqSettings> => bridge().saveSettings(settings),
 }
 
 export const screenshotService = {
