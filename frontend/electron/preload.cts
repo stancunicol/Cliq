@@ -37,9 +37,6 @@ contextBridge.exposeInMainWorld('cliq', {
     reload: () => ipcRenderer.invoke('browser:reload'),
     setBounds: (bounds: unknown) => ipcRenderer.invoke('browser:bounds', bounds),
     setVisible: (visible: boolean) => ipcRenderer.invoke('browser:visible', visible),
-    setRecording: (value: boolean) => ipcRenderer.invoke('browser:recording', value),
     onState: (callback: (state: unknown) => void) => subscribe('browser:state', callback),
-    onRecordedInteraction: (callback: (interaction: unknown) => void) =>
-      subscribe('browser:recorded-interaction', callback),
   },
 })

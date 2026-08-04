@@ -139,13 +139,3 @@ export const screenshotRequestSchema = z.object({
   runId: identifierSchema,
   fileName: z.string().min(1).max(300),
 })
-
-export const recordedInteractionSchema = z.object({
-  id: z.string().uuid(),
-  action: z.enum(['click', 'fill', 'select']),
-  label: z.string().min(1).max(160),
-  pageUrl: httpUrlSchema,
-  element: pageElementSchema,
-  value: stepValueSchema.optional(),
-  secretValue: z.string().max(10_000).optional(),
-})

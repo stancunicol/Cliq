@@ -4,29 +4,19 @@ import type { BrowserState } from '../../types'
 export function BrowserPane({
   state,
   url,
-  recording,
   onUrl,
   onNavigate,
-  onStopRecording,
 }: {
   state: BrowserState
   url: string
-  recording: boolean
   onUrl(value: string): void
   onNavigate(): void
-  onStopRecording(): void
 }) {
   return (
     <aside className="browser-pane">
       <div className="browser-title">
         <div className="tab"><Globe2 /><span>{state.title || 'New tab'}</span></div>
         <span className="window-drag" />
-        {recording && (
-          <div className="recording-banner" role="status">
-            <span /><strong>Recording</strong><em>Interactions become test steps</em>
-            <button onClick={onStopRecording}>Stop</button>
-          </div>
-        )}
       </div>
       <div className="browser-toolbar">
         <button aria-label="Go back" disabled={!state.canGoBack} onClick={() => window.cliq?.browser.back()}><ArrowLeft /></button>

@@ -166,9 +166,7 @@ function bridgeFor(
       reload: async () => undefined,
       setBounds: async () => undefined,
       setVisible: async () => undefined,
-      setRecording: async () => undefined,
       onState: () => () => undefined,
-      onRecordedInteraction: () => () => undefined,
     },
   }
 }

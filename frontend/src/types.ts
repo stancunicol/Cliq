@@ -187,18 +187,7 @@ export interface BrowserState {
   loading: boolean
   canGoBack: boolean
   canGoForward: boolean
-  recording: boolean
   error?: string
-}
-
-export interface RecordedInteraction {
-  id: string
-  action: Extract<StepAction, 'click' | 'fill' | 'select'>
-  label: string
-  pageUrl: string
-  element: PageElement
-  value?: StepValue
-  secretValue?: string
 }
 
 export interface CliqBridge {
@@ -226,9 +215,7 @@ export interface CliqBridge {
     reload(): Promise<void>
     setBounds(bounds: { x: number; y: number; width: number; height: number }): Promise<void>
     setVisible(visible: boolean): Promise<void>
-    setRecording(value: boolean): Promise<void>
     onState(callback: (state: BrowserState) => void): () => void
-    onRecordedInteraction(callback: (interaction: RecordedInteraction) => void): () => void
   }
 }
 

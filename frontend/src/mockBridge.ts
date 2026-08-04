@@ -18,7 +18,6 @@ export function installMockBridge() {
     loading: false,
     canGoBack: false,
     canGoForward: false,
-    recording: false,
   }
   const openedListeners = new Set<(value: WorkspaceSnapshot) => void>()
   const stateListeners = new Set<(value: BrowserState) => void>()
@@ -124,15 +123,10 @@ export function installMockBridge() {
       reload: async () => undefined,
       setBounds: async () => undefined,
       setVisible: async () => undefined,
-      setRecording: async (recording) => {
-        browserState = { ...browserState, recording }
-        stateListeners.forEach((listener) => listener(browserState))
-      },
       onState: (callback) => {
         callback(browserState)
         return subscribe(stateListeners, callback)
       },
-      onRecordedInteraction: () => () => undefined,
     },
   }
 
