@@ -200,16 +200,25 @@ public sealed record GeneratedArtifact(
     bool Created);
 
 /// <summary>
-/// Raised when regenerating a Page Object recovers fewer <c>[CliqCustomMethod]</c>-marked methods
-/// than the previous file's marker count suggests it should have (see
-/// <c>CustomMethodExtractor.CountMarkerOccurrences</c>) - the pre-regeneration file is backed up
-/// to <see cref="BackupPath"/> rather than the difference being silently dropped.
+/// Flags a Page Object file that still has hand-written <c>[CliqCustomMethod]</c> content
+/// generation could not safely fold into the current output - the file itself is left in place
+/// (never deleted, sometimes also copied to a timestamped backup) rather than the difference
+/// being silently dropped. Two situations raise this:
+/// <list type="bullet">
+/// <item>Same-name regeneration recovers fewer marked methods than the previous file's marker
+/// count suggests it should have (see <c>CustomMethodExtractor.CountMarkerOccurrences</c>) - in
+/// this case <see cref="Path"/> is a timestamped copy under
+/// <c>.cliq/runs/custom-method-backups</c>.</item>
+/// <item>A page was renamed, so its Page Object now generates under a new class name - the old
+/// file is deleted automatically if it has no marked methods, otherwise <see cref="Path"/> is
+/// that old file's own, untouched location.</item>
+/// </list>
 /// </summary>
 public sealed record CustomMethodRecoveryWarning(
     string PageObjectName,
     int ExpectedCount,
     int RecoveredCount,
-    string BackupPath);
+    string Path);
 
 public sealed record GenerationResult(
     IReadOnlyList<GeneratedArtifact> Artifacts,

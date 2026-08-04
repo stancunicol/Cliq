@@ -43,12 +43,14 @@ export function App() {
   const [error, setError] = useState<string>()
   const [locatorDiff, setLocatorDiff] = useState<LocatorDiffReport>()
   const [generationWarnings, setGenerationWarnings] = useState<CustomMethodRecoveryWarning[]>([])
+  const [pageName, setPageName] = useState('')
   const snapshotRef = useRef<WorkspaceSnapshot | undefined>(undefined)
   const selectedIdRef = useRef<string | undefined>(undefined)
   const mutationQueue = useRef(Promise.resolve())
   const saveRevisions = useRef(new Map<string, number>())
   const navigatedWorkspace = useRef<string | undefined>(undefined)
   const selected = snapshot?.tests.find((test) => test.id === selectedId)
+  const existingPageForUrl = snapshot?.pages.find((page) => page.url === normalizeUrl(url))
   snapshotRef.current = snapshot
   selectedIdRef.current = selectedId
 
@@ -84,6 +86,11 @@ export function App() {
     setBrowser(state)
     if (state.url && state.url !== 'about:blank') setUrl(state.url)
   }), [])
+
+  useEffect(() => {
+    const existing = snapshotRef.current?.pages.find((page) => page.url === normalizeUrl(url))
+    setPageName(existing?.name ?? pageNameFor(url))
+  }, [url])
 
   useEffect(() => {
     if (!snapshot) return
@@ -222,7 +229,7 @@ export function App() {
     const test: TestCase = {
       schemaVersion: 1,
       id: `test-${crypto.randomUUID().slice(0, 8)}`,
-      name: 'New test',
+      name: pageName.trim() || 'New test',
       tags: [],
       steps: [],
       updatedAt: new Date().toISOString(),
@@ -274,12 +281,26 @@ export function App() {
     void window.cliq?.browser.navigate(target).catch((cause) => setError(message(cause)))
   }
 
+  async function renamePageIfChanged() {
+    if (!existingPageForUrl) return
+    const trimmed = pageName.trim()
+    if (!trimmed || trimmed === existingPageForUrl.name) return
+    try {
+      const saved = await workspaceService.savePage({ ...existingPageForUrl, name: trimmed })
+      updateSnapshot((current) => ({ ...current, pages: upsert(current.pages, saved) }))
+    } catch (cause) {
+      setError(message(cause))
+      setPageName(existingPageForUrl.name)
+    }
+  }
+
   async function scanPage() {
     if (!snapshot || !url) return
-    setWorking('Scanning')
+    setWorking('Scanning...')
     setLocatorDiff(undefined)
     try {
-      const { page, reconciliation, locatorDiff } = await workspaceService.scanPage(url, pageNameFor(url), snapshot.project.defaultBrowser)
+      const name = pageName.trim() || pageNameFor(url)
+      const { page, reconciliation, locatorDiff } = await workspaceService.scanPage(url, name, snapshot.project.defaultBrowser)
       updateSnapshot({ ...snapshot, pages: upsert(snapshot.pages, page) })
       setWorking(`Scanned: ${reconciliation.matchedCount} matched · ${reconciliation.newCount} new · ${reconciliation.missingCount} missing`)
       setTimeout(() => setWorking(undefined), 3000)
@@ -292,10 +313,16 @@ export function App() {
 
   async function generate() {
     if (!snapshot) return
-    setWorking('Generating')
+    setWorking('Generating...')
     try {
       const pageIds = selected
-        ? [...new Set(selected.steps.flatMap((step) => step.pageId ? [step.pageId] : []))]
+        ? [...new Set([
+            ...selected.steps.flatMap((step) => step.pageId ? [step.pageId] : []),
+            // Include the page currently shown in the topbar even if no step references it yet -
+            // otherwise a page that was just scanned/renamed but not wired into this test's steps
+            // silently generates nothing, with no error to explain why.
+            ...(existingPageForUrl ? [existingPageForUrl.id] : []),
+          ])]
         : undefined
       const result = await workspaceService.generate(pageIds, selected ? [selected.id] : undefined)
       setWorking(`Generated ${result.artifacts.length} artifacts`)
@@ -369,8 +396,18 @@ export function App() {
       />
       <section className="workspace">
         <header className="topbar">
-          <div><small>{snapshot.project.name}</small><h1>{active === 'runs' ? 'Run results' : selected?.name || 'Tests'}</h1></div>
           <div className="top-actions">
+            <input
+              className="page-name-input"
+              aria-label="Page object name"
+              type="text"
+              value={pageName}
+              onChange={(event) => setPageName(event.target.value)}
+              onBlur={() => void renamePageIfChanged()}
+              onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }}
+              placeholder="Page name"
+              title={existingPageForUrl ? 'Renames the existing page object' : 'Name for the next scanned page'}
+            />
             <button onClick={() => void scanPage()} disabled={Boolean(working)}><ScanSearch />Scan</button>
             <button onClick={() => void generate()} disabled={Boolean(working)}><Code2 />Generate</button>
             <button className={`record ${recording ? 'on' : ''}`} onClick={() => void toggleRecording()}>

@@ -173,7 +173,7 @@ export interface CustomMethodRecoveryWarning {
   pageObjectName: string
   expectedCount: number
   recoveredCount: number
-  backupPath: string
+  path: string
 }
 
 export interface GenerationResult {

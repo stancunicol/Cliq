@@ -177,8 +177,98 @@ public sealed class WorkspaceCodeGenerationTests
             Assert.That(warning.PageObjectName, Is.EqualTo("LoginPage"));
             Assert.That(warning.ExpectedCount, Is.EqualTo(1));
             Assert.That(warning.RecoveredCount, Is.Zero);
-            Assert.That(File.Exists(warning.BackupPath), Is.True);
-            Assert.That(File.ReadAllText(warning.BackupPath), Is.EqualTo(withStrayMention));
+            Assert.That(File.Exists(warning.Path), Is.True);
+            Assert.That(File.ReadAllText(warning.Path), Is.EqualTo(withStrayMention));
+        });
+    }
+
+    [Test]
+    public async Task GenerateAsync_RenamedPage_DeletesStaleFileWhenItHasNoCustomMethods()
+    {
+        var repository = new WorkspaceRepository();
+        var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
+        var page = new PageDefinition(
+            PageDefinition.CurrentSchemaVersion,
+            "login",
+            "Login",
+            "https://example.com/login",
+            [
+                new PageElement(
+                    "username",
+                    "username",
+                    "input",
+                    StepAction.Fill,
+                    new Locator(LocatorStrategy.TestId, "username")),
+            ],
+            DateTimeOffset.UtcNow);
+        var generator = new WorkspaceCodeGeneration(repository);
+
+        var first = await generator.GenerateAsync(snapshot.Project, [page], [], _root, CancellationToken.None);
+        var oldPath = first.Artifacts.Single(item => item.Kind == "pageObject").Path;
+
+        var renamed = page with { Name = "Sign In" };
+        var second = await generator.GenerateAsync(snapshot.Project, [renamed], [], _root, CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(second.Warnings, Is.Empty);
+            Assert.That(File.Exists(oldPath), Is.False);
+            Assert.That(
+                File.Exists(second.Artifacts.Single(item => item.Kind == "pageObject").Path), Is.True);
+        });
+    }
+
+    [Test]
+    public async Task GenerateAsync_RenamedPage_KeepsStaleFileAndWarnsWhenItHasCustomMethods()
+    {
+        var repository = new WorkspaceRepository();
+        var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
+        var page = new PageDefinition(
+            PageDefinition.CurrentSchemaVersion,
+            "login",
+            "Login",
+            "https://example.com/login",
+            [
+                new PageElement(
+                    "username",
+                    "username",
+                    "input",
+                    StepAction.Fill,
+                    new Locator(LocatorStrategy.TestId, "username")),
+            ],
+            DateTimeOffset.UtcNow);
+        var generator = new WorkspaceCodeGeneration(repository);
+
+        var first = await generator.GenerateAsync(snapshot.Project, [page], [], _root, CancellationToken.None);
+        var oldPath = first.Artifacts.Single(item => item.Kind == "pageObject").Path;
+        var generated = await File.ReadAllTextAsync(oldPath);
+        const string handWrittenMethod = """
+                [CliqCustomMethod]
+                public void WaitForSpinnerToClear()
+                {
+                    _wait.Until(d => !d.FindElements(By.CssSelector(".spinner")).Any());
+                }
+
+            """;
+        var classCloseIndex = generated.LastIndexOf('}');
+        var withHandWrittenMethod = generated[..classCloseIndex] + handWrittenMethod + generated[classCloseIndex..];
+        await File.WriteAllTextAsync(oldPath, withHandWrittenMethod);
+
+        var renamed = page with { Name = "Sign In" };
+        var second = await generator.GenerateAsync(snapshot.Project, [renamed], [], _root, CancellationToken.None);
+
+        Assert.That(second.Warnings, Has.Count.EqualTo(1));
+        var warning = second.Warnings[0];
+        Assert.Multiple(() =>
+        {
+            Assert.That(warning.PageObjectName, Is.EqualTo("LoginPage"));
+            Assert.That(warning.RecoveredCount, Is.Zero);
+            Assert.That(warning.ExpectedCount, Is.EqualTo(1));
+            Assert.That(warning.Path, Is.EqualTo(oldPath));
+            Assert.That(File.Exists(oldPath), Is.True, "the untouched original should be left in place, not deleted");
+            Assert.That(File.ReadAllText(oldPath), Is.EqualTo(withHandWrittenMethod));
+            Assert.That(
+                File.Exists(second.Artifacts.Single(item => item.Kind == "pageObject").Path), Is.True);
         });
     }
 

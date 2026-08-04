@@ -2,10 +2,11 @@ import { ChevronDown, ChevronUp, TriangleAlert, X } from 'lucide-react'
 import { useState } from 'react'
 import type { CustomMethodRecoveryWarning } from '../../types'
 
-/** Surfaces custom-method recovery warnings from a generate() call: the backend detected that
- * fewer [CliqCustomMethod]-marked methods came back out of a Page Object file than its marker
- * count suggests it should have, backed the pre-regeneration file up rather than silently
- * dropping the difference, and reports it here so a human can look. */
+/** Surfaces custom-method recovery warnings from a generate() call: the backend found a Page
+ * Object file with hand-written [CliqCustomMethod] content it couldn't safely fold into the
+ * current output - either a same-name regeneration recovered fewer marked methods than expected,
+ * or a page was renamed and its old file still has some - and left the file in place rather than
+ * silently dropping the difference. */
 export function GenerationWarningBanner({
   warnings,
   onDismiss,
@@ -36,7 +37,7 @@ export function GenerationWarningBanner({
                 <li key={warning.pageObjectName}>
                   <span>{warning.pageObjectName}</span>
                   <code>
-                    {warning.recoveredCount}/{warning.expectedCount} recovered · backup: {warning.backupPath}
+                    {warning.recoveredCount}/{warning.expectedCount} recovered · see: {warning.path}
                   </code>
                 </li>
               ))}

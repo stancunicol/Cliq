@@ -290,9 +290,17 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
         ValidateRelativeDirectory(relativeDirectory, nameof(relativeDirectory));
         var root = Path.GetFullPath(RootPath!);
         var candidate = Path.GetFullPath(Path.Combine(root, relativeDirectory));
-        if (!candidate.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+
+        // Path.GetRelativePath (rather than a raw StartsWith) handles trailing separators and,
+        // on Windows, compares case-insensitively - a plain Ordinal StartsWith check previously
+        // used here could false-positive-reject a valid path whose casing merely differed from
+        // RootPath's, which the filesystem itself would treat as the same location.
+        var relative = Path.GetRelativePath(root, candidate);
+        if (relative.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(relative))
         {
-            throw new WorkspaceValidationException("Configured output directory escapes the workspace.");
+            throw new WorkspaceValidationException(
+                $"Configured output directory escapes the workspace. Workspace root: '{root}'. " +
+                $"Resolved output directory: '{candidate}'.");
         }
 
         return candidate;

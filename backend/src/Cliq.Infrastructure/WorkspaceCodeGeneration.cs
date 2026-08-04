@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using Cliq.Application;
 using Cliq.Domain;
 using Cliq.Infrastructure.Generation;
@@ -33,6 +34,7 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
         Directory.CreateDirectory(testDirectory);
 
         var settings = await repository.GetSettingsAsync(cancellationToken);
+        var generationState = await LoadGenerationStateAsync(cancellationToken);
 
         var artifacts = new List<GeneratedArtifact>();
         var warnings = new List<CustomMethodRecoveryWarning>();
@@ -51,6 +53,15 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
             var className = EnsurePageSuffix(IdentifierNaming.ToPascalCase(
                 IdentifierNaming.Sanitize(page.Name, "GeneratedPage")));
             pageClassNames[page.Id] = className;
+
+            if (generationState.TryGetValue(page.Id, out var previousClassName)
+                && !string.Equals(previousClassName, className, StringComparison.Ordinal))
+            {
+                await HandleRenamedPageObjectAsync(pageObjectDirectory, previousClassName, warnings, cancellationToken);
+            }
+
+            generationState[page.Id] = className;
+
             var descriptors = page.Elements
                 .Select(element => ToDescriptor(element, settings.ElementIdentification.TestIdAttribute))
                 .ToList();
@@ -93,8 +104,69 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
             artifacts.Add(new GeneratedArtifact("test", $"{className}Tests", path, true));
         }
 
+        await SaveGenerationStateAsync(generationState, cancellationToken);
+
         return new WorkspaceGenerationResult(artifacts, warnings);
     }
+
+    /// <summary>
+    /// A page renamed since it was last generated now maps to a different class name, leaving its
+    /// old <c>&lt;OldName&gt;.cs</c> file behind under a name no page points to anymore -
+    /// regeneration never reads or rewrites that file since it addresses pages by their current
+    /// class name only. If the old file has no hand-written <c>[CliqCustomMethod]</c> content it's
+    /// deleted (nothing to lose); otherwise it's left exactly where it is and reported as a
+    /// warning rather than guessed at.
+    /// </summary>
+    private static async Task HandleRenamedPageObjectAsync(
+        string pageObjectDirectory,
+        string previousClassName,
+        List<CustomMethodRecoveryWarning> warnings,
+        CancellationToken cancellationToken)
+    {
+        var oldPath = Path.Combine(pageObjectDirectory, $"{previousClassName}.cs");
+        if (!File.Exists(oldPath))
+        {
+            return;
+        }
+
+        var oldSource = await File.ReadAllTextAsync(oldPath, cancellationToken);
+        var customMethods = CustomMethodExtractor.Extract(oldSource);
+        if (customMethods.Count == 0)
+        {
+            File.Delete(oldPath);
+            return;
+        }
+
+        warnings.Add(new CustomMethodRecoveryWarning(previousClassName, customMethods.Count, 0, oldPath));
+    }
+
+    /// <summary>
+    /// Tracks the class name each page generated under on its last <see cref="GenerateAsync"/>
+    /// call, so the next call can tell a rename happened (and clean up the stale file it leaves
+    /// behind) instead of only ever seeing the current name with no memory of the previous one.
+    /// </summary>
+    private async Task<Dictionary<string, string>> LoadGenerationStateAsync(CancellationToken cancellationToken)
+    {
+        var path = GenerationStatePath;
+        if (!File.Exists(path))
+        {
+            return new Dictionary<string, string>(StringComparer.Ordinal);
+        }
+
+        var json = await File.ReadAllTextAsync(path, cancellationToken);
+        return JsonSerializer.Deserialize<Dictionary<string, string>>(json)
+            ?? new Dictionary<string, string>(StringComparer.Ordinal);
+    }
+
+    private async Task SaveGenerationStateAsync(
+        Dictionary<string, string> state, CancellationToken cancellationToken)
+    {
+        var path = GenerationStatePath;
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        await File.WriteAllTextAsync(path, JsonSerializer.Serialize(state), cancellationToken);
+    }
+
+    private string GenerationStatePath => Path.Combine(repository.RootPath!, ".cliq", "generation-state.json");
 
     /// <summary>
     /// Copies a Page Object file's pre-regeneration contents to <c>.cliq/runs/custom-method-backups</c>

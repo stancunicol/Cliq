@@ -6,6 +6,19 @@
   overflow: hidden;
 }
 .topbar { flex: none; }
+.top-actions { flex-wrap: wrap; justify-content: flex-end; }
+.top-actions .page-name-input {
+  width: 150px;
+  min-width: 90px;
+  flex: 0 1 auto;
+  height: 34px;
+  border: 1px solid #303230;
+  background: #1b1c1b;
+  border-radius: 7px;
+  padding: 0 10px;
+  color: #ddd;
+  font-size: 12px;
+}
 .editor,
 .results {
   flex: 1;
@@ -111,6 +124,10 @@ button { cursor: pointer; }
 
   .top-actions button {
     padding-inline: 9px;
+  }
+
+  .top-actions .page-name-input {
+    width: 110px;
   }
 
   .editor {
