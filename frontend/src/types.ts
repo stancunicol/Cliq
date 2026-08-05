@@ -98,6 +98,45 @@ export interface PageScanResult {
   page: PageDefinition
   reconciliation: ScanReconciliationReport
   locatorDiff?: LocatorDiffReport
+  dynamicElementSuggestions?: DynamicElementSuggestion[]
+  /** Bare file name (not a path) - fetch via CliqBridge.workspace.getDiscoveryScreenshot. */
+  screenshotPath?: string
+}
+
+/** Only these four actions are supported for a dynamic element - see DynamicElement. */
+export type DynamicElementAction = Extract<StepAction, 'click' | 'fill' | 'select' | 'assertText'>
+
+/**
+ * A user-authored locator template for a repeating element (e.g. a table row) that a one-time
+ * scan can't discover, because there isn't a single fixed instance. `locatorTemplate` is raw
+ * XPath/CSS text containing the literal token `{param}`, which the generator turns into a real
+ * parameter on a generated factory method instead of a fixed field.
+ */
+export interface DynamicElement {
+  id: string
+  name: string
+  action: DynamicElementAction
+  strategy: LocatorStrategy
+  locatorTemplate: string
+  /** 'int' or 'string' - the type of the generated factory method's parameter. Defaults to 'int'. */
+  parameterType?: string
+  /** Only meaningful when action is 'fill' - same meaning as PageElement.dataType. */
+  dataType?: string
+}
+
+/**
+ * A scan-detected candidate for a DynamicElement - a group of 3+ structurally similar elements
+ * found at the same relative position inside a repeating row. Not persisted; the user reviews and
+ * either accepts it (turning it into a real DynamicElement with a fresh id) or ignores it. Always
+ * xpath - a repeating group's members don't individually carry a stable non-positional key.
+ */
+export interface DynamicElementSuggestion {
+  name: string
+  action: DynamicElementAction
+  strategy: LocatorStrategy
+  locatorTemplate: string
+  /** How many repeated instances the scan found - shown as confidence context. */
+  sampleCount: number
 }
 
 export interface PageDefinition {
@@ -107,6 +146,7 @@ export interface PageDefinition {
   url: string
   elements: PageElement[]
   updatedAt: string
+  dynamicElements?: DynamicElement[]
 }
 
 export interface StepValue {
@@ -124,6 +164,10 @@ export interface TestStep {
   url?: string
   value?: StepValue
   timeoutMs?: number
+  /** Set instead of elementId when this step targets a DynamicElement. */
+  dynamicElementId?: string
+  /** The concrete value (e.g. "3") this step substitutes into that element's template. */
+  dynamicParameterValue?: string
 }
 
 export interface TestCase {
@@ -208,6 +252,7 @@ export interface CliqBridge {
     getSettings(): Promise<CliqSettings>
     saveSettings(settings: CliqSettings): Promise<CliqSettings>
     getScreenshot(runId: string, fileName: string): Promise<string | null>
+    getDiscoveryScreenshot(fileName: string): Promise<string | null>
     onRunEvent(callback: (event: RunEvent) => void): () => void
     onOpened(callback: (snapshot: WorkspaceSnapshot) => void): () => void
   }

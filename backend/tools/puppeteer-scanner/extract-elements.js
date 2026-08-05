@@ -241,7 +241,7 @@ function extractElements(config) {
 
   const seenRadioGroups = new Set();
 
-  return candidates
+  const elements = candidates
     .map((el) => {
       if (!isVisible(el)) return null;
 
@@ -283,6 +283,115 @@ function extractElements(config) {
       };
     })
     .filter(Boolean);
+
+  // --- Repeating-group detection for dynamic-element suggestions ---
+
+  // Only these four have a dynamic-element equivalent at all - mirrors
+  // WorkspaceRepository.ValidateDynamicElements' SupportedDynamicActions on
+  // the C# side. check/radio/multiselect are skipped entirely.
+  function isSuggestibleKind(kind) {
+    return kind === 'fill' || kind === 'click' || kind === 'select' || kind === 'assert';
+  }
+
+  // Walks up from `el` (inclusive) looking for an ancestor that has 3+
+  // siblings sharing its own tag name under the same parent - a "repeating
+  // row". Returns the OUTERMOST such ancestor found within the depth bound,
+  // not the nearest one: a <button> inside a <td> inside a <tr> would
+  // otherwise match on the <td> first (other <td> siblings in the same row
+  // also "repeat"), which describes the wrong axis of repetition - the row
+  // is what actually repeats once per record, not the columns within it.
+  function repeatingRowAncestorFor(el) {
+    const minGroupSize = 3;
+    let node = el;
+    let depth = 0;
+    let found = null;
+    while (node && depth < 8) {
+      const parent = node.parentElement;
+      if (parent) {
+        const siblings = Array.from(parent.children).filter((sibling) => sibling.tagName === node.tagName);
+        if (siblings.length >= minGroupSize) found = node;
+      }
+      node = parent;
+      depth += 1;
+    }
+    return found;
+  }
+
+  // Groups candidates that occupy the same relative position within a
+  // detected repeating row, and proposes one parameterized xpath template per
+  // group - e.g. every "edit" button, one per <tr>, becomes a single
+  // suggestion instead of each row's button being its own flat element (which
+  // still happens too, independently, via the elements list above; this is
+  // purely additive information, not a replacement for it).
+  function detectDynamicElementSuggestions(allCandidates) {
+    const minGroupSize = 3;
+    const maxSuggestions = 10;
+    const groups = new Map();
+
+    for (const el of allCandidates) {
+      if (!isVisible(el)) continue;
+      const kind = kindFor(el);
+      if (!isSuggestibleKind(kind)) continue;
+      // Mirrors the main elements list: a heading with no text is useless both as an assertion
+      // target and as a naming hint.
+      if (kind === 'assert' && !normalizeText(el.textContent)) continue;
+
+      const row = repeatingRowAncestorFor(el);
+      if (!row) continue;
+
+      const relativePath = relativePositionPath(el, row);
+      // structuralSelector gives a position-based path that's unique per
+      // element in this scan run - reused here purely as a grouping key
+      // (never as an actual locator), so distinct repeating regions on the
+      // same page (two different tables, say) don't get merged together.
+      const key = `${structuralSelector(row.parentElement)}|${row.tagName}|${relativePath}|${kind}`;
+
+      if (!groups.has(key)) {
+        groups.set(key, { row, relativePath, kind, tag: el.tagName.toLowerCase(), members: [] });
+      }
+      groups.get(key).members.push(el);
+    }
+
+    const suggestions = [];
+    for (const group of groups.values()) {
+      if (group.members.length < minGroupSize) continue;
+
+      // Anchor on the row's *container*, not the row itself - xpathFor
+      // already handles any element generically (label/ancestor-testid/own-
+      // attribute/nearest-id-ancestor), it just normally runs on a leaf
+      // candidate rather than a container. No stable anchor found means no
+      // safe way to say "the Nth row in here" - drop the group rather than
+      // fall back to a brittle absolute path (same philosophy as
+      // locatorFor() giving up instead of guessing).
+      const anchor = xpathFor(group.row.parentElement);
+      if (!anchor) continue;
+
+      const rowTag = group.row.tagName.toLowerCase();
+      const template = group.relativePath
+        ? `${anchor}/${rowTag}[{param}]/${group.relativePath}`
+        : `${anchor}/${rowTag}[{param}]`;
+
+      const representative = group.members[0];
+      const text = normalizeText(representative.textContent).slice(0, 40);
+
+      suggestions.push({
+        tag: group.tag,
+        kind: group.kind,
+        locatorTemplate: template,
+        testId: representative.getAttribute(testIdAttribute),
+        id: (representative.id && !isIgnoredId(representative.id)) ? representative.id : null,
+        name: representative.getAttribute('name'),
+        placeholder: representative.getAttribute('placeholder'),
+        text,
+        sampleCount: group.members.length,
+      });
+    }
+
+    suggestions.sort((a, b) => b.sampleCount - a.sampleCount);
+    return suggestions.slice(0, maxSuggestions);
+  }
+
+  return { elements, dynamicSuggestions: detectDynamicElementSuggestions(candidates) };
 }
 
 module.exports = { extractElements };

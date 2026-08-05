@@ -56,6 +56,7 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
             var freshElements = BuildElements(scanOutput.Elements, settings.ElementIdentification.TestIdAttribute);
             var previous = await repository.GetPageAsync(pageId, cancellationToken);
             var (elements, report, newElements) = ElementReconciler.Reconcile(freshElements, previous?.Elements ?? []);
+            var dynamicSuggestions = BuildDynamicElementSuggestions(scanOutput.DynamicSuggestions);
 
             var page = new PageDefinition(
                 PageDefinition.CurrentSchemaVersion,
@@ -74,7 +75,11 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
                 ? await WriteLocatorDiffReportAsync(root, pageId, scannedAt, newElements, missingElements, cancellationToken)
                 : null;
 
-            return new PageScanResult(page, report, locatorDiff);
+            var screenshotFileName = scanOutput.ScreenshotPath is { Length: > 0 }
+                ? Path.GetFileName(scanOutput.ScreenshotPath)
+                : null;
+
+            return new PageScanResult(page, report, locatorDiff, dynamicSuggestions, screenshotFileName);
         }
         finally
         {
@@ -286,6 +291,45 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
         return elements;
     }
 
+    /// <summary>Maps the scanner's detected repeating-group candidates (see extract-elements.js's
+    /// detectDynamicElementSuggestions) into domain suggestions - parallel to <see cref="BuildElements"/>,
+    /// same naming-hint precedence and dedup approach, but simpler: every suggestion is xpath (the
+    /// scanner never proposes anything else) so there's no locator-strategy branching to do.</summary>
+    internal static IReadOnlyList<DynamicElementSuggestion> BuildDynamicElementSuggestions(
+        IReadOnlyList<RawSuggestion> rawSuggestions)
+    {
+        var suggestions = new List<DynamicElementSuggestion>();
+        var usedNames = new Dictionary<string, int>();
+
+        for (var i = 0; i < rawSuggestions.Count; i++)
+        {
+            var raw = rawSuggestions[i];
+            var baseName = raw.TestId ?? raw.Id ?? raw.Name ?? raw.Placeholder ?? raw.Text;
+            if (string.IsNullOrWhiteSpace(baseName))
+            {
+                baseName = $"{raw.Tag}_group_{i}";
+            }
+
+            var name = IdentifierNaming.Sanitize(baseName, $"{raw.Tag}_group_{i}");
+
+            usedNames.TryGetValue(name, out var seen);
+            usedNames[name] = seen + 1;
+            if (seen > 0)
+            {
+                name = $"{name}_{seen + 1}";
+            }
+
+            suggestions.Add(new DynamicElementSuggestion(
+                name,
+                ToAction(raw.Kind),
+                DomainLocator.XPath,
+                raw.LocatorTemplate,
+                raw.SampleCount));
+        }
+
+        return suggestions;
+    }
+
     private static StepAction ToAction(string kind) => kind switch
     {
         "fill" => StepAction.Fill,
@@ -345,6 +389,7 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
     private sealed class ScanOutput
     {
         public List<RawElement> Elements { get; set; } = [];
+        public List<RawSuggestion> DynamicSuggestions { get; set; } = [];
         public string? ScreenshotPath { get; set; }
     }
 
@@ -362,5 +407,18 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
         public string? Text { get; set; }
         public string? AssertText { get; set; }
         public string? InputType { get; set; }
+    }
+
+    internal sealed class RawSuggestion
+    {
+        public string Tag { get; set; } = "";
+        public string Kind { get; set; } = "";
+        public string LocatorTemplate { get; set; } = "";
+        public string? TestId { get; set; }
+        public string? Id { get; set; }
+        public string? Name { get; set; }
+        public string? Placeholder { get; set; }
+        public string? Text { get; set; }
+        public int SampleCount { get; set; }
     }
 }

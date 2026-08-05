@@ -33,4 +33,5 @@ export const workspaceService = {
 
 export const screenshotService = {
   get: (runId: string, fileName: string): Promise<string | null> => bridge().getScreenshot(runId, fileName),
+  getDiscovery: (fileName: string): Promise<string | null> => bridge().getDiscoveryScreenshot(fileName),
 }

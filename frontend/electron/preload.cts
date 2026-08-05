@@ -26,6 +26,8 @@ contextBridge.exposeInMainWorld('cliq', {
     saveSettings: (settings: unknown) => ipcRenderer.invoke('workspace:save-settings', settings),
     getScreenshot: (runId: string, fileName: string) =>
       ipcRenderer.invoke('workspace:get-screenshot', { runId, fileName }),
+    getDiscoveryScreenshot: (fileName: string) =>
+      ipcRenderer.invoke('workspace:get-discovery-screenshot', { fileName }),
     onRunEvent: (callback: (event: unknown) => void) =>
       subscribe('workspace:run-event', callback),
     onOpened: (callback: (snapshot: unknown) => void) => subscribe('workspace:opened', callback),

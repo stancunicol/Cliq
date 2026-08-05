@@ -156,6 +156,7 @@ function bridgeFor(
       getSettings: async () => testSettings(),
       saveSettings: async (settings: CliqSettings) => settings,
       getScreenshot: async () => null,
+      getDiscoveryScreenshot: async () => null,
       onRunEvent: () => () => undefined,
       onOpened: () => () => undefined,
     },

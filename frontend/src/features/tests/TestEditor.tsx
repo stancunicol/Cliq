@@ -1,5 +1,6 @@
 import { Copy, Plus, Trash2, TriangleAlert } from 'lucide-react'
-import type { PageDefinition, StepAction, TestCase, TestStep } from '../../types'
+import type { DynamicElement, PageDefinition, StepAction, TestCase, TestStep } from '../../types'
+import { DynamicElementsPanel } from './DynamicElementsPanel'
 
 const actions: Record<StepAction, string> = {
   navigate: 'Navigate',
@@ -16,13 +17,17 @@ export function TestEditor({
   test,
   pages,
   onChange,
+  onSaveDynamicElement,
+  onDeleteDynamicElement,
 }: {
   test?: TestCase
   pages: PageDefinition[]
   onChange(test: TestCase): void
+  onSaveDynamicElement(pageId: string, element: DynamicElement): void
+  onDeleteDynamicElement(pageId: string, elementId: string): void
 }) {
   if (!test) {
-    return <section className="editor empty"><h2>Create a test</h2><p>Record browser interactions or add a step manually.</p></section>
+    return <section className="editor empty"><h2>Create a test</h2><p>Scan a page, then add steps to build a workflow.</p></section>
   }
   const updateStep = (id: string, patch: Partial<TestStep>) => onChange({
     ...test,
@@ -42,6 +47,9 @@ export function TestEditor({
   })
   const elementFor = (step: TestStep) =>
     pages.find((page) => page.id === step.pageId)?.elements.find((element) => element.id === step.elementId)
+  const dynamicElementFor = (step: TestStep) =>
+    pages.find((page) => page.id === step.pageId)?.dynamicElements
+      ?.find((element) => element.id === step.dynamicElementId)
   const configureAction = (step: TestStep, action: StepAction) => {
     if (action === 'navigate') {
       updateStep(step.id, {
@@ -49,6 +57,8 @@ export function TestEditor({
         label: actions[action],
         pageId: undefined,
         elementId: undefined,
+        dynamicElementId: undefined,
+        dynamicParameterValue: undefined,
         value: undefined,
         url: step.url || pages[0]?.url || 'https://example.com',
       })
@@ -60,6 +70,8 @@ export function TestEditor({
         label: actions[action],
         pageId: undefined,
         elementId: undefined,
+        dynamicElementId: undefined,
+        dynamicParameterValue: undefined,
         url: undefined,
         value: step.value ?? { kind: 'literal', value: pages[0]?.url || 'https://example.com' },
       })
@@ -74,6 +86,8 @@ export function TestEditor({
       elementId: page?.elements.some((element) => element.id === step.elementId)
         ? step.elementId
         : page?.elements[0]?.id,
+      dynamicElementId: undefined,
+      dynamicParameterValue: undefined,
       value: needsValue(action) ? step.value ?? { kind: 'literal', value: '' } : undefined,
     })
   }
@@ -89,9 +103,10 @@ export function TestEditor({
             value={test.name}
             onChange={(event) => onChange({ ...test, name: event.target.value })}
           />
-          <p>{test.description || 'Record or compose a maintainable browser workflow.'}</p>
+          <p>{test.description || 'Compose a maintainable browser workflow.'}</p>
         </div>
       </div>
+      <DynamicElementsPanel pages={pages} onSave={onSaveDynamicElement} onDelete={onDeleteDynamicElement} />
       <div className="steps-head">
         <div><h3>Steps</h3><span>{test.steps.length}</span></div>
         <button onClick={addStep}><Plus />Add step</button>
@@ -99,6 +114,7 @@ export function TestEditor({
       <div className="steps">
         {test.steps.map((step, index) => {
           const element = elementFor(step)
+          const dynamicElement = dynamicElementFor(step)
           return (
             <article className={`step ${step.enabled ? '' : 'disabled'}`} key={step.id}>
               <span className="step-number">{index + 1}</span>
@@ -142,7 +158,12 @@ export function TestEditor({
                         value={step.pageId ?? ''}
                         onChange={(event) => {
                           const page = pages.find((candidate) => candidate.id === event.target.value)
-                          updateStep(step.id, { pageId: page?.id, elementId: page?.elements[0]?.id })
+                          updateStep(step.id, {
+                            pageId: page?.id,
+                            elementId: page?.elements[0]?.id,
+                            dynamicElementId: undefined,
+                            dynamicParameterValue: undefined,
+                          })
                         }}
                       >
                         <option value="">Select page</option>
@@ -150,14 +171,44 @@ export function TestEditor({
                       </select>
                       <select
                         aria-label={`Element for step ${index + 1}`}
-                        value={step.elementId ?? ''}
-                        onChange={(event) => updateStep(step.id, { elementId: event.target.value || undefined })}
+                        value={step.dynamicElementId ? `dyn:${step.dynamicElementId}` : step.elementId ?? ''}
+                        onChange={(event) => {
+                          const raw = event.target.value
+                          if (raw.startsWith('dyn:')) {
+                            updateStep(step.id, {
+                              elementId: undefined,
+                              dynamicElementId: raw.slice(4),
+                              dynamicParameterValue: step.dynamicParameterValue ?? '',
+                            })
+                          } else {
+                            updateStep(step.id, {
+                              elementId: raw || undefined,
+                              dynamicElementId: undefined,
+                              dynamicParameterValue: undefined,
+                            })
+                          }
+                        }}
                       >
                         <option value="">Select element</option>
                         {(pages.find((page) => page.id === step.pageId)?.elements ?? []).map((candidate) => (
                           <option value={candidate.id} key={candidate.id}>{candidate.name}</option>
                         ))}
+                        {(pages.find((page) => page.id === step.pageId)?.dynamicElements ?? []).length > 0 && (
+                          <optgroup label="Dynamic">
+                            {(pages.find((page) => page.id === step.pageId)?.dynamicElements ?? []).map((candidate) => (
+                              <option value={`dyn:${candidate.id}`} key={candidate.id}>{candidate.name}</option>
+                            ))}
+                          </optgroup>
+                        )}
                       </select>
+                      {step.dynamicElementId && (
+                        <input
+                          aria-label={`Parameter value for step ${index + 1}`}
+                          value={step.dynamicParameterValue ?? ''}
+                          onChange={(event) => updateStep(step.id, { dynamicParameterValue: event.target.value })}
+                          placeholder="e.g. 3"
+                        />
+                      )}
                     </>
                   )}
                   {(needsValue(step.action) || step.action === 'assertUrl') && (
@@ -191,6 +242,11 @@ export function TestEditor({
                         <TriangleAlert />Not found on last scan
                       </span>
                     )}
+                  </div>
+                )}
+                {dynamicElement && (
+                  <div className="locator">
+                    <span>{dynamicElement.strategy} (template)</span><code>{dynamicElement.locatorTemplate}</code>
                   </div>
                 )}
               </div>

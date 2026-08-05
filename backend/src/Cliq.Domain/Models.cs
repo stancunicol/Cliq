@@ -125,10 +125,50 @@ public sealed record LocatorDiffReport(
     IReadOnlyList<LocatorDiffEntry> New,
     IReadOnlyList<LocatorDiffEntry> Missing);
 
+/// <summary>
+/// A scan-detected candidate for a <see cref="DynamicElement"/> - a group of 3+ structurally
+/// similar elements found at the same relative position inside a repeating row (e.g. every row's
+/// "edit" button in a table). Not persisted on its own; the user reviews and either accepts it
+/// (becoming a real <see cref="DynamicElement"/> with a fresh id) or ignores it. Always
+/// <see cref="LocatorStrategy.XPath"/> - a repeating group's members don't individually carry a
+/// stable non-positional key the way a single scanned element might.
+/// </summary>
+public sealed record DynamicElementSuggestion(
+    string Name,
+    StepAction Action,
+    LocatorStrategy Strategy,
+    string LocatorTemplate,
+    int SampleCount);
+
 public sealed record PageScanResult(
     PageDefinition Page,
     ScanReconciliationReport Reconciliation,
-    LocatorDiffReport? LocatorDiff = null);
+    LocatorDiffReport? LocatorDiff = null,
+    IReadOnlyList<DynamicElementSuggestion>? DynamicElementSuggestions = null,
+    // Bare file name only (not a full path) - same convention as StepResult.ScreenshotPath -
+    // resolved through WorkspaceRepository.GetDiscoveryScreenshotPath, never trusted as a path
+    // directly. Only present when scanning.captureScreenshot is enabled.
+    string? ScreenshotPath = null);
+
+/// <summary>
+/// A user-authored locator for a repeating element (e.g. a table row) that a one-time scan can't
+/// discover, because there isn't a single fixed instance - the count and content are
+/// data-dependent. <see cref="LocatorTemplate"/> is raw XPath/CSS text containing the literal
+/// token <c>{param}</c>, which <c>PageObjectCodeGenerator</c> turns into a real parameter on a
+/// generated factory method instead of a fixed field. Only <see cref="StepAction.Click"/>,
+/// <see cref="StepAction.Fill"/>, <see cref="StepAction.Select"/>, and
+/// <see cref="StepAction.AssertText"/> are supported.
+/// </summary>
+public sealed record DynamicElement(
+    string Id,
+    string Name,
+    StepAction Action,
+    LocatorStrategy Strategy,
+    string LocatorTemplate,
+    // "int" or "string" - the type of the generated factory method's parameter.
+    string ParameterType = "int",
+    // Only meaningful when Action is Fill - same meaning as PageElement.DataType.
+    string DataType = "string");
 
 public sealed record PageDefinition(
     int SchemaVersion,
@@ -136,7 +176,11 @@ public sealed record PageDefinition(
     string Name,
     string Url,
     IReadOnlyList<PageElement> Elements,
-    DateTimeOffset UpdatedAt)
+    DateTimeOffset UpdatedAt,
+    // Nullable/no-default-collection so older persisted pages deserialize as null rather than
+    // forcing every existing constructor call across the codebase to supply one - callers backfill
+    // with `?? []` at the point of use, same pattern as ElementIdentificationSettings.IgnoreIdPatterns.
+    IReadOnlyList<DynamicElement>? DynamicElements = null)
 {
     public const int CurrentSchemaVersion = 1;
 }
@@ -158,7 +202,11 @@ public sealed record TestStep(
     string? ElementId = null,
     string? Url = null,
     StepValue? Value = null,
-    int? TimeoutMs = null);
+    int? TimeoutMs = null,
+    // Set instead of ElementId when this step targets a DynamicElement; DynamicParameterValue is
+    // the concrete value (e.g. "3") this step substitutes into that element's template.
+    string? DynamicElementId = null,
+    string? DynamicParameterValue = null);
 
 public sealed record TestCase(
     int SchemaVersion,

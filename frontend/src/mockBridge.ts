@@ -110,6 +110,7 @@ export function installMockBridge() {
         return settings
       },
       getScreenshot: async () => null,
+      getDiscoveryScreenshot: async () => null,
       onRunEvent: (callback) => subscribe(runListeners, callback),
       onOpened: (callback) => subscribe(openedListeners, callback),
     },

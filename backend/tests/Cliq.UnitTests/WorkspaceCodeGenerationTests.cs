@@ -311,4 +311,112 @@ public sealed class WorkspaceCodeGenerationTests
 
         Assert.That(code, Does.Contain("By.CssSelector(\"[data-testid=\\\"save\\\\\\\"draft\\\"]\")"));
     }
+
+    [Test]
+    public async Task GenerateAsync_FillStep_CallsUploadOnTheElementWrapperProperty()
+    {
+        var repository = new WorkspaceRepository();
+        var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
+        var page = new PageDefinition(
+            PageDefinition.CurrentSchemaVersion,
+            "login",
+            "Login",
+            "https://example.com/login",
+            [
+                new PageElement(
+                    "username",
+                    "username",
+                    "input",
+                    StepAction.Fill,
+                    new Locator(LocatorStrategy.TestId, "username")),
+            ],
+            DateTimeOffset.UtcNow);
+        var test = new TestCase(
+            TestCase.CurrentSchemaVersion,
+            "login-flow",
+            "Login flow",
+            null,
+            [],
+            [
+                new TestStep(
+                    "fill",
+                    StepAction.Fill,
+                    "Fill username",
+                    true,
+                    page.Id,
+                    "username",
+                    Value: StepValue.Literal("alice")),
+            ],
+            DateTimeOffset.UtcNow);
+        var generator = new WorkspaceCodeGeneration(repository);
+
+        var result = await generator.GenerateAsync(
+            snapshot.Project,
+            [page],
+            [test],
+            _root,
+            CancellationToken.None);
+        var code = await File.ReadAllTextAsync(result.Artifacts.Single(item => item.Kind == "test").Path);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(code, Does.Contain(".Username.Upload("));
+            Assert.That(code, Does.Not.Contain(".FillUsername("));
+        });
+    }
+
+    [Test]
+    public async Task GenerateAsync_DynamicClickStep_GeneratesFactoryMethodAndParameterizedCall()
+    {
+        var repository = new WorkspaceRepository();
+        var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
+        var dynamicElement = new DynamicElement(
+            "row-button",
+            "row button",
+            StepAction.Click,
+            LocatorStrategy.XPath,
+            "//table/tbody/tr[{param}]/td[1]/button");
+        var page = new PageDefinition(
+            PageDefinition.CurrentSchemaVersion,
+            "orders",
+            "Orders",
+            "https://example.com/orders",
+            [],
+            DateTimeOffset.UtcNow,
+            [dynamicElement]);
+        var test = new TestCase(
+            TestCase.CurrentSchemaVersion,
+            "orders-flow",
+            "Orders flow",
+            null,
+            [],
+            [
+                new TestStep(
+                    "click-row",
+                    StepAction.Click,
+                    "Click row 3",
+                    true,
+                    page.Id,
+                    DynamicElementId: dynamicElement.Id,
+                    DynamicParameterValue: "3"),
+            ],
+            DateTimeOffset.UtcNow);
+        var generator = new WorkspaceCodeGeneration(repository);
+
+        var result = await generator.GenerateAsync(
+            snapshot.Project,
+            [page],
+            [test],
+            _root,
+            CancellationToken.None);
+        var pageObjectCode = await File.ReadAllTextAsync(
+            result.Artifacts.Single(item => item.Kind == "pageObject").Path);
+        var testCode = await File.ReadAllTextAsync(result.Artifacts.Single(item => item.Kind == "test").Path);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(pageObjectCode, Does.Contain("public void ClickRowButton(int param)"));
+            Assert.That(testCode, Does.Contain(".ClickRowButton(3);"));
+        });
+    }
 }

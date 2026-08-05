@@ -25,19 +25,20 @@ permissions/downloads, sandboxing, context isolation, and restricted navigation.
 Page discovery runs as a background Puppeteer operation: `PuppeteerPageDiscovery` shells out to a
 standalone Node script (`backend/tools/puppeteer-scanner`) that drives a headless/headed browser,
 extracts candidate elements, and hands back the same `PageDefinition`/locator model the app has
-always used. Interactive workflow runs still execute inside Electron's isolated `WebContentsView`,
-allowing the user to watch every highlighted, paced action. The main process owns one active run,
-cancellation, failure screenshots, and persistence through the authenticated sidecar. Generated
-NUnit workflows continue to use Selenium for CI and external execution, and `SeleniumTestRunner`
-still drives interactive runs the same way it always has - only discovery's engine changed.
+always used. Interactive test runs no longer execute inside Electron's `WebContentsView` at all -
+that view is navigation-only now (`BrowserController`, used while scanning). `SeleniumTestRunner`
+launches a separate, non-headless Selenium browser window for every run, the same engine generated
+NUnit workflows use for CI and external execution, so a step behaves identically live and in CI.
+Live-recording (capturing clicks/input from the embedded browser into test steps) was removed
+entirely; steps are now composed by hand against scanned elements. The main process still owns one
+active run, cancellation, failure screenshots, and persistence through the authenticated sidecar.
 
 ## Workspace model
 
 `project.json`, `pages/*.json`, `tests/*.json`, and `settings.json` carry `schemaVersion: 1`.
 Writes are atomic and all configured output paths are checked to remain inside the open workspace.
 
-Automatic DOM scans and Electron recordings create the same `PageDefinition` and stable locator
-model. Locator priority - by default `data-testid`, then a generated XPath (label, ancestor test-id,
+Automatic DOM scans create the `PageDefinition` and its stable locator model. Locator priority - by default `data-testid`, then a generated XPath (label, ancestor test-id,
 own text/attribute, or nearest-id-ancestor based), then a structural CSS fallback - is configurable
 per workspace via `settings.json`'s `elementIdentification` section (custom test-id attribute,
 strategy order), validated on save. `id` is deliberately excluded from locator strategies -

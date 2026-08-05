@@ -121,6 +121,74 @@ public sealed class PuppeteerPageDiscoveryTests
         Assert.That(elements, Has.Count.EqualTo(2));
     }
 
+    [TestCase("click", StepAction.Click)]
+    [TestCase("fill", StepAction.Fill)]
+    [TestCase("select", StepAction.Select)]
+    [TestCase("assert", StepAction.AssertText)]
+    public void BuildDynamicElementSuggestions_MapsKindToActionAndAlwaysUsesXPath(string kind, StepAction expectedAction)
+    {
+        var raw = new[]
+        {
+            new PuppeteerPageDiscovery.RawSuggestion
+            {
+                Tag = "button",
+                Kind = kind,
+                LocatorTemplate = "//table/tbody/tr[{param}]/td[1]/button",
+                TestId = "row-action",
+                SampleCount = 5,
+            },
+        };
+
+        var suggestions = PuppeteerPageDiscovery.BuildDynamicElementSuggestions(raw);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(suggestions, Has.Count.EqualTo(1));
+            Assert.That(suggestions[0].Action, Is.EqualTo(expectedAction));
+            Assert.That(suggestions[0].Strategy, Is.EqualTo(LocatorStrategy.XPath));
+            Assert.That(suggestions[0].LocatorTemplate, Is.EqualTo("//table/tbody/tr[{param}]/td[1]/button"));
+            Assert.That(suggestions[0].SampleCount, Is.EqualTo(5));
+            Assert.That(suggestions[0].Name, Is.EqualTo("row_action"));
+        });
+    }
+
+    [Test]
+    public void BuildDynamicElementSuggestions_NoNamingHints_FallsBackToTagAndIndex()
+    {
+        var raw = new[]
+        {
+            new PuppeteerPageDiscovery.RawSuggestion
+            {
+                Tag = "button",
+                Kind = "click",
+                LocatorTemplate = "//tr[{param}]/button",
+                SampleCount = 3,
+            },
+        };
+
+        var suggestions = PuppeteerPageDiscovery.BuildDynamicElementSuggestions(raw);
+
+        Assert.That(suggestions[0].Name, Is.EqualTo("button_group_0"));
+    }
+
+    [Test]
+    public void BuildDynamicElementSuggestions_DuplicateNames_AreDisambiguated()
+    {
+        var raw = new[]
+        {
+            new PuppeteerPageDiscovery.RawSuggestion { Tag = "button", Kind = "click", LocatorTemplate = "//tr[{param}]/td[1]/button", Name = "edit", SampleCount = 4 },
+            new PuppeteerPageDiscovery.RawSuggestion { Tag = "button", Kind = "click", LocatorTemplate = "//tr[{param}]/td[2]/button", Name = "edit", SampleCount = 4 },
+        };
+
+        var suggestions = PuppeteerPageDiscovery.BuildDynamicElementSuggestions(raw);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(suggestions[0].Name, Is.EqualTo("edit"));
+            Assert.That(suggestions[1].Name, Is.EqualTo("edit_2"));
+        });
+    }
+
     [Test]
     public async Task WriteLocatorDiffReportAsync_WritesJsonFileUnderCliqRunsDiffs()
     {

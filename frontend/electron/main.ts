@@ -15,6 +15,7 @@ import {
   booleanSchema,
   boundsSchema,
   cliqSettingsSchema,
+  discoveryScreenshotRequestSchema,
   generationRequestSchema,
   httpNavigationSchema,
   identifierSchema,
@@ -167,6 +168,12 @@ function installIpc() {
     const request = screenshotRequestSchema.parse(candidate)
     return backend.requestDataUrl(
       `/api/v1/runs/${encodeURIComponent(request.runId)}/screenshots/${encodeURIComponent(request.fileName)}`,
+    )
+  })
+  ipcMain.handle('workspace:get-discovery-screenshot', (_event, candidate) => {
+    const request = discoveryScreenshotRequestSchema.parse(candidate)
+    return backend.requestDataUrl(
+      `/api/v1/pages/discovery-screenshots/${encodeURIComponent(request.fileName)}`,
     )
   })
 

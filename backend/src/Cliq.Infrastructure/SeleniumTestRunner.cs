@@ -119,12 +119,28 @@ public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRu
             return new StepTiming(null, null);
         }
 
-        var element = ResolveElement(step, pages);
         var timeout = TimeSpan.FromMilliseconds(step.TimeoutMs is > 0 ? step.TimeoutMs.Value : settings.TestExecution.DefaultStepTimeoutMs);
         var testIdAttribute = settings.ElementIdentification.TestIdAttribute;
 
+        // A Radio group has no single element to locate up front, unlike every other kind: its
+        // PageElement.Locator names the *group* (LocatorStrategy.Name, the shared `name`
+        // attribute), and which specific <input> to act on depends on the step's own value - not
+        // something SelectElement (Selenium's <select> wrapper, used for the case below) can do.
+        // Mirrors PageObjectCodeGenerator.AppendMethod's Radio case, which builds the same
+        // name+value selector for the same reason.
+        if (step.Action == StepAction.Select && step.DynamicElementId is null)
+        {
+            var candidate = ResolveElement(step, pages);
+            if (candidate.Locator.Strategy == DomainLocator.Name)
+            {
+                return ExecuteRadioSelect(driver, candidate, step, secrets, timeout);
+            }
+        }
+
+        var (locator, elementName) = ResolveLocator(step, pages, testIdAttribute);
+
         var locateStopwatch = Stopwatch.StartNew();
-        var webElement = new WebDriverWait(driver, timeout).Until(current => current.FindElement(ByFor(element.Locator, testIdAttribute)));
+        var webElement = new WebDriverWait(driver, timeout).Until(current => current.FindElement(locator));
         var locateMs = locateStopwatch.ElapsedMilliseconds;
 
         var actionStopwatch = Stopwatch.StartNew();
@@ -146,7 +162,7 @@ public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRu
             case StepAction.AssertVisible:
                 if (!webElement.Displayed)
                 {
-                    throw new InvalidOperationException($"Element '{element.Name}' is not visible.");
+                    throw new InvalidOperationException($"Element '{elementName}' is not visible.");
                 }
                 break;
             case StepAction.AssertText:
@@ -161,7 +177,53 @@ public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRu
         return new StepTiming(locateMs, actionStopwatch.ElapsedMilliseconds);
     }
 
+    private static StepTiming ExecuteRadioSelect(
+        IWebDriver driver,
+        PageElement element,
+        TestStep step,
+        IReadOnlyDictionary<string, string> secrets,
+        TimeSpan timeout)
+    {
+        var value = ResolveValue(step.Value, secrets);
+        var locator = By.CssSelector(RadioOptionCssSelector(element.Locator.Value, value));
+
+        var locateStopwatch = Stopwatch.StartNew();
+        var webElement = new WebDriverWait(driver, timeout).Until(current => current.FindElement(locator));
+        var locateMs = locateStopwatch.ElapsedMilliseconds;
+
+        var actionStopwatch = Stopwatch.StartNew();
+        webElement.Click();
+        return new StepTiming(locateMs, actionStopwatch.ElapsedMilliseconds);
+    }
+
+    /// <summary>Selects one option out of a Radio group by combining its shared `name` with the
+    /// option's own `value` - mirrors PageObjectCodeGenerator.AppendMethod's Radio case exactly,
+    /// so a live run and the generated NUnit test locate the same option the same way. Internal
+    /// (rather than folded inline into ExecuteRadioSelect) so the escaping can be unit-tested
+    /// without a real WebDriver.</summary>
+    internal static string RadioOptionCssSelector(string groupName, string value) =>
+        $"input[name=\"{CssEscape(groupName)}\"][value=\"{CssEscape(value)}\"]";
+
     private readonly record struct StepTiming(long? LocateMs, long? ActionMs);
+
+    /// <summary>Resolves a step to a locator and a display name for error messages - either a
+    /// fixed <see cref="PageElement"/>, or (when <see cref="TestStep.DynamicElementId"/> is set)
+    /// a <see cref="DynamicElement"/> template with its parameter substituted in at run time.
+    /// Both funnel through the same <see cref="ByFor"/> so the rest of <see cref="ExecuteStep"/>
+    /// doesn't need to know which kind it got.</summary>
+    private static (By Locator, string Name) ResolveLocator(
+        TestStep step,
+        IReadOnlyDictionary<string, PageDefinition> pages,
+        string testIdAttribute)
+    {
+        if (step.DynamicElementId is not null)
+        {
+            return ResolveDynamicLocator(step, pages, testIdAttribute);
+        }
+
+        var element = ResolveElement(step, pages);
+        return (ByFor(element.Locator, testIdAttribute), element.Name);
+    }
 
     private static PageElement ResolveElement(
         TestStep step,
@@ -176,13 +238,40 @@ public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRu
             ?? throw new WorkspaceValidationException($"Step '{step.Id}' has no valid element reference.");
     }
 
+    private static (By Locator, string Name) ResolveDynamicLocator(
+        TestStep step,
+        IReadOnlyDictionary<string, PageDefinition> pages,
+        string testIdAttribute)
+    {
+        if (step.PageId is null || !pages.TryGetValue(step.PageId, out var page))
+        {
+            throw new WorkspaceValidationException($"Step '{step.Id}' has no valid page reference.");
+        }
+
+        var dynamicElement = (page.DynamicElements ?? []).SingleOrDefault(item => item.Id == step.DynamicElementId)
+            ?? throw new WorkspaceValidationException($"Step '{step.Id}' has no valid dynamic element reference.");
+
+        var paramValue = step.DynamicParameterValue
+            ?? throw new WorkspaceValidationException($"Step '{step.Id}' has no dynamic parameter value.");
+
+        var resolvedValue = dynamicElement.LocatorTemplate.Replace("{param}", paramValue);
+        return (ByFor(new Locator(dynamicElement.Strategy, resolvedValue), testIdAttribute), dynamicElement.Name);
+    }
+
+    // Only the three strategies discovery actually produces for a regular element - see
+    // elementIdentification.strategyOrder (testId, xpath) plus the always-available css fallback
+    // in extract-elements.js's locatorFor. Id/Name are never assigned to a regular element's
+    // Locator.Strategy (id is excluded as a locator entirely, kept only as a naming hint); Name is
+    // assigned only to a Radio group's Locator, which live execution doesn't resolve through here
+    // at all - see the StepAction.Select case in ExecuteStep, which is Selenium's <select> wrapper
+    // and isn't wired up for a Radio input group regardless of what this method returns for it.
     private static By ByFor(Locator locator, string testIdAttribute) => locator.Strategy switch
     {
         DomainLocator.TestId => By.CssSelector($"[{testIdAttribute}=\"{CssEscape(locator.Value)}\"]"),
-        DomainLocator.Id => By.Id(locator.Value),
-        DomainLocator.Name => By.Name(locator.Value),
         DomainLocator.XPath => By.XPath(locator.Value),
-        _ => By.CssSelector(locator.Value),
+        DomainLocator.Css => By.CssSelector(locator.Value),
+        _ => throw new WorkspaceValidationException(
+            $"Locator strategy '{locator.Strategy}' is not supported for live execution - only testId, xpath, and css are."),
     };
 
     private static string ResolveValue(

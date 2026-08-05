@@ -72,6 +72,9 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
             var descriptors = page.Elements
                 .Select(element => ToDescriptor(element, settings.ElementIdentification.TestIdAttribute))
                 .ToList();
+            var dynamicDescriptors = (page.DynamicElements ?? [])
+                .Select(element => ToDynamicDescriptor(element, settings.ElementIdentification.TestIdAttribute))
+                .ToList();
             var generatedPath = Path.Combine(pageObjectDirectory, $"{className}.cs");
             var existingSource = File.Exists(generatedPath)
                 ? await File.ReadAllTextAsync(generatedPath, cancellationToken)
@@ -94,7 +97,8 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
                 project.Output.PageObjectsNamespace,
                 descriptors,
                 settings.TestExecution.DefaultStepTimeoutMs,
-                customMethods);
+                customMethods,
+                dynamicDescriptors);
             await WriteAtomicTextAsync(generatedPath, pageCode, cancellationToken);
             artifacts.Add(new GeneratedArtifact("pageObject", className, generatedPath, true));
         }
@@ -218,6 +222,40 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
             element.ExpectedText,
             DataType: element.DataType);
 
+    private static DynamicElementDescriptor ToDynamicDescriptor(DynamicElement element, string testIdAttribute) =>
+        new(
+            element.Action switch
+            {
+                StepAction.Fill => GenerationKind.Fill,
+                StepAction.Select => GenerationKind.Select,
+                StepAction.AssertText => GenerationKind.Assert,
+                _ => GenerationKind.Click,
+            },
+            element.Strategy switch
+            {
+                DomainLocator.Id => GenerationLocator.Id,
+                DomainLocator.Name => GenerationLocator.Name,
+                DomainLocator.XPath => GenerationLocator.XPath,
+                DomainLocator.TestId or DomainLocator.Css => GenerationLocator.CssSelector,
+                _ => GenerationLocator.CssSelector,
+            },
+            element.Strategy == DomainLocator.TestId
+                ? $"[{testIdAttribute}=\"{CssAttributeEscape(element.LocatorTemplate)}\"]"
+                : element.LocatorTemplate,
+            DynamicMemberName(element),
+            element.ParameterType,
+            DataType: element.DataType);
+
+    // Unlike PageElement.Name (already sanitized to a safe snake_case identifier at scan time -
+    // see PuppeteerPageDiscovery), DynamicElement.Name is free text typed directly into the UI
+    // form, so ToPascalCase's "split on _" assumption can't be trusted on it as-is (e.g. a space
+    // would produce an invalid identifier like "Row button"). AppendDynamicFactory (via this
+    // descriptor), AppendDynamicStep, and WorkspaceRepository's collision check (ValidateDynamicElements)
+    // must all derive the exact same member name from the same DynamicElement, so this is the
+    // single place that sanitizes it - internal rather than private for that reuse.
+    internal static string DynamicMemberName(DynamicElement element) =>
+        IdentifierNaming.Sanitize(element.Name, "dynamicElement");
+
     private static string GenerateWorkflowTest(
         ProjectManifest project,
         TestCase test,
@@ -305,6 +343,12 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
             return;
         }
 
+        if (step.DynamicElementId is not null)
+        {
+            AppendDynamicStep(sb, step, pages, pageClassNames);
+            return;
+        }
+
         if (step.PageId is null
             || step.ElementId is null
             || !pages.TryGetValue(step.PageId, out var page)
@@ -331,10 +375,10 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
                 break;
             case StepAction.Fill:
             case StepAction.PressKey:
-                sb.AppendLine($"        {pageVariable}.Fill{member}({value});");
-                break;
             case StepAction.Select:
-                sb.AppendLine($"        {pageVariable}.Select{member}({value});");
+                // Fill/Select elements are ElementWrapper<TData> properties, not Fill{Name}(value)/
+                // Select{Name}(value) methods - see PageObjectCodeGenerator's wrapped-element path.
+                sb.AppendLine($"        {pageVariable}.{member}.Upload({value});");
                 break;
             case StepAction.AssertText:
                 sb.AppendLine($"        Assert.That({pageVariable}.Get{member}Text(), Is.EqualTo({value}));");
@@ -343,6 +387,88 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
                 sb.AppendLine($"        Assert.That(_driver.FindElement({ByExpression(element, testIdAttribute)}).Displayed, Is.True);");
                 break;
         }
+    }
+
+    /// <summary>
+    /// Mirrors <see cref="AppendStep"/> for a step targeting a <see cref="DynamicElement"/> -
+    /// calls the same generated factory-method members (see
+    /// <c>PageObjectCodeGenerator.AppendDynamicFactory</c>), just with the step's stored
+    /// <see cref="TestStep.DynamicParameterValue"/> passed as the leading argument. Any problem
+    /// (missing reference, unparsable/missing parameter value, unsupported action) becomes an
+    /// <c>Assert.Fail(...)</c> in the generated test rather than aborting generation entirely,
+    /// matching how <see cref="AppendStep"/> already handles a bad static reference.
+    /// </summary>
+    private static void AppendDynamicStep(
+        StringBuilder sb,
+        TestStep step,
+        IReadOnlyDictionary<string, PageDefinition> pages,
+        IReadOnlyDictionary<string, string> pageClassNames)
+    {
+        if (step.PageId is null
+            || !pages.TryGetValue(step.PageId, out var page)
+            || !pageClassNames.TryGetValue(step.PageId, out var pageClassName))
+        {
+            sb.AppendLine($"        Assert.Fail({Literal($"Step '{step.Label}' has no valid page reference.")});");
+            return;
+        }
+
+        var dynamicElement = (page.DynamicElements ?? []).SingleOrDefault(item => item.Id == step.DynamicElementId);
+        if (dynamicElement is null)
+        {
+            sb.AppendLine($"        Assert.Fail({Literal($"Dynamic element '{step.DynamicElementId}' was not found.")});");
+            return;
+        }
+
+        if (!TryDynamicParameterLiteral(dynamicElement, step.DynamicParameterValue, out var paramLiteral))
+        {
+            sb.AppendLine($"        Assert.Fail({Literal($"Step '{step.Label}' has no valid parameter value for '{dynamicElement.Name}'.")});");
+            return;
+        }
+
+        var member = IdentifierNaming.ToPascalCase(DynamicMemberName(dynamicElement));
+        var pageVariable = Variable(pageClassName);
+        var value = ValueExpression(step.Value);
+        switch (step.Action)
+        {
+            case StepAction.Click:
+                sb.AppendLine($"        {pageVariable}.Click{member}({paramLiteral});");
+                break;
+            case StepAction.Fill:
+            case StepAction.PressKey:
+            case StepAction.Select:
+                sb.AppendLine($"        {pageVariable}.{member}({paramLiteral}).Upload({value});");
+                break;
+            case StepAction.AssertText:
+                sb.AppendLine($"        Assert.That({pageVariable}.Get{member}Text({paramLiteral}), Is.EqualTo({value}));");
+                break;
+            default:
+                sb.AppendLine($"        Assert.Fail({Literal($"Step '{step.Label}' uses an action dynamic elements do not support.")});");
+                break;
+        }
+    }
+
+    private static bool TryDynamicParameterLiteral(DynamicElement element, string? value, out string literal)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            literal = "";
+            return false;
+        }
+
+        if (element.ParameterType == "string")
+        {
+            literal = Literal(value);
+            return true;
+        }
+
+        if (!int.TryParse(value, out _))
+        {
+            literal = "";
+            return false;
+        }
+
+        literal = value;
+        return true;
     }
 
     private static string ByExpression(PageElement element, string testIdAttribute)

@@ -139,3 +139,7 @@ export const screenshotRequestSchema = z.object({
   runId: identifierSchema,
   fileName: z.string().min(1).max(300),
 })
+
+export const discoveryScreenshotRequestSchema = z.object({
+  fileName: z.string().min(1).max(300),
+})

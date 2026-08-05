@@ -33,14 +33,22 @@ public class PageObjectCodeGeneratorTests
         Assert.That(literal, Is.EqualTo("\"a\\u0007b\""));
     }
 
-    [TestCase(LocatorStrategy.Id, "username", "By.Id(\"username\")")]
-    [TestCase(LocatorStrategy.Name, "username", "By.Name(\"username\")")]
     [TestCase(LocatorStrategy.CssSelector, "div > a", "By.CssSelector(\"div > a\")")]
+    [TestCase(LocatorStrategy.XPath, "//a", "By.XPath(\"//a\")")]
     public void ByExpression_UsesNativeStrategyWhereAvailable(LocatorStrategy strategy, string locatorValue, string expected)
     {
         var element = new ElementDescriptor("input", ElementActionKind.Fill, strategy, locatorValue, "name");
 
         Assert.That(PageObjectCodeGenerator.ByExpression(element), Is.EqualTo(expected));
+    }
+
+    [TestCase(LocatorStrategy.Id)]
+    [TestCase(LocatorStrategy.Name)]
+    public void ByExpression_RejectsIdAndName_NeitherIsAStaticDiscoveryStrategy(LocatorStrategy strategy)
+    {
+        var element = new ElementDescriptor("input", ElementActionKind.Fill, strategy, "username", "name");
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => PageObjectCodeGenerator.ByExpression(element));
     }
 
     [Test]
@@ -89,14 +97,15 @@ public class PageObjectCodeGeneratorTests
     {
         var elements = new List<ElementDescriptor>
         {
-            new("input", ElementActionKind.Fill, LocatorStrategy.Id, "username", "username"),
+            new("input", ElementActionKind.Fill, LocatorStrategy.CssSelector, "username", "username"),
         };
 
         var code = PageObjectCodeGenerator.Generate("LoginPage", "Generated", elements, 10_000, []);
 
+        Assert.That(code, Does.Contain("private static readonly By UsernameLocator = By.CssSelector(\"username\");"));
         Assert.That(code, Does.Contain("public ElementWrapper<string> Username { get; }"));
         Assert.That(code, Does.Contain("Username = new ElementWrapper<string>("));
-        Assert.That(code, Does.Contain("d.FindElement(By.Id(\"username\"))"));
+        Assert.That(code, Does.Contain("d.FindElement(UsernameLocator)"));
         Assert.That(code, Does.Contain("element.Clear();"));
         Assert.That(code, Does.Contain("element.SendKeys(value);"));
         Assert.That(code, Does.Contain("return element.GetAttribute(\"value\") ?? \"\";"));
@@ -107,7 +116,7 @@ public class PageObjectCodeGeneratorTests
     {
         var elements = new List<ElementDescriptor>
         {
-            new("input", ElementActionKind.Fill, LocatorStrategy.Id, "age", "age", DataType: "int"),
+            new("input", ElementActionKind.Fill, LocatorStrategy.CssSelector, "age", "age", DataType: "int"),
         };
 
         var code = PageObjectCodeGenerator.Generate("Page", "Generated", elements, 10_000, []);
@@ -122,7 +131,7 @@ public class PageObjectCodeGeneratorTests
     {
         var elements = new List<ElementDescriptor>
         {
-            new("input", ElementActionKind.Fill, LocatorStrategy.Id, "dob", "dob", DataType: "DateTime"),
+            new("input", ElementActionKind.Fill, LocatorStrategy.CssSelector, "dob", "dob", DataType: "DateTime"),
         };
 
         var code = PageObjectCodeGenerator.Generate("Page", "Generated", elements, 10_000, []);
@@ -137,7 +146,7 @@ public class PageObjectCodeGeneratorTests
     {
         var elements = new List<ElementDescriptor>
         {
-            new("select", ElementActionKind.Select, LocatorStrategy.Id, "country", "country"),
+            new("select", ElementActionKind.Select, LocatorStrategy.CssSelector, "country", "country"),
         };
 
         var code = PageObjectCodeGenerator.Generate("Page", "Generated", elements, 10_000, []);
@@ -152,7 +161,7 @@ public class PageObjectCodeGeneratorTests
     {
         var elements = new List<ElementDescriptor>
         {
-            new("button", ElementActionKind.Click, LocatorStrategy.Id, "submit", "submit"),
+            new("button", ElementActionKind.Click, LocatorStrategy.CssSelector, "submit", "submit"),
         };
 
         var code = PageObjectCodeGenerator.Generate("Page", "Generated", elements, 10_000, []);
@@ -160,6 +169,29 @@ public class PageObjectCodeGeneratorTests
         Assert.That(code, Does.Contain("public void ClickSubmit()"));
         Assert.That(code, Does.Contain("public void HoverSubmit()"));
         Assert.That(code, Does.Contain("new Actions(_driver).MoveToElement(element).Perform();"));
+    }
+
+    [Test]
+    public void Generate_Click_LocatorIsAStaticFieldSharedByClickAndHover()
+    {
+        var elements = new List<ElementDescriptor>
+        {
+            new("button", ElementActionKind.Click, LocatorStrategy.CssSelector, "submit", "submit"),
+        };
+
+        var code = PageObjectCodeGenerator.Generate("Page", "Generated", elements, 10_000, []);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(code, Does.Contain("// Locator (css): submit"));
+            Assert.That(code, Does.Contain("private static readonly By SubmitLocator = By.CssSelector(\"submit\");"));
+            // Exactly one By.CssSelector("submit") anywhere in the file - the field - not one per method.
+            Assert.That(
+                CountOccurrences(code, "By.CssSelector(\"submit\")"),
+                Is.EqualTo(1),
+                "Click and Hover should both reference the static field, not rebuild the By themselves");
+            Assert.That(code, Does.Contain("d.FindElement(SubmitLocator)"));
+        });
     }
 
     [Test]
@@ -174,6 +206,19 @@ public class PageObjectCodeGeneratorTests
 
         Assert.That(code, Does.Contain("public void SelectSnack(string value)"));
         Assert.That(code, Does.Contain("\"input[name='snack'][value='\" + escapedValue + \"']\""));
+    }
+
+    [Test]
+    public void Generate_Radio_HasNoStaticLocatorField()
+    {
+        var elements = new List<ElementDescriptor>
+        {
+            new("input", ElementActionKind.Radio, LocatorStrategy.Name, "snack", "snack"),
+        };
+
+        var code = PageObjectCodeGenerator.Generate("Page", "Generated", elements, 10_000, []);
+
+        Assert.That(code, Does.Not.Contain("SnackLocator"));
     }
 
     [TestCase("snack", "snack")]
@@ -204,7 +249,7 @@ public class PageObjectCodeGeneratorTests
     {
         var elements = new List<ElementDescriptor>
         {
-            new("select", ElementActionKind.MultiSelect, LocatorStrategy.Id, "multi", "multi"),
+            new("select", ElementActionKind.MultiSelect, LocatorStrategy.CssSelector, "multi", "multi"),
         };
 
         var code = PageObjectCodeGenerator.Generate("Page", "Generated", elements, 10_000, []);
@@ -259,7 +304,7 @@ public class PageObjectCodeGeneratorTests
             """;
         var elements = new List<ElementDescriptor>
         {
-            new("input", ElementActionKind.Fill, LocatorStrategy.Id, "username", "username"),
+            new("input", ElementActionKind.Fill, LocatorStrategy.CssSelector, "username", "username"),
         };
 
         var code = PageObjectCodeGenerator.Generate("LoginPage", "Generated", elements, 10_000, [customMethod]);
@@ -301,5 +346,122 @@ public class PageObjectCodeGeneratorTests
             Assert.That(code, Does.Contain("public void Upload(TData value) => _upload(value);"));
             Assert.That(code, Does.Contain("public TData Read() => _read();"));
         });
+    }
+
+    [Test]
+    public void ToInterpolatedCSharpStringLiteral_KeepsThePlaceholderAsARealInterpolationHole()
+    {
+        var literal = PageObjectCodeGenerator.ToInterpolatedCSharpStringLiteral("//table/tbody/tr[{param}]/td[2]");
+
+        Assert.That(literal, Is.EqualTo("$\"//table/tbody/tr[{param}]/td[2]\""));
+    }
+
+    [Test]
+    public void ToInterpolatedCSharpStringLiteral_EscapesOtherBracesSoTheyAreNotMistakenForHoles()
+    {
+        var literal = PageObjectCodeGenerator.ToInterpolatedCSharpStringLiteral("//div[@style='{color:red}']//tr[{param}]");
+
+        Assert.That(literal, Is.EqualTo("$\"//div[@style='{{color:red}}']//tr[{param}]\""));
+    }
+
+    [Test]
+    public void ToInterpolatedCSharpStringLiteral_EscapesQuotesAndBackslashesLikeThePlainVariant()
+    {
+        var literal = PageObjectCodeGenerator.ToInterpolatedCSharpStringLiteral("//a[@title=\"x\\y\"]/tr[{param}]");
+
+        Assert.That(literal, Is.EqualTo("$\"//a[@title=\\\"x\\\\y\\\"]/tr[{param}]\""));
+    }
+
+    [Test]
+    public void Generate_DynamicClick_ProducesFactoryMethodsTakingAnIntParameter()
+    {
+        var dynamicElements = new List<DynamicElementDescriptor>
+        {
+            new(ElementActionKind.Click, LocatorStrategy.XPath, "//table/tbody/tr[{param}]/td[1]/button", "rowButton"),
+        };
+
+        var code = PageObjectCodeGenerator.Generate("Page", "Generated", [], 10_000, [], dynamicElements);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(code, Does.Contain("// Locator (xpath, template): //table/tbody/tr[{param}]/td[1]/button"));
+            Assert.That(code, Does.Contain("public void ClickRowButton(int param)"));
+            Assert.That(code, Does.Contain("public void HoverRowButton(int param)"));
+            Assert.That(code, Does.Contain("By.XPath($\"//table/tbody/tr[{param}]/td[1]/button\")"));
+        });
+    }
+
+    [Test]
+    public void InterpolatedByExpression_RejectsIdAndName_NeitherIsASupportedDynamicStrategy()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => PageObjectCodeGenerator.InterpolatedByExpression(
+                new DynamicElementDescriptor(ElementActionKind.Click, LocatorStrategy.Id, "row-{param}", "rowButton")));
+            Assert.Throws<ArgumentOutOfRangeException>(() => PageObjectCodeGenerator.InterpolatedByExpression(
+                new DynamicElementDescriptor(ElementActionKind.Click, LocatorStrategy.Name, "row-{param}", "rowButton")));
+        });
+    }
+
+    [Test]
+    public void Generate_DynamicFill_ProducesAFactoryMethodReturningAnElementWrapper()
+    {
+        var dynamicElements = new List<DynamicElementDescriptor>
+        {
+            new(ElementActionKind.Fill, LocatorStrategy.XPath, "//tr[{param}]/td[2]/input", "rowInput", DataType: "int"),
+        };
+
+        var code = PageObjectCodeGenerator.Generate("Page", "Generated", [], 10_000, [], dynamicElements);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(code, Does.Contain("public ElementWrapper<int> RowInput(int param) =>"));
+            Assert.That(code, Does.Contain("new ElementWrapper<int>("));
+            Assert.That(code, Does.Contain("element.SendKeys(value.ToString());"));
+            Assert.That(code, Does.Contain("return int.Parse(element.GetAttribute(\"value\")!);"));
+        });
+    }
+
+    [Test]
+    public void Generate_DynamicSelect_ProducesAFactoryMethodWithAStringParameter()
+    {
+        var dynamicElements = new List<DynamicElementDescriptor>
+        {
+            new(ElementActionKind.Select, LocatorStrategy.XPath, "//tr[@data-key='{param}']/td/select", "rowSelect", ParameterType: "string"),
+        };
+
+        var code = PageObjectCodeGenerator.Generate("Page", "Generated", [], 10_000, [], dynamicElements);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(code, Does.Contain("public ElementWrapper<string> RowSelect(string param) =>"));
+            Assert.That(code, Does.Contain("new SelectElement(element).SelectByValue(value);"));
+        });
+    }
+
+    [Test]
+    public void Generate_DynamicAssertText_ProducesAFactoryMethodReturningString()
+    {
+        var dynamicElements = new List<DynamicElementDescriptor>
+        {
+            new(ElementActionKind.Assert, LocatorStrategy.XPath, "//tr[{param}]/td[3]", "rowStatus"),
+        };
+
+        var code = PageObjectCodeGenerator.Generate("Page", "Generated", [], 10_000, [], dynamicElements);
+
+        Assert.That(code, Does.Contain("public string GetRowStatusText(int param)"));
+    }
+
+    private static int CountOccurrences(string text, string value)
+    {
+        var count = 0;
+        var index = 0;
+        while ((index = text.IndexOf(value, index, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            index += value.Length;
+        }
+
+        return count;
     }
 }

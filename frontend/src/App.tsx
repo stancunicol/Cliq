@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { CirclePlay, Code2, LoaderCircle, ScanSearch } from 'lucide-react'
+import { Camera, CirclePlay, Code2, LoaderCircle, ScanSearch } from 'lucide-react'
 import { BrowserPane } from './features/browser/BrowserPane'
 import { GenerationWarningBanner } from './features/generation/GenerationWarningBanner'
 import { RunResults } from './features/runs/RunResults'
+import { DynamicElementSuggestionsBanner } from './features/scanning/DynamicElementSuggestionsBanner'
 import { LocatorDiffBanner } from './features/scanning/LocatorDiffBanner'
 import { TestEditor } from './features/tests/TestEditor'
 import { Sidebar } from './features/workspace/Sidebar'
-import { workspaceService } from './services'
+import { screenshotService, workspaceService } from './services'
 import type {
   BrowserState,
   CustomMethodRecoveryWarning,
+  DynamicElement,
+  DynamicElementSuggestion,
   LocatorDiffReport,
   TestCase,
   TestRun,
@@ -37,6 +40,13 @@ export function App() {
   const [working, setWorking] = useState<string>()
   const [error, setError] = useState<string>()
   const [locatorDiff, setLocatorDiff] = useState<LocatorDiffReport>()
+  const [dynamicElementSuggestions, setDynamicElementSuggestions] = useState<DynamicElementSuggestion[]>([])
+  const [suggestionsPageId, setSuggestionsPageId] = useState<string>()
+  const [scanScreenshot, setScanScreenshot] = useState<string>()
+  const [scanScreenshotOpen, setScanScreenshotOpen] = useState(false)
+  const [scanScreenshotState, setScanScreenshotState] = useState<
+    { status: 'ready'; url: string } | { status: 'missing' } | { status: 'error'; message: string }
+  >()
   const [generationWarnings, setGenerationWarnings] = useState<CustomMethodRecoveryWarning[]>([])
   const [pageName, setPageName] = useState('')
   const snapshotRef = useRef<WorkspaceSnapshot | undefined>(undefined)
@@ -195,20 +205,98 @@ export function App() {
     }
   }
 
+  // Returns whether the save actually succeeded, rather than throwing, so a caller that only
+  // wants "fire and forget" (DynamicElementsPanel's onSaveDynamicElement) can ignore it, while one
+  // that needs to react to failure (acceptDynamicElementSuggestion, which should keep a rejected
+  // suggestion visible instead of discarding it) can check it.
+  async function saveDynamicElement(pageId: string, element: DynamicElement): Promise<boolean> {
+    const page = snapshotRef.current?.pages.find((candidate) => candidate.id === pageId)
+    if (!page) return false
+    try {
+      const existing = page.dynamicElements ?? []
+      const dynamicElements = existing.some((candidate) => candidate.id === element.id)
+        ? existing.map((candidate) => candidate.id === element.id ? element : candidate)
+        : [...existing, element]
+      const saved = await workspaceService.savePage({ ...page, dynamicElements })
+      updateSnapshot((current) => ({ ...current, pages: upsert(current.pages, saved) }))
+      return true
+    } catch (cause) {
+      setError(message(cause))
+      return false
+    }
+  }
+
+  async function deleteDynamicElement(pageId: string, elementId: string) {
+    const page = snapshotRef.current?.pages.find((candidate) => candidate.id === pageId)
+    if (!page) return
+    try {
+      const saved = await workspaceService.savePage({
+        ...page,
+        dynamicElements: (page.dynamicElements ?? []).filter((candidate) => candidate.id !== elementId),
+      })
+      updateSnapshot((current) => ({ ...current, pages: upsert(current.pages, saved) }))
+    } catch (cause) {
+      setError(message(cause))
+    }
+  }
+
   async function scanPage() {
     if (!snapshot || !url) return
     setWorking('Scanning...')
     setLocatorDiff(undefined)
+    setDynamicElementSuggestions([])
+    setScanScreenshot(undefined)
+    setScanScreenshotOpen(false)
+    setScanScreenshotState(undefined)
     try {
       const name = pageName.trim() || pageNameFor(url)
-      const { page, reconciliation, locatorDiff } = await workspaceService.scanPage(url, name, snapshot.project.defaultBrowser)
+      const { page, reconciliation, locatorDiff, dynamicElementSuggestions, screenshotPath } =
+        await workspaceService.scanPage(url, name, snapshot.project.defaultBrowser)
       updateSnapshot({ ...snapshot, pages: upsert(snapshot.pages, page) })
       setWorking(`Scanned: ${reconciliation.matchedCount} matched · ${reconciliation.newCount} new · ${reconciliation.missingCount} missing`)
       setTimeout(() => setWorking(undefined), 3000)
       setLocatorDiff(locatorDiff)
+      setDynamicElementSuggestions(dynamicElementSuggestions ?? [])
+      setSuggestionsPageId(page.id)
+      setScanScreenshot(screenshotPath)
     } catch (cause) {
       setError(message(cause))
       setWorking(undefined)
+    }
+  }
+
+  async function toggleScanScreenshot() {
+    if (scanScreenshotOpen) {
+      setScanScreenshotOpen(false)
+      return
+    }
+    setScanScreenshotOpen(true)
+    if (!scanScreenshotState && scanScreenshot) {
+      try {
+        const dataUrl = await screenshotService.getDiscovery(scanScreenshot)
+        setScanScreenshotState(dataUrl ? { status: 'ready', url: dataUrl } : { status: 'missing' })
+      } catch (cause) {
+        setScanScreenshotState({ status: 'error', message: message(cause) })
+      }
+    }
+  }
+
+  async function acceptDynamicElementSuggestion(suggestion: DynamicElementSuggestion) {
+    if (!suggestionsPageId) return
+    const saved = await saveDynamicElement(suggestionsPageId, {
+      id: crypto.randomUUID(),
+      name: suggestion.name,
+      action: suggestion.action,
+      strategy: suggestion.strategy,
+      locatorTemplate: suggestion.locatorTemplate,
+      parameterType: 'int',
+    })
+    // Only drop it from the list once it's actually persisted - e.g. a name collision with an
+    // existing element (WorkspaceRepository.ValidateDynamicElements) fails the save and shows an
+    // error, but the suggestion should stay offered rather than silently vanish with no way to
+    // retry it short of re-scanning.
+    if (saved) {
+      setDynamicElementSuggestions((current) => current.filter((item) => item !== suggestion))
     }
   }
 
@@ -315,8 +403,37 @@ export function App() {
         {error && <button className="error-banner" onClick={() => setError(undefined)}>{error}</button>}
         {working && <div className="working-banner">{working}</div>}
         {locatorDiff && <LocatorDiffBanner diff={locatorDiff} onDismiss={() => setLocatorDiff(undefined)} />}
+        <DynamicElementSuggestionsBanner
+          suggestions={dynamicElementSuggestions}
+          onAccept={(suggestion) => void acceptDynamicElementSuggestion(suggestion)}
+          onDismiss={() => setDynamicElementSuggestions([])}
+        />
+        {scanScreenshot && (
+          <button
+            className={`screenshot-toggle ${scanScreenshotOpen ? 'active' : ''}`}
+            onClick={() => void toggleScanScreenshot()}
+          ><Camera />Scan screenshot</button>
+        )}
+        {scanScreenshotOpen && (
+          <div className="screenshot-panel">
+            {!scanScreenshotState && <LoaderCircle className="spin" />}
+            {scanScreenshotState?.status === 'ready' && <img src={scanScreenshotState.url} alt="Scan screenshot" />}
+            {scanScreenshotState?.status === 'missing' && <span>Screenshot is no longer available.</span>}
+            {scanScreenshotState?.status === 'error' && (
+              <span className="screenshot-error">Couldn't load screenshot: {scanScreenshotState.message}</span>
+            )}
+          </div>
+        )}
         <GenerationWarningBanner warnings={generationWarnings} onDismiss={() => setGenerationWarnings([])} />
-        {active === 'tests' && <TestEditor test={selected} pages={snapshot.pages} onChange={saveTest} />}
+        {active === 'tests' && (
+          <TestEditor
+            test={selected}
+            pages={snapshot.pages}
+            onChange={saveTest}
+            onSaveDynamicElement={(pageId, element) => void saveDynamicElement(pageId, element)}
+            onDeleteDynamicElement={(pageId, elementId) => void deleteDynamicElement(pageId, elementId)}
+          />
+        )}
         {active === 'runs' && (
           <RunResults
             run={run}
