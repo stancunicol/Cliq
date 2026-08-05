@@ -395,27 +395,37 @@ function Test-VsixArchive {
             $binaryText = $binaryEncoding.GetString($bytes)
             $unicodeText = [Text.Encoding]::Unicode.GetString($bytes)
             if ($entry.FullName -match '(?i)\.pkgdef$' -and
-                $unicodeText -match '(?i),\s*Menus\.ctmenu,\s*4') {
+                $unicodeText -match '(?i),\s*Menus\.ctmenu,\s*1') {
                 $hasCommandTableRegistration = $true
             }
 
             if ($entry.FullName -match '(?i)(^|/)Cliq\.VisualStudio\.dll$') {
                 $assembly = [Reflection.Assembly]::Load([byte[]] $bytes)
-                $resourceStream = $assembly.GetManifestResourceStream('_EmptyResource.resources')
-                if ($null -ne $resourceStream) {
-                    $resourceReader = New-Object Resources.ResourceReader($resourceStream)
-                    try {
-                        $resourceEnumerator = $resourceReader.GetEnumerator()
-                        while ($resourceEnumerator.MoveNext()) {
-                            if ($resourceEnumerator.Key -ceq 'Menus.ctmenu') {
-                                $hasEmbeddedCommandTable = $true
-                                break
+                foreach ($resourceName in $assembly.GetManifestResourceNames()) {
+                    if (-not $resourceName.EndsWith('.resources', [StringComparison]::OrdinalIgnoreCase)) {
+                        continue
+                    }
+
+                    $resourceStream = $assembly.GetManifestResourceStream($resourceName)
+                    if ($null -ne $resourceStream) {
+                        $resourceReader = New-Object Resources.ResourceReader($resourceStream)
+                        try {
+                            $resourceEnumerator = $resourceReader.GetEnumerator()
+                            while ($resourceEnumerator.MoveNext()) {
+                                if ($resourceEnumerator.Key -ceq 'Menus.ctmenu') {
+                                    $hasEmbeddedCommandTable = $true
+                                    break
+                                }
                             }
                         }
+                        finally {
+                            $resourceReader.Dispose()
+                            $resourceStream.Dispose()
+                        }
                     }
-                    finally {
-                        $resourceReader.Dispose()
-                        $resourceStream.Dispose()
+
+                    if ($hasEmbeddedCommandTable) {
+                        break
                     }
                 }
             }

@@ -11,6 +11,15 @@ using Microsoft.VisualStudio.Threading;
 
 namespace Cliq.VisualStudio;
 
+internal enum WorkbenchSection
+{
+    TestEditor,
+    PageInspector,
+    Project,
+    Settings,
+    Secrets,
+}
+
 public partial class WorkbenchControl : UserControl
 {
     private readonly WorkbenchViewModel _viewModel;
@@ -70,7 +79,36 @@ public partial class WorkbenchControl : UserControl
     private void NewTest_Click(object sender, RoutedEventArgs e)
     {
         _viewModel.CreateTest();
-        MainTabs.SelectedIndex = 0;
+        SelectSection(WorkbenchSection.TestEditor);
+    }
+
+    internal void SelectSection(WorkbenchSection section)
+    {
+        MainTabs.SelectedIndex = (int)section;
+        if (section == WorkbenchSection.TestEditor)
+        {
+            NavigatorTabs.SelectedIndex = 0;
+        }
+        else if (section == WorkbenchSection.PageInspector)
+        {
+            NavigatorTabs.SelectedIndex = 1;
+        }
+    }
+
+    private void Tests_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_viewModel.SelectedTest != null)
+        {
+            SelectSection(WorkbenchSection.TestEditor);
+        }
+    }
+
+    private void Pages_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_viewModel.SelectedPage != null)
+        {
+            SelectSection(WorkbenchSection.PageInspector);
+        }
     }
 
     private void DeleteTest_Click(object sender, RoutedEventArgs e)
@@ -163,6 +201,18 @@ public partial class WorkbenchControl : UserControl
 
     private void DeleteSecret_Click(object sender, RoutedEventArgs e)
     {
+        if (_viewModel.SelectedSecret is not { } secret ||
+            MessageBox.Show(
+                Window.GetWindow(this),
+                $"Delete secret '{secret.Key}'? This cannot be undone.",
+                "Cliq",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning,
+                MessageBoxResult.No) != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
         RunOperation(async () => { await _viewModel.DeleteSelectedSecretAsync(); });
     }
 
@@ -198,14 +248,17 @@ public partial class WorkbenchControl : UserControl
         SetBrush("Cliq.Background", EnvironmentColors.ToolWindowBackgroundColorKey);
         SetBrush("Cliq.SidebarBackground", EnvironmentColors.CommandBarGradientBeginColorKey);
         SetBrush("Cliq.ToolbarBackground", EnvironmentColors.CommandBarGradientMiddleColorKey);
-        SetBrush("Cliq.InputBackground", EnvironmentColors.ComboBoxBackgroundColorKey);
+        SetBrush("Cliq.InputBackground", EnvironmentColors.ToolWindowBackgroundColorKey);
+        SetBrush("Cliq.ComboBackground", EnvironmentColors.ComboBoxBackgroundColorKey);
+        SetBrush("Cliq.ComboForeground", EnvironmentColors.ComboBoxTextColorKey);
         SetBrush("Cliq.Foreground", EnvironmentColors.ToolWindowTextColorKey);
         SetBrush("Cliq.MutedForeground", EnvironmentColors.ToolWindowTextColorKey, 0.72);
         SetBrush("Cliq.Border", EnvironmentColors.ToolWindowBorderColorKey);
         SetBrush("Cliq.ButtonBackground", EnvironmentColors.CommandBarGradientBeginColorKey);
         SetBrush("Cliq.Accent", EnvironmentColors.SystemHighlightColorKey);
+        SetBrush("Cliq.SelectedForeground", EnvironmentColors.SystemHighlightTextColorKey);
         SetBrush("Cliq.Warning", EnvironmentColors.SystemInfoTextColorKey);
-        SetBrush("Cliq.Error", EnvironmentColors.SystemHighlightColorKey);
+        SetBrush("Cliq.Error", EnvironmentColors.ToolWindowValidationErrorTextColorKey);
     }
 
     private void SetBrush(string resourceKey, ThemeResourceKey colorKey, double opacity = 1)

@@ -56,6 +56,9 @@ public partial class RunResultsControl : UserControl
     private void CloseScreenshot_Click(object sender, RoutedEventArgs e) =>
         _viewModel.CloseScreenshot();
 
+    private void StepsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
+        _viewModel.CloseScreenshot();
+
     private void ApplyTheme()
     {
         SetBrush("Cliq.Run.Background", EnvironmentColors.ToolWindowBackgroundColorKey);
@@ -64,7 +67,9 @@ public partial class RunResultsControl : UserControl
         SetBrush("Cliq.Run.MutedForeground", EnvironmentColors.ToolWindowTextColorKey, 0.72);
         SetBrush("Cliq.Run.Border", EnvironmentColors.ToolWindowBorderColorKey);
         SetBrush("Cliq.Run.ButtonBackground", EnvironmentColors.CommandBarGradientMiddleColorKey);
-        SetBrush("Cliq.Run.Error", EnvironmentColors.SystemHighlightColorKey);
+        SetBrush("Cliq.Run.Accent", EnvironmentColors.SystemHighlightColorKey);
+        SetBrush("Cliq.Run.SelectedForeground", EnvironmentColors.SystemHighlightTextColorKey);
+        SetBrush("Cliq.Run.Error", EnvironmentColors.ToolWindowValidationErrorTextColorKey);
     }
 
     private void SetBrush(string key, ThemeResourceKey colorKey, double opacity = 1)

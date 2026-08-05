@@ -81,8 +81,22 @@ public sealed class TestEditorViewModel : BindableBase
     public TestStepEditorViewModel? SelectedStep
     {
         get => _selectedStep;
-        set => SetProperty(ref _selectedStep, value);
+        set
+        {
+            if (SetProperty(ref _selectedStep, value))
+            {
+                RaiseStepCommandState();
+            }
+        }
     }
+
+    public bool HasSelectedStep => SelectedStep != null;
+
+    public bool CanMoveSelectedStepUp =>
+        SelectedStep != null && Steps.IndexOf(SelectedStep) > 0;
+
+    public bool CanMoveSelectedStepDown =>
+        SelectedStep != null && Steps.IndexOf(SelectedStep) < Steps.Count - 1;
 
     public bool IsDirty
     {
@@ -185,6 +199,7 @@ public sealed class TestEditorViewModel : BindableBase
         }
 
         Steps.Move(oldIndex, newIndex);
+        RaiseStepCommandState();
     }
 
     public TestCase ToModel()
@@ -263,6 +278,14 @@ public sealed class TestEditorViewModel : BindableBase
     {
         MarkDirty();
         OnPropertyChanged(nameof(ValidationSummary));
+        RaiseStepCommandState();
+    }
+
+    private void RaiseStepCommandState()
+    {
+        OnPropertyChanged(nameof(HasSelectedStep));
+        OnPropertyChanged(nameof(CanMoveSelectedStepUp));
+        OnPropertyChanged(nameof(CanMoveSelectedStepDown));
     }
 
     private void ReplaceSteps(IEnumerable<TestStep> steps)

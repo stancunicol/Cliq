@@ -57,8 +57,16 @@ public sealed class WorkbenchViewModel : BindableBase
     public SecretEntryViewModel? SelectedSecret
     {
         get => _selectedSecret;
-        set => SetProperty(ref _selectedSecret, value);
+        set
+        {
+            if (SetProperty(ref _selectedSecret, value))
+            {
+                OnPropertyChanged(nameof(HasSelectedSecret));
+            }
+        }
     }
+
+    public bool HasSelectedSecret => SelectedSecret != null;
 
     public string SearchText
     {
@@ -84,13 +92,46 @@ public sealed class WorkbenchViewModel : BindableBase
     public TestEditorViewModel? SelectedTest
     {
         get => _selectedTest;
-        set => SetProperty(ref _selectedTest, value);
+        set
+        {
+            if (!SetProperty(ref _selectedTest, value))
+            {
+                return;
+            }
+
+            if (value != null && _selectedPage != null)
+            {
+                _selectedPage = null;
+                OnPropertyChanged(nameof(SelectedPage));
+            }
+
+            OnPropertyChanged(nameof(HasSelectedTest));
+            OnPropertyChanged(nameof(CanSaveSelected));
+        }
     }
+
+    public bool HasSelectedTest => SelectedTest != null;
+
+    public bool CanSaveSelected => IsNotBusy && SelectedTest?.IsDirty == true;
 
     public PageInspectorViewModel? SelectedPage
     {
         get => _selectedPage;
-        set => SetProperty(ref _selectedPage, value);
+        set
+        {
+            if (!SetProperty(ref _selectedPage, value))
+            {
+                return;
+            }
+
+            if (value != null && _selectedTest != null)
+            {
+                _selectedTest = null;
+                OnPropertyChanged(nameof(SelectedTest));
+                OnPropertyChanged(nameof(HasSelectedTest));
+                OnPropertyChanged(nameof(CanSaveSelected));
+            }
+        }
     }
 
     public bool IsBusy
@@ -98,6 +139,10 @@ public sealed class WorkbenchViewModel : BindableBase
         get => _isBusy;
         private set => SetProperty(ref _isBusy, value);
     }
+
+    public bool IsNotBusy => !IsBusy;
+
+    public bool CanSaveAll => IsNotBusy && IsDirty;
 
     public bool IsDirty =>
         Tests.Any(test => test.IsDirty) ||
@@ -340,7 +385,7 @@ public sealed class WorkbenchViewModel : BindableBase
         }
 
         var normalizedKey = key?.Trim() ?? string.Empty;
-        if (!Regex.IsMatch(normalizedKey, @"^[A-Za-z_][A-Za-z0-9_.-]*$"))
+        if (!IsValidSecretKey(normalizedKey))
         {
             ErrorMessage = "Secret key must start with a letter or underscore and contain only letters, numbers, '.', '-' or '_'.";
             return false;
@@ -364,6 +409,9 @@ public sealed class WorkbenchViewModel : BindableBase
                 return true;
             });
     }
+
+    public static bool IsValidSecretKey(string? key) =>
+        Regex.IsMatch(key?.Trim() ?? string.Empty, @"^[A-Za-z_][A-Za-z0-9_.-]*$");
 
     public async Task<bool> DeleteSelectedSecretAsync(CancellationToken cancellationToken = default)
     {
@@ -444,8 +492,24 @@ public sealed class WorkbenchViewModel : BindableBase
             Tests.Add(CreateTestEditor(test));
         }
 
-        SelectedTest = Tests.FirstOrDefault(test => test.Id == selectedTestId) ?? Tests.FirstOrDefault();
-        SelectedPage = Pages.FirstOrDefault(page => page.Id == selectedPageId) ?? Pages.FirstOrDefault();
+        var previousPage = Pages.FirstOrDefault(page => page.Id == selectedPageId);
+        var previousTest = Tests.FirstOrDefault(test => test.Id == selectedTestId);
+        if (previousPage != null)
+        {
+            SelectedPage = previousPage;
+        }
+        else if (previousTest != null)
+        {
+            SelectedTest = previousTest;
+        }
+        else if (Tests.Count > 0)
+        {
+            SelectedTest = Tests[0];
+        }
+        else
+        {
+            SelectedPage = Pages.FirstOrDefault();
+        }
         RaiseCollectionState();
     }
 
@@ -464,6 +528,10 @@ public sealed class WorkbenchViewModel : BindableBase
     private void OnTestDirtyChanged(object? sender, EventArgs e)
     {
         RaiseDirtyState();
+        if (ReferenceEquals(sender, SelectedTest))
+        {
+            OnPropertyChanged(nameof(CanSaveSelected));
+        }
     }
 
     private void OnConfigurationDirtyChanged(object? sender, EventArgs e)
@@ -530,6 +598,7 @@ public sealed class WorkbenchViewModel : BindableBase
     {
         OnPropertyChanged(nameof(IsDirty));
         OnPropertyChanged(nameof(DirtySummary));
+        OnPropertyChanged(nameof(CanSaveAll));
     }
 
     private bool MatchesSearch(string value)
@@ -542,6 +611,9 @@ public sealed class WorkbenchViewModel : BindableBase
     {
         await _operationLock.WaitAsync();
         IsBusy = true;
+        OnPropertyChanged(nameof(IsNotBusy));
+        OnPropertyChanged(nameof(CanSaveSelected));
+        OnPropertyChanged(nameof(CanSaveAll));
         ErrorMessage = null;
         try
         {
@@ -560,6 +632,9 @@ public sealed class WorkbenchViewModel : BindableBase
         finally
         {
             IsBusy = false;
+            OnPropertyChanged(nameof(IsNotBusy));
+            OnPropertyChanged(nameof(CanSaveSelected));
+            OnPropertyChanged(nameof(CanSaveAll));
             _operationLock.Release();
         }
     }

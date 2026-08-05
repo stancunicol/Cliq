@@ -7,12 +7,13 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using Cliq.Domain;
 
 namespace Cliq.VisualStudio;
 
-internal sealed class ScanPageDialog : Window
+internal sealed class ScanPageDialog : CliqDialogWindow
 {
     private readonly TextBox _url;
     private readonly TextBox _name;
@@ -41,7 +42,6 @@ internal sealed class ScanPageDialog : Window
 
         _url = AddField(grid, 0, "_URL:", initialUrl ?? string.Empty);
         _name = AddField(grid, 1, "_Page name:", initialName ?? string.Empty);
-        AddLabel(grid, 2, "_Browser:");
         _browser = new ComboBox
         {
             ItemsSource = Enum.GetValues(typeof(BrowserKind)),
@@ -49,9 +49,11 @@ internal sealed class ScanPageDialog : Window
             Margin = new Thickness(8, 4, 0, 4),
             MinWidth = 180,
         };
+        AutomationProperties.SetName(_browser, "Browser");
         Grid.SetRow(_browser, 2);
         Grid.SetColumn(_browser, 1);
         grid.Children.Add(_browser);
+        AddLabel(grid, 2, "_Browser:", _browser);
 
         _headless = new CheckBox
         {
@@ -98,26 +100,29 @@ internal sealed class ScanPageDialog : Window
 
     private static TextBox AddField(Grid grid, int row, string label, string value)
     {
-        AddLabel(grid, row, label);
         var field = new TextBox
         {
             Text = value,
             Margin = new Thickness(8, 4, 0, 4),
             MinWidth = 350,
         };
+        AutomationProperties.SetName(
+            field,
+            label.Replace("_", string.Empty).TrimEnd(':'));
         Grid.SetRow(field, row);
         Grid.SetColumn(field, 1);
         grid.Children.Add(field);
+        AddLabel(grid, row, label, field);
         return field;
     }
 
-    private static void AddLabel(Grid grid, int row, string text)
+    private static void AddLabel(Grid grid, int row, string text, UIElement target)
     {
         var label = new Label
         {
             Content = text,
             VerticalAlignment = VerticalAlignment.Center,
-            Target = null,
+            Target = target,
         };
         Grid.SetRow(label, row);
         grid.Children.Add(label);
@@ -154,7 +159,7 @@ internal sealed class ScanPageDialog : Window
     }
 }
 
-internal sealed class GenerationResultDialog : Window
+internal sealed class GenerationResultDialog : CliqDialogWindow
 {
     private readonly ListBox _artifacts;
 
@@ -232,7 +237,7 @@ internal sealed class GenerationResultDialog : Window
     }
 }
 
-internal sealed class CliqProgressDialog : Window
+internal sealed class CliqProgressDialog : CliqDialogWindow
 {
     private readonly CancellationTokenSource _cancellation = new();
     private readonly Func<CancellationToken, Task> _operation;

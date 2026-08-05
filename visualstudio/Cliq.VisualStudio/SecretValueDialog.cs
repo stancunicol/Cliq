@@ -2,10 +2,11 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Media;
+using Cliq.VisualStudio.Core.Authoring;
 
 namespace Cliq.VisualStudio;
 
-internal sealed class SecretValueDialog : Window
+internal sealed class SecretValueDialog : CliqDialogWindow
 {
     private readonly TextBox _key;
     private readonly PasswordBox _value;
@@ -20,8 +21,6 @@ internal sealed class SecretValueDialog : Window
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ResizeMode = ResizeMode.NoResize;
         ShowInTaskbar = false;
-        Background = SystemColors.WindowBrush;
-        Foreground = SystemColors.WindowTextBrush;
 
         _key = new TextBox
         {
@@ -121,6 +120,19 @@ internal sealed class SecretValueDialog : Window
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
             _key.Focus();
+            return;
+        }
+
+        if (!WorkbenchViewModel.IsValidSecretKey(_key.Text))
+        {
+            MessageBox.Show(
+                this,
+                "Secret key must start with a letter or underscore and contain only letters, numbers, '.', '-' or '_'.",
+                "Cliq",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            _key.Focus();
+            _key.SelectAll();
             return;
         }
 

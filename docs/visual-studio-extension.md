@@ -61,6 +61,8 @@ Close all Visual Studio instances before installing or removing the preview.
 
 To install, double-click the generated `.vsix`, select the intended Visual Studio installation in VSIX Installer, and choose **Install**. Start Visual Studio and open **Extensions > Manage Extensions > Installed** to confirm that **Cliq for Visual Studio** is enabled.
 
+Open the extension commands from **Extensions > Cliq**. Visual Studio groups extension-owned top-level menus beneath **Extensions**, so **Open Workbench**, scan, generation, run, recording, and settings commands are found there. Toolbar and context-menu commands appear when a compatible Cliq workspace is active.
+
 To uninstall, close Visual Studio, open **Visual Studio Installer > More > Modify > Installed extensions** or launch **Extensions > Manage Extensions** from Visual Studio, select **Cliq for Visual Studio**, and choose **Uninstall**. Complete the removal after Visual Studio closes.
 
 Because the preview is unsigned, Windows or organizational security policy may require explicit approval. Production distribution, Marketplace publication, and signing are not part of this preview.
@@ -78,7 +80,7 @@ If the experimental instance needs to be reset, close it and run the Visual Stud
 
 ## Preview acceptance checklist
 
-- The top-level **Cliq** menu, toolbar, and scoped context commands appear only in their intended contexts.
+- **Extensions > Cliq**, the toolbar, and scoped context commands appear only in their intended contexts.
 - Solution and open-folder workspaces bind correctly, including an explicit project/folder override.
 - Cliq Workbench opens, follows light/dark themes, supports keyboard navigation and DPI scaling, and prompts for dirty edits.
 - Tests, pages, settings, and masked secrets can be edited and explicitly saved.

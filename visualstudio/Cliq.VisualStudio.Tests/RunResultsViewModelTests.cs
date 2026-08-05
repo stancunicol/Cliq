@@ -69,6 +69,8 @@ public sealed class RunResultsViewModelTests
             10,
             ScreenshotPath: "failure.png"));
 
+        Assert.That(step.HasScreenshotPath, Is.True);
+
         await viewModel.LoadScreenshotAsync(step);
         Assert.That(viewModel.Screenshot, Is.EqualTo(new byte[] { 1, 2, 3 }));
         Assert.That(viewModel.HasScreenshot, Is.True);

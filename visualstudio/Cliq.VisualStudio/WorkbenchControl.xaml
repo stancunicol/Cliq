@@ -3,8 +3,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:domain="clr-namespace:Cliq.Domain;assembly=Cliq.Domain"
              xmlns:local="clr-namespace:Cliq.VisualStudio"
-             MinWidth="720"
-             MinHeight="420"
+             MinWidth="360"
+             MinHeight="280"
              KeyboardNavigation.TabNavigation="Continue"
              AutomationProperties.Name="Cliq Workbench">
     <UserControl.Resources>
@@ -28,10 +28,25 @@
             <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
         <Style TargetType="ComboBox">
-            <Setter Property="Background" Value="{DynamicResource Cliq.InputBackground}" />
-            <Setter Property="Foreground" Value="{DynamicResource Cliq.Foreground}" />
+            <Setter Property="Background" Value="{DynamicResource Cliq.ComboBackground}" />
+            <Setter Property="Foreground" Value="{DynamicResource Cliq.ComboForeground}" />
             <Setter Property="BorderBrush" Value="{DynamicResource Cliq.Border}" />
             <Setter Property="Padding" Value="5,3" />
+            <Setter Property="Template" Value="{local:CliqComboBoxTemplate}" />
+        </Style>
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="Background" Value="{DynamicResource Cliq.InputBackground}" />
+            <Setter Property="Foreground" Value="{DynamicResource Cliq.ComboForeground}" />
+            <Style.Triggers>
+                <Trigger Property="IsHighlighted" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource Cliq.Accent}" />
+                    <Setter Property="Foreground" Value="{DynamicResource Cliq.SelectedForeground}" />
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource Cliq.Accent}" />
+                    <Setter Property="Foreground" Value="{DynamicResource Cliq.SelectedForeground}" />
+                </Trigger>
+            </Style.Triggers>
         </Style>
         <Style TargetType="Button">
             <Setter Property="Background" Value="{DynamicResource Cliq.ButtonBackground}" />
@@ -45,6 +60,79 @@
             <Setter Property="Background" Value="{DynamicResource Cliq.SidebarBackground}" />
             <Setter Property="Foreground" Value="{DynamicResource Cliq.Foreground}" />
             <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style TargetType="ListBoxItem">
+            <Setter Property="Foreground" Value="{DynamicResource Cliq.Foreground}" />
+            <Setter Property="Padding" Value="5,3" />
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource Cliq.Accent}" />
+                    <Setter Property="Foreground" Value="{DynamicResource Cliq.SelectedForeground}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style TargetType="TabItem">
+            <Setter Property="Background" Value="{DynamicResource Cliq.SidebarBackground}" />
+            <Setter Property="Foreground" Value="{DynamicResource Cliq.Foreground}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Cliq.Border}" />
+            <Setter Property="Padding" Value="9,5" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="TabBorder"
+                                Padding="{TemplateBinding Padding}"
+                                Margin="0,0,1,0"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="1">
+                            <ContentPresenter ContentSource="Header"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="TabBorder" Property="Background" Value="{DynamicResource Cliq.Background}" />
+                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="{DynamicResource Cliq.Accent}" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="{DynamicResource Cliq.Accent}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.55" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource Cliq.Background}" />
+                    <Setter Property="Foreground" Value="{DynamicResource Cliq.Foreground}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="{DynamicResource Cliq.ToolbarBackground}" />
+            <Setter Property="Foreground" Value="{DynamicResource Cliq.Foreground}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Cliq.Border}" />
+        </Style>
+        <Style TargetType="DataGridRow">
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource Cliq.Accent}" />
+                    <Setter Property="Foreground" Value="{DynamicResource Cliq.SelectedForeground}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style TargetType="DataGridCell">
+            <Setter Property="Foreground" Value="{DynamicResource Cliq.Foreground}" />
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource Cliq.Accent}" />
+                    <Setter Property="Foreground" Value="{DynamicResource Cliq.SelectedForeground}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource Cliq.Accent}" />
+                </Trigger>
+            </Style.Triggers>
         </Style>
         <Style TargetType="DataGrid">
             <Setter Property="Background" Value="{DynamicResource Cliq.Background}" />
@@ -84,14 +172,17 @@
                     <Button Content="Save"
                             ToolTip="Save the selected test (Ctrl+S)"
                             AutomationProperties.Name="Save selected test"
+                            IsEnabled="{Binding CanSaveSelected}"
                             Click="SaveSelected_Click" />
                     <Button Content="Save All"
                             ToolTip="Save every modified test (Ctrl+Shift+S)"
                             AutomationProperties.Name="Save all tests"
+                            IsEnabled="{Binding CanSaveAll}"
                             Click="SaveAll_Click" />
                     <Button Content="Reload"
                             ToolTip="Reload the workspace from disk"
                             AutomationProperties.Name="Reload workspace"
+                            IsEnabled="{Binding IsNotBusy}"
                             Click="Reload_Click" />
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -103,13 +194,19 @@
                     <TextBlock Text="{Binding DirtySummary}"
                                VerticalAlignment="Center"
                                Foreground="{DynamicResource Cliq.MutedForeground}" />
+                    <ProgressBar Width="70"
+                                 Height="4"
+                                 Margin="12,0,0,0"
+                                 IsIndeterminate="True"
+                                 Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}"
+                                 AutomationProperties.Name="Cliq operation in progress" />
                 </StackPanel>
             </DockPanel>
         </Border>
 
-        <Grid Grid.Row="1">
+        <Grid Grid.Row="1" IsEnabled="{Binding IsNotBusy}">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="230" MinWidth="180" />
+                <ColumnDefinition Width="210" MinWidth="150" />
                 <ColumnDefinition Width="5" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
@@ -130,6 +227,7 @@
                              ToolTip="Search tests and pages"
                              VerticalContentAlignment="Center" />
                     <TabControl Grid.Row="1"
+                                x:Name="NavigatorTabs"
                                 Background="{DynamicResource Cliq.SidebarBackground}"
                                 BorderBrush="{DynamicResource Cliq.Border}">
                         <TabItem Header="Tests">
@@ -140,13 +238,22 @@
                                 </Grid.RowDefinitions>
                                 <ListBox ItemsSource="{Binding FilteredTests}"
                                          SelectedItem="{Binding SelectedTest}"
+                                         SelectionChanged="Tests_SelectionChanged"
                                          DisplayMemberPath="DisplayName"
-                                         AutomationProperties.Name="Cliq tests" />
+                                         AutomationProperties.Name="Cliq tests">
+                                    <ListBox.ItemContainerStyle>
+                                        <Style TargetType="ListBoxItem"
+                                               BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                                            <Setter Property="AutomationProperties.Name" Value="{Binding DisplayName}" />
+                                        </Style>
+                                    </ListBox.ItemContainerStyle>
+                                </ListBox>
                                 <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,8,0,0">
                                     <Button Content="+ New"
                                             Click="NewTest_Click"
                                             AutomationProperties.Name="Create test" />
                                     <Button Content="Delete"
+                                            IsEnabled="{Binding HasSelectedTest}"
                                             Click="DeleteTest_Click"
                                             AutomationProperties.Name="Delete selected test" />
                                 </StackPanel>
@@ -155,8 +262,16 @@
                         <TabItem Header="Pages">
                             <ListBox ItemsSource="{Binding FilteredPages}"
                                      SelectedItem="{Binding SelectedPage}"
+                                     SelectionChanged="Pages_SelectionChanged"
                                      DisplayMemberPath="Name"
-                                     AutomationProperties.Name="Cliq pages" />
+                                     AutomationProperties.Name="Cliq pages">
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem"
+                                           BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                                        <Setter Property="AutomationProperties.Name" Value="{Binding Name}" />
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
+                            </ListBox>
                         </TabItem>
                     </TabControl>
                 </Grid>
@@ -182,9 +297,9 @@
                                    Foreground="{DynamicResource Cliq.MutedForeground}"
                                    Visibility="{Binding SelectedTest, Converter={StaticResource InverseNullToVisibility}}" />
                         <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                      HorizontalScrollBarVisibility="Disabled"
+                                      HorizontalScrollBarVisibility="Auto"
                                       Visibility="{Binding SelectedTest, Converter={StaticResource NullToVisibility}}">
-                            <Grid Margin="14" DataContext="{Binding SelectedTest}">
+                            <Grid Margin="14" MinWidth="620" DataContext="{Binding SelectedTest}">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
@@ -224,10 +339,10 @@
                                     <TextBlock Text="Steps" Style="{StaticResource SectionHeading}" />
                                     <StackPanel Grid.Column="1" Orientation="Horizontal">
                                         <Button Content="+ Add" Click="AddStep_Click" AutomationProperties.Name="Add step" />
-                                        <Button Content="↑" Click="MoveStepUp_Click" AutomationProperties.Name="Move step up" />
-                                        <Button Content="↓" Click="MoveStepDown_Click" AutomationProperties.Name="Move step down" />
-                                        <Button Content="Duplicate" Click="DuplicateStep_Click" AutomationProperties.Name="Duplicate step" />
-                                        <Button Content="Delete" Click="DeleteStep_Click" AutomationProperties.Name="Delete step" />
+                                        <Button Content="↑" IsEnabled="{Binding CanMoveSelectedStepUp}" Click="MoveStepUp_Click" AutomationProperties.Name="Move step up" />
+                                        <Button Content="↓" IsEnabled="{Binding CanMoveSelectedStepDown}" Click="MoveStepDown_Click" AutomationProperties.Name="Move step down" />
+                                        <Button Content="Duplicate" IsEnabled="{Binding HasSelectedStep}" Click="DuplicateStep_Click" AutomationProperties.Name="Duplicate step" />
+                                        <Button Content="Delete" IsEnabled="{Binding HasSelectedStep}" Click="DeleteStep_Click" AutomationProperties.Name="Delete step" />
                                     </StackPanel>
                                 </Grid>
 
@@ -238,13 +353,14 @@
                                           CanUserAddRows="False"
                                           IsReadOnly="True"
                                           MinHeight="150"
+                                          MaxHeight="340"
                                           AlternationCount="2"
                                           AutomationProperties.Name="Test steps">
                                     <DataGrid.Columns>
                                         <DataGridCheckBoxColumn Header="On" Binding="{Binding Enabled}" Width="42" />
-                                        <DataGridTextColumn Header="Action" Binding="{Binding Action}" Width="105" />
-                                        <DataGridTextColumn Header="Label" Binding="{Binding Label}" Width="*" />
-                                        <DataGridTextColumn Header="Target" Binding="{Binding LocatorDisplay}" Width="2*" />
+                                        <DataGridTextColumn Header="Action" Binding="{Binding Action}" Width="120" />
+                                        <DataGridTextColumn Header="Label" Binding="{Binding Label}" Width="220" />
+                                        <DataGridTextColumn Header="Target" Binding="{Binding LocatorDisplay}" Width="360" />
                                     </DataGrid.Columns>
                                 </DataGrid>
 
@@ -415,8 +531,9 @@
                 </TabItem>
 
                 <TabItem Header="Project">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
                         <Grid Margin="18"
+                              MinWidth="620"
                               MaxWidth="850"
                               HorizontalAlignment="Left"
                               DataContext="{Binding Project}">
@@ -431,6 +548,7 @@
                             <DockPanel>
                                 <Button DockPanel.Dock="Right"
                                         Content="Save project"
+                                        IsEnabled="{Binding IsDirty}"
                                         Click="SaveProject_Click"
                                         AutomationProperties.Name="Save project settings" />
                                 <StackPanel>
@@ -514,14 +632,16 @@
                 </TabItem>
 
                 <TabItem Header="Cliq settings">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
                         <StackPanel Margin="18"
+                                    MinWidth="470"
                                     MaxWidth="850"
                                     HorizontalAlignment="Left"
                                     DataContext="{Binding Settings}">
                             <DockPanel>
                                 <Button DockPanel.Dock="Right"
                                         Content="Save settings"
+                                        IsEnabled="{Binding IsDirty}"
                                         Click="SaveSettings_Click"
                                         AutomationProperties.Name="Save Cliq settings" />
                                 <StackPanel>
@@ -646,9 +766,11 @@
                                         Click="AddSecret_Click"
                                         AutomationProperties.Name="Add secret" />
                                 <Button Content="Update value"
+                                        IsEnabled="{Binding HasSelectedSecret}"
                                         Click="UpdateSecret_Click"
                                         AutomationProperties.Name="Update selected secret" />
                                 <Button Content="Delete"
+                                        IsEnabled="{Binding HasSelectedSecret}"
                                         Click="DeleteSecret_Click"
                                         AutomationProperties.Name="Delete selected secret" />
                             </StackPanel>

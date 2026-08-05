@@ -26,10 +26,10 @@ namespace Cliq.VisualStudio;
     "Cliq for Visual Studio",
     "Integrates Cliq UI test automation into Visual Studio.",
     "0.1.0")]
-[ProvideMenuResource("Menus.ctmenu", 4)]
+[ProvideMenuResource("Menus.ctmenu", 1)]
 [ProvideToolWindow(typeof(CliqWorkbenchToolWindow))]
 [ProvideToolWindow(typeof(CliqRunResultsToolWindow))]
-[ProvideOptionPage(typeof(CliqOptionsPage), "Cliq", "General", 0, 0, true)]
+[ProvideOptionPage(typeof(CliqOptionsPage), "Cliq", "General", 110, 111, true)]
 [Guid(PackageGuidString)]
 public sealed class CliqPackage : AsyncPackage, ICliqShellCommandTarget
 {
@@ -147,13 +147,17 @@ public sealed class CliqPackage : AsyncPackage, ICliqShellCommandTarget
         _logger?.Write($"Cliq workspace bound to {nextRoot}.");
     }
 
-    internal async Task OpenWorkbenchAsync()
+    internal async Task OpenWorkbenchAsync(WorkbenchSection? section = null)
     {
-        await ShowToolWindowAsync(
+        var window = await ShowToolWindowAsync(
             typeof(CliqWorkbenchToolWindow),
             0,
             create: true,
             DisposalToken);
+        if (section is not null && window?.Content is WorkbenchControl control)
+        {
+            control.SelectSection(section.Value);
+        }
     }
 
     internal async Task RefreshWorkspaceAsync()
@@ -429,8 +433,10 @@ public sealed class CliqPackage : AsyncPackage, ICliqShellCommandTarget
             switch (command)
             {
                 case CliqShellCommand.OpenWorkbench:
-                case CliqShellCommand.Settings:
                     await OpenWorkbenchAsync();
+                    break;
+                case CliqShellCommand.Settings:
+                    await OpenWorkbenchAsync(WorkbenchSection.Settings);
                     break;
                 case CliqShellCommand.ScanPage:
                 case CliqShellCommand.ScanSelectedUrl:

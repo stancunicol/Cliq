@@ -27,6 +27,31 @@ public sealed class WorkbenchAuthoringTests
     }
 
     [Test]
+    public async Task SelectingTestsAndPagesIsMutuallyExclusive()
+    {
+        var viewModel = new WorkbenchViewModel(new RecordingWorkbenchStore(CreateSnapshot()));
+        await viewModel.InitializeAsync();
+
+        Assert.That(viewModel.SelectedTest, Is.Not.Null);
+        Assert.That(viewModel.SelectedPage, Is.Null);
+
+        viewModel.SelectedPage = viewModel.Pages[0];
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.SelectedPage, Is.SameAs(viewModel.Pages[0]));
+            Assert.That(viewModel.SelectedTest, Is.Null);
+            Assert.That(viewModel.HasSelectedTest, Is.False);
+        });
+
+        viewModel.SelectedTest = viewModel.Tests[1];
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.SelectedTest, Is.SameAs(viewModel.Tests[1]));
+            Assert.That(viewModel.SelectedPage, Is.Null);
+        });
+    }
+
+    [Test]
     public async Task CreateEditSaveAndDeleteNewTestTracksDirtyState()
     {
         var store = new RecordingWorkbenchStore(CreateSnapshot());
@@ -112,6 +137,38 @@ public sealed class WorkbenchAuthoringTests
 
         editor.DeleteSelectedStep();
         Assert.That(editor.Steps, Has.Count.EqualTo(2));
+    }
+
+    [Test]
+    public void StepCommandStateTracksSelectionAndPosition()
+    {
+        var snapshot = CreateSnapshot();
+        var editor = new TestEditorViewModel(snapshot.Tests[0], () => snapshot.Pages);
+
+        editor.SelectedStep = editor.Steps[0];
+        Assert.Multiple(() =>
+        {
+            Assert.That(editor.HasSelectedStep, Is.True);
+            Assert.That(editor.CanMoveSelectedStepUp, Is.False);
+            Assert.That(editor.CanMoveSelectedStepDown, Is.True);
+        });
+
+        editor.SelectedStep = editor.Steps[1];
+        Assert.Multiple(() =>
+        {
+            Assert.That(editor.CanMoveSelectedStepUp, Is.True);
+            Assert.That(editor.CanMoveSelectedStepDown, Is.False);
+        });
+    }
+
+    [TestCase("api_token", true)]
+    [TestCase("API.token-2", true)]
+    [TestCase("2fa-token", false)]
+    [TestCase("contains space", false)]
+    [TestCase("", false)]
+    public void SecretKeyValidationMatchesEditorRules(string key, bool expected)
+    {
+        Assert.That(WorkbenchViewModel.IsValidSecretKey(key), Is.EqualTo(expected));
     }
 
     [Test]
