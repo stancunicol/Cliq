@@ -25,7 +25,7 @@ public sealed class WorkspaceCodeGenerationTests
     }
 
     [Test]
-    public async Task GenerateAsync_CreatesPageObjectWorkflowAndPreservesCustomFile()
+    public async Task GenerateAsync_CreatesPageObjectWorkflowAndAttributeFile()
     {
         using var repository = new WorkspaceRepository();
         var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
@@ -63,15 +63,7 @@ public sealed class WorkspaceCodeGenerationTests
             DateTimeOffset.UtcNow);
         var generator = new WorkspaceCodeGeneration(repository);
 
-        var first = await generator.GenerateAsync(
-            snapshot.Project,
-            [page],
-            [test],
-            _root,
-            CancellationToken.None);
-        var custom = first.Artifacts.Single(item => item.Kind == "custom");
-        await File.WriteAllTextAsync(custom.Path, "// developer code");
-        var second = await generator.GenerateAsync(
+        var result = await generator.GenerateAsync(
             snapshot.Project,
             [page],
             [test],
@@ -80,11 +72,203 @@ public sealed class WorkspaceCodeGenerationTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(File.ReadAllText(custom.Path), Is.EqualTo("// developer code"));
-            Assert.That(second.Artifacts.Single(item => item.Kind == "custom").Created, Is.False);
             Assert.That(
-                File.ReadAllText(second.Artifacts.Single(item => item.Kind == "test").Path),
+                File.ReadAllText(result.Artifacts.Single(item => item.Kind == "attribute").Path),
+                Does.Contain("class CliqCustomMethodAttribute : Attribute"));
+            Assert.That(
+                File.ReadAllText(result.Artifacts.Single(item => item.Kind == "pageObject").Path),
+                Does.Contain("public sealed class LoginPage"));
+            Assert.That(
+                File.ReadAllText(result.Artifacts.Single(item => item.Kind == "test").Path),
                 Does.Contain("RequiredSecret(\"USERNAME\")"));
+        });
+    }
+
+    [Test]
+    public async Task GenerateAsync_PreservesMethodsMarkedAsCustomAcrossRegeneration()
+    {
+        using var repository = new WorkspaceRepository();
+        var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
+        var page = new PageDefinition(
+            PageDefinition.CurrentSchemaVersion,
+            "login",
+            "Login",
+            "https://example.com/login",
+            [
+                new PageElement(
+                    "username",
+                    "username",
+                    "input",
+                    StepAction.Fill,
+                    new Locator(LocatorStrategy.TestId, "username")),
+            ],
+            DateTimeOffset.UtcNow);
+        var generator = new WorkspaceCodeGeneration(repository);
+
+        var first = await generator.GenerateAsync(snapshot.Project, [page], [], _root, CancellationToken.None);
+        var pageObjectPath = first.Artifacts.Single(item => item.Kind == "pageObject").Path;
+        var generated = await File.ReadAllTextAsync(pageObjectPath);
+        const string handWrittenMethod = """
+                [CliqCustomMethod]
+                public void WaitForSpinnerToClear()
+                {
+                    _wait.Until(d => !d.FindElements(By.CssSelector(".spinner")).Any());
+                }
+
+            """;
+        // Insert just before the class's own closing brace (the last one in the file).
+        var classCloseIndex = generated.LastIndexOf('}');
+        var withHandWrittenMethod = generated[..classCloseIndex] + handWrittenMethod + generated[classCloseIndex..];
+
+        await File.WriteAllTextAsync(pageObjectPath, withHandWrittenMethod);
+
+        var second = await generator.GenerateAsync(snapshot.Project, [page], [], _root, CancellationToken.None);
+        var regenerated = await File.ReadAllTextAsync(
+            second.Artifacts.Single(item => item.Kind == "pageObject").Path);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(regenerated, Does.Contain("[CliqCustomMethod]"));
+            Assert.That(regenerated, Does.Contain("public void WaitForSpinnerToClear()"));
+            Assert.That(regenerated, Does.Contain("Username = new ElementWrapper<string>("));
+            Assert.That(second.Warnings, Is.Empty);
+        });
+    }
+
+    [Test]
+    public async Task GenerateAsync_MarkerCountExceedsRecoveredMethods_BacksUpFileAndReturnsWarning()
+    {
+        using var repository = new WorkspaceRepository();
+        var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
+        var page = new PageDefinition(
+            PageDefinition.CurrentSchemaVersion,
+            "login",
+            "Login",
+            "https://example.com/login",
+            [
+                new PageElement(
+                    "username",
+                    "username",
+                    "input",
+                    StepAction.Fill,
+                    new Locator(LocatorStrategy.TestId, "username")),
+            ],
+            DateTimeOffset.UtcNow);
+        var generator = new WorkspaceCodeGeneration(repository);
+
+        var first = await generator.GenerateAsync(snapshot.Project, [page], [], _root, CancellationToken.None);
+        var pageObjectPath = first.Artifacts.Single(item => item.Kind == "pageObject").Path;
+        var generated = await File.ReadAllTextAsync(pageObjectPath);
+
+        // A stray mention of the marker text inside a comment is not a real attribute application -
+        // CustomMethodExtractor.Extract correctly skips it, but the naive marker-count cross-check
+        // does not, so this deliberately produces a mismatch to exercise the warning path.
+        var withStrayMention = generated.Replace(
+            "public sealed class LoginPage",
+            "// TODO: remove [CliqCustomMethod] before merging\npublic sealed class LoginPage");
+        await File.WriteAllTextAsync(pageObjectPath, withStrayMention);
+
+        var second = await generator.GenerateAsync(snapshot.Project, [page], [], _root, CancellationToken.None);
+
+        Assert.That(second.Warnings, Has.Count.EqualTo(1));
+        var warning = second.Warnings[0];
+        Assert.Multiple(() =>
+        {
+            Assert.That(warning.PageObjectName, Is.EqualTo("LoginPage"));
+            Assert.That(warning.ExpectedCount, Is.EqualTo(1));
+            Assert.That(warning.RecoveredCount, Is.Zero);
+            Assert.That(File.Exists(warning.Path), Is.True);
+            Assert.That(File.ReadAllText(warning.Path), Is.EqualTo(withStrayMention));
+        });
+    }
+
+    [Test]
+    public async Task GenerateAsync_RenamedPage_DeletesStaleFileWhenItHasNoCustomMethods()
+    {
+        using var repository = new WorkspaceRepository();
+        var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
+        var page = new PageDefinition(
+            PageDefinition.CurrentSchemaVersion,
+            "login",
+            "Login",
+            "https://example.com/login",
+            [
+                new PageElement(
+                    "username",
+                    "username",
+                    "input",
+                    StepAction.Fill,
+                    new Locator(LocatorStrategy.TestId, "username")),
+            ],
+            DateTimeOffset.UtcNow);
+        var generator = new WorkspaceCodeGeneration(repository);
+
+        var first = await generator.GenerateAsync(snapshot.Project, [page], [], _root, CancellationToken.None);
+        var oldPath = first.Artifacts.Single(item => item.Kind == "pageObject").Path;
+
+        var renamed = page with { Name = "Sign In" };
+        var second = await generator.GenerateAsync(snapshot.Project, [renamed], [], _root, CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(second.Warnings, Is.Empty);
+            Assert.That(File.Exists(oldPath), Is.False);
+            Assert.That(
+                File.Exists(second.Artifacts.Single(item => item.Kind == "pageObject").Path), Is.True);
+        });
+    }
+
+    [Test]
+    public async Task GenerateAsync_RenamedPage_KeepsStaleFileAndWarnsWhenItHasCustomMethods()
+    {
+        using var repository = new WorkspaceRepository();
+        var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
+        var page = new PageDefinition(
+            PageDefinition.CurrentSchemaVersion,
+            "login",
+            "Login",
+            "https://example.com/login",
+            [
+                new PageElement(
+                    "username",
+                    "username",
+                    "input",
+                    StepAction.Fill,
+                    new Locator(LocatorStrategy.TestId, "username")),
+            ],
+            DateTimeOffset.UtcNow);
+        var generator = new WorkspaceCodeGeneration(repository);
+
+        var first = await generator.GenerateAsync(snapshot.Project, [page], [], _root, CancellationToken.None);
+        var oldPath = first.Artifacts.Single(item => item.Kind == "pageObject").Path;
+        var generated = await File.ReadAllTextAsync(oldPath);
+        const string handWrittenMethod = """
+                [CliqCustomMethod]
+                public void WaitForSpinnerToClear()
+                {
+                    _wait.Until(d => !d.FindElements(By.CssSelector(".spinner")).Any());
+                }
+
+            """;
+        var classCloseIndex = generated.LastIndexOf('}');
+        var withHandWrittenMethod = generated[..classCloseIndex] + handWrittenMethod + generated[classCloseIndex..];
+        await File.WriteAllTextAsync(oldPath, withHandWrittenMethod);
+
+        var renamed = page with { Name = "Sign In" };
+        var second = await generator.GenerateAsync(snapshot.Project, [renamed], [], _root, CancellationToken.None);
+
+        Assert.That(second.Warnings, Has.Count.EqualTo(1));
+        var warning = second.Warnings[0];
+        Assert.Multiple(() =>
+        {
+            Assert.That(warning.PageObjectName, Is.EqualTo("LoginPage"));
+            Assert.That(warning.RecoveredCount, Is.Zero);
+            Assert.That(warning.ExpectedCount, Is.EqualTo(1));
+            Assert.That(warning.Path, Is.EqualTo(oldPath));
+            Assert.That(File.Exists(oldPath), Is.True, "the untouched original should be left in place, not deleted");
+            Assert.That(File.ReadAllText(oldPath), Is.EqualTo(withHandWrittenMethod));
+            Assert.That(
+                File.Exists(second.Artifacts.Single(item => item.Kind == "pageObject").Path), Is.True);
         });
     }
 
@@ -126,5 +310,113 @@ public sealed class WorkspaceCodeGenerationTests
         var code = await File.ReadAllTextAsync(result.Artifacts.Single(item => item.Kind == "test").Path);
 
         Assert.That(code, Does.Contain("By.CssSelector(\"[data-testid=\\\"save\\\\\\\"draft\\\"]\")"));
+    }
+
+    [Test]
+    public async Task GenerateAsync_FillStep_CallsUploadOnTheElementWrapperProperty()
+    {
+        using var repository = new WorkspaceRepository();
+        var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
+        var page = new PageDefinition(
+            PageDefinition.CurrentSchemaVersion,
+            "login",
+            "Login",
+            "https://example.com/login",
+            [
+                new PageElement(
+                    "username",
+                    "username",
+                    "input",
+                    StepAction.Fill,
+                    new Locator(LocatorStrategy.TestId, "username")),
+            ],
+            DateTimeOffset.UtcNow);
+        var test = new TestCase(
+            TestCase.CurrentSchemaVersion,
+            "login-flow",
+            "Login flow",
+            null,
+            [],
+            [
+                new TestStep(
+                    "fill",
+                    StepAction.Fill,
+                    "Fill username",
+                    true,
+                    page.Id,
+                    "username",
+                    Value: StepValue.Literal("alice")),
+            ],
+            DateTimeOffset.UtcNow);
+        var generator = new WorkspaceCodeGeneration(repository);
+
+        var result = await generator.GenerateAsync(
+            snapshot.Project,
+            [page],
+            [test],
+            _root,
+            CancellationToken.None);
+        var code = await File.ReadAllTextAsync(result.Artifacts.Single(item => item.Kind == "test").Path);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(code, Does.Contain(".Username.Upload("));
+            Assert.That(code, Does.Not.Contain(".FillUsername("));
+        });
+    }
+
+    [Test]
+    public async Task GenerateAsync_DynamicClickStep_GeneratesFactoryMethodAndParameterizedCall()
+    {
+        using var repository = new WorkspaceRepository();
+        var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
+        var dynamicElement = new DynamicElement(
+            "row-button",
+            "row button",
+            StepAction.Click,
+            LocatorStrategy.XPath,
+            "//table/tbody/tr[{param}]/td[1]/button");
+        var page = new PageDefinition(
+            PageDefinition.CurrentSchemaVersion,
+            "orders",
+            "Orders",
+            "https://example.com/orders",
+            [],
+            DateTimeOffset.UtcNow,
+            [dynamicElement]);
+        var test = new TestCase(
+            TestCase.CurrentSchemaVersion,
+            "orders-flow",
+            "Orders flow",
+            null,
+            [],
+            [
+                new TestStep(
+                    "click-row",
+                    StepAction.Click,
+                    "Click row 3",
+                    true,
+                    page.Id,
+                    DynamicElementId: dynamicElement.Id,
+                    DynamicParameterValue: "3"),
+            ],
+            DateTimeOffset.UtcNow);
+        var generator = new WorkspaceCodeGeneration(repository);
+
+        var result = await generator.GenerateAsync(
+            snapshot.Project,
+            [page],
+            [test],
+            _root,
+            CancellationToken.None);
+        var pageObjectCode = await File.ReadAllTextAsync(
+            result.Artifacts.Single(item => item.Kind == "pageObject").Path);
+        var testCode = await File.ReadAllTextAsync(result.Artifacts.Single(item => item.Kind == "test").Path);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(pageObjectCode, Does.Contain("public void ClickRowButton(int param)"));
+            Assert.That(testCode, Does.Contain(".ClickRowButton(3);"));
+        });
     }
 }

@@ -120,7 +120,7 @@ export const cliqSettingsSchema = z.object({
   schemaVersion: z.literal(1),
   elementIdentification: z.object({
     testIdAttribute: z.string().min(1),
-    strategyOrder: z.array(z.enum(['testId', 'id', 'name'])).min(1),
+    strategyOrder: z.array(z.enum(['testId', 'xpath'])).min(1),
     ignoreIdPatterns: z.array(regexPatternSchema),
   }),
   testExecution: z.object({
@@ -140,12 +140,6 @@ export const screenshotRequestSchema = z.object({
   fileName: z.string().min(1).max(300),
 })
 
-export const recordedInteractionSchema = z.object({
-  id: z.string().uuid(),
-  action: z.enum(['click', 'fill', 'select']),
-  label: z.string().min(1).max(160),
-  pageUrl: httpUrlSchema,
-  element: pageElementSchema,
-  value: stepValueSchema.optional(),
-  secretValue: z.string().max(10_000).optional(),
+export const discoveryScreenshotRequestSchema = z.object({
+  fileName: z.string().min(1).max(300),
 })

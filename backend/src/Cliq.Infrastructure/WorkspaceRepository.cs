@@ -172,7 +172,7 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
         return settings;
     }
 
-    private static readonly HashSet<string> KnownIdentificationStrategies = new(StringComparer.Ordinal) { "testId", "id", "name" };
+    private static readonly HashSet<string> KnownIdentificationStrategies = new(StringComparer.Ordinal) { "testId", "xpath" };
 
     private static void ValidateSettings(CliqSettings settings)
     {
@@ -191,7 +191,7 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
             if (!KnownIdentificationStrategies.Contains(strategy))
             {
                 throw new WorkspaceValidationException(
-                    $"elementIdentification.strategyOrder contains unknown strategy '{strategy}'. Expected one of: testId, id, name.");
+                    $"elementIdentification.strategyOrder contains unknown strategy '{strategy}'. Expected one of: testId, xpath.");
             }
         }
 
@@ -242,9 +242,9 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
 
     private static CliqSettings DefaultSettings() => new(
         CliqSettings.CurrentSchemaVersion,
-        new ElementIdentificationSettings("data-testid", ["testId", "id", "name"], DefaultIgnoreIdPatterns),
-        new TestExecutionSettings(DefaultStepTimeoutMs: 10_000, PageReadyTimeoutMs: 15_000, CaptureScreenshotOnFailure: true),
-        new ScanningSettings(LoadTimeoutMs: 30_000, NetworkIdleGraceMs: 3_000, CaptureScreenshot: true));
+        new ElementIdentificationSettings("data-testid", ["testId", "xpath"], DefaultIgnoreIdPatterns),
+        new TestExecutionSettings(DefaultStepTimeoutMs: 10_000, PageReadyTimeoutMs: 15_000, CaptureScreenshotOnFailure: false),
+        new ScanningSettings(LoadTimeoutMs: 30_000, NetworkIdleGraceMs: 3_000, CaptureScreenshot: false));
 
     public Task<IReadOnlyList<PageDefinition>> ListPagesAsync(CancellationToken cancellationToken) =>
         ReadDirectoryAsync<PageDefinition>(PagesDirectory, PageDefinition.CurrentSchemaVersion, cancellationToken);
@@ -256,9 +256,86 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
     {
         EnsureOpen();
         ValidateVersion(page.SchemaVersion, PageDefinition.CurrentSchemaVersion, "page");
+        ValidateDynamicElements(page);
         var updated = page with { UpdatedAt = DateTimeOffset.UtcNow };
         await WriteAtomicAsync(EntityPath(PagesDirectory, page.Id), updated, cancellationToken);
         return updated;
+    }
+
+    // Only these four actions have a generated factory method for a dynamic element - see
+    // PageObjectCodeGenerator.AppendDynamicFactory. Anything else would silently fall back to a
+    // Click-shaped method at generation time (WorkspaceCodeGeneration.ToDynamicDescriptor), which
+    // is wrong for e.g. a Radio/MultiSelect action, so it's rejected here instead.
+    private static readonly HashSet<StepAction> SupportedDynamicActions =
+    [
+        StepAction.Click,
+        StepAction.Fill,
+        StepAction.Select,
+        StepAction.AssertText,
+    ];
+
+    // Mirrors PageObjectCodeGenerator.ByExpression/InterpolatedByExpression's own restriction -
+    // testId, xpath, and css are the only strategies discovery ever produces for a regular element,
+    // and per the 2026-08-03 identification decision, id/name are never a valid locator strategy
+    // (id is a naming hint only; name exists solely for a Radio group, which has no dynamic
+    // equivalent) - so a dynamic element can't use them either, even though it's hand-authored.
+    private static readonly HashSet<LocatorStrategy> SupportedDynamicStrategies =
+    [
+        LocatorStrategy.TestId,
+        LocatorStrategy.XPath,
+        LocatorStrategy.Css,
+    ];
+
+    private static void ValidateDynamicElements(PageDefinition page)
+    {
+        var dynamicElements = page.DynamicElements ?? [];
+        if (dynamicElements.Count == 0)
+        {
+            return;
+        }
+
+        // Seeded with every static element's generated member name so a dynamic element can't
+        // silently collide with one - both become a real C# member on the same Page Object class
+        // (PageObjectCodeGenerator.Generate emits static-element members and dynamic-element
+        // factories into the same class), and a collision would only surface as a compiler error
+        // at generation time otherwise.
+        var usedMemberNames = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var element in page.Elements)
+        {
+            usedMemberNames.Add(GenerationIdentifierNaming.ToPascalCase(element.Name));
+        }
+
+        foreach (var element in dynamicElements)
+        {
+            if (!SupportedDynamicActions.Contains(element.Action))
+            {
+                throw new WorkspaceValidationException(
+                    $"Dynamic element '{element.Name}' on page '{page.Id}' has unsupported action " +
+                    $"'{element.Action}'. Only click, fill, select, and assertText are supported.");
+            }
+
+            if (!SupportedDynamicStrategies.Contains(element.Strategy))
+            {
+                throw new WorkspaceValidationException(
+                    $"Dynamic element '{element.Name}' on page '{page.Id}' has unsupported locator " +
+                    $"strategy '{element.Strategy}'. Only testId, xpath, and css are supported.");
+            }
+
+            if (!element.LocatorTemplate.Contains("{param}", StringComparison.Ordinal))
+            {
+                throw new WorkspaceValidationException(
+                    $"Dynamic element '{element.Name}' on page '{page.Id}' has a locator template " +
+                    "with no '{param}' placeholder.");
+            }
+
+            var memberName = GenerationIdentifierNaming.ToPascalCase(WorkspaceCodeGeneration.DynamicMemberName(element));
+            if (!usedMemberNames.Add(memberName))
+            {
+                throw new WorkspaceValidationException(
+                    $"Dynamic element '{element.Name}' on page '{page.Id}' generates the member name " +
+                    $"'{memberName}', which collides with another element on the same page.");
+            }
+        }
     }
 
     public Task DeletePageAsync(string id, CancellationToken cancellationToken) =>
@@ -317,6 +394,20 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
                 throw new WorkspaceValidationException($"Step '{step.Id}' references page '{step.PageId}', which does not exist.");
             }
 
+            // A dynamic-element step has no ElementId (it targets a DynamicElement instead - see
+            // TestStep.DynamicElementId) and is validated against the page's dynamic elements, not
+            // its scanned ones.
+            if (!string.IsNullOrEmpty(step.DynamicElementId))
+            {
+                if ((page.DynamicElements ?? []).All(element => element.Id != step.DynamicElementId))
+                {
+                    throw new WorkspaceValidationException(
+                        $"Step '{step.Id}' references dynamic element '{step.DynamicElementId}' on page '{step.PageId}', which does not exist.");
+                }
+
+                continue;
+            }
+
             if (string.IsNullOrEmpty(step.ElementId) || page.Elements.All(element => element.Id != step.ElementId))
             {
                 throw new WorkspaceValidationException(
@@ -348,15 +439,38 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
         return File.Exists(path) ? path : null;
     }
 
+    // Discovery screenshots (see PuppeteerPageDiscovery.ScanAsync) all land in one flat
+    // "discovery" directory rather than a per-run one - a scan isn't a run, it has no id to scope
+    // by - so this only needs the same filename safety check GetScreenshotPath already applies.
+    public string? GetDiscoveryScreenshotPath(string fileName)
+    {
+        EnsureOpen();
+        if (!GenerationIdentifierNaming.IsSafeFileName(fileName))
+        {
+            return null;
+        }
+
+        var path = Path.Combine(RunsDirectory, "discovery", fileName);
+        return File.Exists(path) ? path : null;
+    }
+
     internal string GetContainedPath(string relativeDirectory)
     {
         EnsureOpen();
         ValidateRelativeDirectory(relativeDirectory, nameof(relativeDirectory));
         var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(RootPath!));
         var candidate = Path.GetFullPath(Path.Combine(root, relativeDirectory));
-        if (!candidate.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+
+        // Path.GetRelativePath (rather than a raw StartsWith) handles trailing separators and,
+        // on Windows, compares case-insensitively - a plain Ordinal StartsWith check previously
+        // used here could false-positive-reject a valid path whose casing merely differed from
+        // RootPath's, which the filesystem itself would treat as the same location.
+        var relative = Path.GetRelativePath(root, candidate);
+        if (relative.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(relative))
         {
-            throw new WorkspaceValidationException("Configured output directory escapes the workspace.");
+            throw new WorkspaceValidationException(
+                $"Configured output directory escapes the workspace. Workspace root: '{root}'. " +
+                $"Resolved output directory: '{candidate}'.");
         }
 
         return candidate;

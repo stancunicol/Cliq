@@ -163,8 +163,9 @@ internal sealed class GenerationResultDialog : CliqDialogWindow
 {
     private readonly ListBox _artifacts;
 
-    public GenerationResultDialog(IReadOnlyList<GeneratedArtifact> artifacts)
+    public GenerationResultDialog(GenerationResult result)
     {
+        var artifacts = result.Artifacts;
         Title = "Cliq Generation Results";
         Width = 720;
         Height = 420;
@@ -181,6 +182,22 @@ internal sealed class GenerationResultDialog : CliqDialogWindow
         };
         DockPanel.SetDock(summary, Dock.Top);
         panel.Children.Add(summary);
+
+        if (result.Warnings.Count > 0)
+        {
+            var warning = new TextBlock
+            {
+                Text = string.Join(
+                    Environment.NewLine,
+                    result.Warnings.Select(item =>
+                        $"{item.PageObjectName}: recovered {item.RecoveredCount} of {item.ExpectedCount} custom methods. See {item.Path}")),
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 10),
+            };
+            AutomationProperties.SetName(warning, "Custom method recovery warnings");
+            DockPanel.SetDock(warning, Dock.Top);
+            panel.Children.Add(warning);
+        }
 
         var buttons = new StackPanel
         {

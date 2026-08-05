@@ -124,10 +124,10 @@ async function main() {
       throw new Error('--locator-config must be valid JSON.');
     }
 
-    const elements = await page.evaluate(extractElements, locatorConfig);
+    const { elements, dynamicSuggestions } = await page.evaluate(extractElements, locatorConfig);
 
     fs.mkdirSync(path.dirname(outPath), { recursive: true });
-    fs.writeFileSync(outPath, JSON.stringify({ elements, screenshotPath }), 'utf8');
+    fs.writeFileSync(outPath, JSON.stringify({ elements, dynamicSuggestions, screenshotPath }), 'utf8');
   } finally {
     await browserInstance.close();
   }

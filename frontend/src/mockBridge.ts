@@ -18,7 +18,6 @@ export function installMockBridge() {
     loading: false,
     canGoBack: false,
     canGoForward: false,
-    recording: false,
   }
   const openedListeners = new Set<(value: WorkspaceSnapshot) => void>()
   const stateListeners = new Set<(value: BrowserState) => void>()
@@ -65,6 +64,7 @@ export function installMockBridge() {
             created: true,
           })),
         ],
+        warnings: [],
       }),
       startRun: async (testId) => {
         const test = snapshot.tests.find((candidate) => candidate.id === testId)
@@ -110,6 +110,7 @@ export function installMockBridge() {
         return settings
       },
       getScreenshot: async () => null,
+      getDiscoveryScreenshot: async () => null,
       onRunEvent: (callback) => subscribe(runListeners, callback),
       onOpened: (callback) => subscribe(openedListeners, callback),
     },
@@ -123,15 +124,10 @@ export function installMockBridge() {
       reload: async () => undefined,
       setBounds: async () => undefined,
       setVisible: async () => undefined,
-      setRecording: async (recording) => {
-        browserState = { ...browserState, recording }
-        stateListeners.forEach((listener) => listener(browserState))
-      },
       onState: (callback) => {
         callback(browserState)
         return subscribe(stateListeners, callback)
       },
-      onRecordedInteraction: () => () => undefined,
     },
   }
 
@@ -215,7 +211,7 @@ function mockSettings(): CliqSettings {
     schemaVersion: 1,
     elementIdentification: {
       testIdAttribute: 'data-testid',
-      strategyOrder: ['testId', 'id', 'name'],
+      strategyOrder: ['testId', 'xpath'],
       ignoreIdPatterns: [
         '^ember\\d+$',
         '^react-select-\\d+-',

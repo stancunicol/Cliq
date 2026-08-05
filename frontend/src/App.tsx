@@ -1,17 +1,19 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { CirclePlay, Code2, LoaderCircle, Radio, ScanSearch, Square } from 'lucide-react'
+import { Camera, CirclePlay, Code2, LoaderCircle, ScanSearch } from 'lucide-react'
 import { BrowserPane } from './features/browser/BrowserPane'
+import { GenerationWarningBanner } from './features/generation/GenerationWarningBanner'
 import { RunResults } from './features/runs/RunResults'
-import { SettingsPanel } from './features/settings/SettingsPanel'
+import { DynamicElementSuggestionsBanner } from './features/scanning/DynamicElementSuggestionsBanner'
+import { LocatorDiffBanner } from './features/scanning/LocatorDiffBanner'
 import { TestEditor } from './features/tests/TestEditor'
 import { Sidebar } from './features/workspace/Sidebar'
-import { settingsService, workspaceService } from './services'
+import { screenshotService, workspaceService } from './services'
 import type {
   BrowserState,
-  CliqSettings,
-  PageDefinition,
-  PageElement,
-  RecordedInteraction,
+  CustomMethodRecoveryWarning,
+  DynamicElement,
+  DynamicElementSuggestion,
+  LocatorDiffReport,
   TestCase,
   TestRun,
   WorkspaceSnapshot,
@@ -23,32 +25,37 @@ const defaultBrowser: BrowserState = {
   loading: false,
   canGoBack: false,
   canGoForward: false,
-  recording: false,
 }
 
 export function App() {
   const [snapshot, setSnapshot] = useState<WorkspaceSnapshot>()
   const [selectedId, setSelectedId] = useState<string>()
-  const [active, setActive] = useState<'tests' | 'runs' | 'settings'>('tests')
-  const [settings, setSettings] = useState<CliqSettings>()
-  const [settingsSaving, setSettingsSaving] = useState(false)
-  const [settingsSaved, setSettingsSaved] = useState(false)
-  const [settingsError, setSettingsError] = useState<string>()
+  const [active, setActive] = useState<'tests' | 'runs'>('tests')
   const [search, setSearch] = useState('')
   const [browser, setBrowser] = useState(defaultBrowser)
   const [url, setUrl] = useState('https://example.com')
-  const [recording, setRecording] = useState(false)
   const [run, setRun] = useState<TestRun>()
   const [running, setRunning] = useState(false)
   const [activeStepId, setActiveStepId] = useState<string>()
   const [working, setWorking] = useState<string>()
   const [error, setError] = useState<string>()
+  const [locatorDiff, setLocatorDiff] = useState<LocatorDiffReport>()
+  const [dynamicElementSuggestions, setDynamicElementSuggestions] = useState<DynamicElementSuggestion[]>([])
+  const [suggestionsPageId, setSuggestionsPageId] = useState<string>()
+  const [scanScreenshot, setScanScreenshot] = useState<string>()
+  const [scanScreenshotOpen, setScanScreenshotOpen] = useState(false)
+  const [scanScreenshotState, setScanScreenshotState] = useState<
+    { status: 'ready'; url: string } | { status: 'missing' } | { status: 'error'; message: string }
+  >()
+  const [generationWarnings, setGenerationWarnings] = useState<CustomMethodRecoveryWarning[]>([])
+  const [pageName, setPageName] = useState('')
   const snapshotRef = useRef<WorkspaceSnapshot | undefined>(undefined)
   const selectedIdRef = useRef<string | undefined>(undefined)
   const mutationQueue = useRef(Promise.resolve())
   const saveRevisions = useRef(new Map<string, number>())
   const navigatedWorkspace = useRef<string | undefined>(undefined)
   const selected = snapshot?.tests.find((test) => test.id === selectedId)
+  const existingPageForUrl = snapshot?.pages.find((page) => page.url === normalizeUrl(url))
   snapshotRef.current = snapshot
   selectedIdRef.current = selectedId
 
@@ -80,16 +87,15 @@ export function App() {
     return window.cliq.workspace.onOpened(applySnapshot)
   }, [applySnapshot])
 
-  useEffect(() => {
-    if (!snapshot) return
-    setSettingsError(undefined)
-    void settingsService.get().then(setSettings).catch((cause) => setSettingsError(message(cause)))
-  }, [snapshot?.rootPath])
-
   useEffect(() => window.cliq?.browser.onState((state) => {
     setBrowser(state)
     if (state.url && state.url !== 'about:blank') setUrl(state.url)
   }), [])
+
+  useEffect(() => {
+    const existing = snapshotRef.current?.pages.find((page) => page.url === normalizeUrl(url))
+    setPageName(existing?.name ?? pageNameFor(url))
+  }, [url])
 
   useEffect(() => {
     if (!snapshot) return
@@ -117,12 +123,6 @@ export function App() {
     }
   }), [])
 
-  useEffect(() => window.cliq?.browser.onRecordedInteraction((interaction) => {
-    mutationQueue.current = mutationQueue.current
-      .then(() => persistInteraction(interaction))
-      .catch((cause) => setError(message(cause)))
-  }), [])
-
   useLayoutEffect(() => {
     const sync = () => {
       const pane = document.querySelector('.browser-pane')?.getBoundingClientRect()
@@ -146,58 +146,6 @@ export function App() {
       cancelAnimationFrame(frame)
     }
   }, [snapshot])
-
-  async function persistInteraction(interaction: RecordedInteraction) {
-    const current = snapshotRef.current
-    const currentSelectedId = selectedIdRef.current
-    const currentTest = current?.tests.find((test) => test.id === currentSelectedId)
-    if (!current || !currentTest) return
-
-    if (interaction.value?.kind === 'secret' && interaction.secretValue !== undefined) {
-      await window.cliq?.workspace.saveSecrets({
-        [interaction.value.value]: interaction.secretValue,
-      })
-    }
-    const pageId = pageIdFor(interaction.pageUrl)
-    const existingPage = current.pages.find((page) => page.id === pageId)
-    const existingElement = existingPage?.elements.find((element) =>
-      element.locator.strategy === interaction.element.locator.strategy
-      && element.locator.value === interaction.element.locator.value)
-    const element = existingElement ?? uniqueElementName(interaction.element, existingPage?.elements ?? [])
-    const page: PageDefinition = existingPage
-      ? { ...existingPage, elements: existingElement ? existingPage.elements : [...existingPage.elements, element] }
-      : {
-          schemaVersion: 1,
-          id: pageId,
-          name: pageNameFor(interaction.pageUrl),
-          url: interaction.pageUrl,
-          elements: [element],
-          updatedAt: new Date().toISOString(),
-        }
-    const savedPage = await workspaceService.savePage(page)
-    const latest = snapshotRef.current
-    const latestTest = latest?.tests.find((test) => test.id === currentSelectedId)
-    if (!latest || !latestTest) return
-    const updatedTest: TestCase = {
-      ...latestTest,
-      steps: [...latestTest.steps, {
-        id: interaction.id,
-        action: interaction.action,
-        label: interaction.label,
-        enabled: true,
-        pageId: savedPage.id,
-        elementId: element.id,
-        value: interaction.value,
-      }],
-      updatedAt: new Date().toISOString(),
-    }
-    const savedTest = await workspaceService.saveTest(updatedTest)
-    updateSnapshot((value) => ({
-      ...value,
-      pages: upsert(value.pages, savedPage),
-      tests: upsert(value.tests, savedTest),
-    }))
-  }
 
   async function openWorkspace() {
     try {
@@ -223,28 +171,12 @@ export function App() {
       .catch((cause) => setError(message(cause)))
   }
 
-  async function saveSettings(next: CliqSettings) {
-    setSettingsSaving(true)
-    setSettingsError(undefined)
-    setSettingsSaved(false)
-    try {
-      const saved = await settingsService.save(next)
-      setSettings(saved)
-      setSettingsSaved(true)
-      setTimeout(() => setSettingsSaved(false), 2000)
-    } catch (cause) {
-      setSettingsError(message(cause))
-    } finally {
-      setSettingsSaving(false)
-    }
-  }
-
   async function createTest() {
     if (!snapshot) return
     const test: TestCase = {
       schemaVersion: 1,
       id: `test-${crypto.randomUUID().slice(0, 8)}`,
-      name: 'New test',
+      name: pageName.trim() || 'New test',
       tags: [],
       steps: [],
       updatedAt: new Date().toISOString(),
@@ -255,71 +187,136 @@ export function App() {
     setActive('tests')
   }
 
-  async function toggleRecording() {
-    if (!selected) {
-      setError('Create or select a test before recording.')
-      return
-    }
-    const next = !recording
+  function navigateBrowser() {
+    const target = normalizeUrl(url)
+    void window.cliq?.browser.navigate(target).catch((cause) => setError(message(cause)))
+  }
+
+  async function renamePageIfChanged() {
+    if (!existingPageForUrl) return
+    const trimmed = pageName.trim()
+    if (!trimmed || trimmed === existingPageForUrl.name) return
     try {
-      if (next && isHttpUrl(browser.url)) appendNavigationStep(browser.url)
-      await window.cliq?.browser.setRecording(next)
-      setRecording(next)
+      const saved = await workspaceService.savePage({ ...existingPageForUrl, name: trimmed })
+      updateSnapshot((current) => ({ ...current, pages: upsert(current.pages, saved) }))
+    } catch (cause) {
+      setError(message(cause))
+      setPageName(existingPageForUrl.name)
+    }
+  }
+
+  // Returns whether the save actually succeeded, rather than throwing, so a caller that only
+  // wants "fire and forget" (DynamicElementsPanel's onSaveDynamicElement) can ignore it, while one
+  // that needs to react to failure (acceptDynamicElementSuggestion, which should keep a rejected
+  // suggestion visible instead of discarding it) can check it.
+  async function saveDynamicElement(pageId: string, element: DynamicElement): Promise<boolean> {
+    const page = snapshotRef.current?.pages.find((candidate) => candidate.id === pageId)
+    if (!page) return false
+    try {
+      const existing = page.dynamicElements ?? []
+      const dynamicElements = existing.some((candidate) => candidate.id === element.id)
+        ? existing.map((candidate) => candidate.id === element.id ? element : candidate)
+        : [...existing, element]
+      const saved = await workspaceService.savePage({ ...page, dynamicElements })
+      updateSnapshot((current) => ({ ...current, pages: upsert(current.pages, saved) }))
+      return true
+    } catch (cause) {
+      setError(message(cause))
+      return false
+    }
+  }
+
+  async function deleteDynamicElement(pageId: string, elementId: string) {
+    const page = snapshotRef.current?.pages.find((candidate) => candidate.id === pageId)
+    if (!page) return
+    try {
+      const saved = await workspaceService.savePage({
+        ...page,
+        dynamicElements: (page.dynamicElements ?? []).filter((candidate) => candidate.id !== elementId),
+      })
+      updateSnapshot((current) => ({ ...current, pages: upsert(current.pages, saved) }))
     } catch (cause) {
       setError(message(cause))
     }
   }
 
-  function appendNavigationStep(targetUrl: string) {
-    const current = snapshotRef.current
-    const currentTest = current?.tests.find((test) => test.id === selectedIdRef.current)
-    if (!current || !currentTest) return
-    const normalized = normalizeUrl(targetUrl)
-    const previous = currentTest.steps.at(-1)
-    if (previous?.action === 'navigate' && previous.url === normalized) return
-    saveTest({
-      ...currentTest,
-      steps: [...currentTest.steps, {
-        id: crypto.randomUUID(),
-        action: 'navigate',
-        label: `Navigate to ${new URL(normalized).hostname}`,
-        enabled: true,
-        url: normalized,
-      }],
-      updatedAt: new Date().toISOString(),
-    })
-  }
-
-  function navigateBrowser() {
-    const target = normalizeUrl(url)
-    if (recording && selected) appendNavigationStep(target)
-    void window.cliq?.browser.navigate(target).catch((cause) => setError(message(cause)))
-  }
-
   async function scanPage() {
     if (!snapshot || !url) return
-    setWorking('Scanning')
+    setWorking('Scanning...')
+    setLocatorDiff(undefined)
+    setDynamicElementSuggestions([])
+    setScanScreenshot(undefined)
+    setScanScreenshotOpen(false)
+    setScanScreenshotState(undefined)
     try {
-      const { page, reconciliation } = await workspaceService.scanPage(url, pageNameFor(url), snapshot.project.defaultBrowser)
+      const name = pageName.trim() || pageNameFor(url)
+      const { page, reconciliation, locatorDiff, dynamicElementSuggestions, screenshotPath } =
+        await workspaceService.scanPage(url, name, snapshot.project.defaultBrowser)
       updateSnapshot({ ...snapshot, pages: upsert(snapshot.pages, page) })
       setWorking(`Scanned: ${reconciliation.matchedCount} matched · ${reconciliation.newCount} new · ${reconciliation.missingCount} missing`)
       setTimeout(() => setWorking(undefined), 3000)
+      setLocatorDiff(locatorDiff)
+      setDynamicElementSuggestions(dynamicElementSuggestions ?? [])
+      setSuggestionsPageId(page.id)
+      setScanScreenshot(screenshotPath)
     } catch (cause) {
       setError(message(cause))
       setWorking(undefined)
     }
   }
 
+  async function toggleScanScreenshot() {
+    if (scanScreenshotOpen) {
+      setScanScreenshotOpen(false)
+      return
+    }
+    setScanScreenshotOpen(true)
+    if (!scanScreenshotState && scanScreenshot) {
+      try {
+        const dataUrl = await screenshotService.getDiscovery(scanScreenshot)
+        setScanScreenshotState(dataUrl ? { status: 'ready', url: dataUrl } : { status: 'missing' })
+      } catch (cause) {
+        setScanScreenshotState({ status: 'error', message: message(cause) })
+      }
+    }
+  }
+
+  async function acceptDynamicElementSuggestion(suggestion: DynamicElementSuggestion) {
+    if (!suggestionsPageId) return
+    const saved = await saveDynamicElement(suggestionsPageId, {
+      id: crypto.randomUUID(),
+      name: suggestion.name,
+      action: suggestion.action,
+      strategy: suggestion.strategy,
+      locatorTemplate: suggestion.locatorTemplate,
+      parameterType: 'int',
+    })
+    // Only drop it from the list once it's actually persisted - e.g. a name collision with an
+    // existing element (WorkspaceRepository.ValidateDynamicElements) fails the save and shows an
+    // error, but the suggestion should stay offered rather than silently vanish with no way to
+    // retry it short of re-scanning.
+    if (saved) {
+      setDynamicElementSuggestions((current) => current.filter((item) => item !== suggestion))
+    }
+  }
+
   async function generate() {
     if (!snapshot) return
-    setWorking('Generating')
+    setWorking('Generating...')
     try {
       const pageIds = selected
-        ? [...new Set(selected.steps.flatMap((step) => step.pageId ? [step.pageId] : []))]
+        ? [...new Set([
+            ...selected.steps.flatMap((step) => step.pageId ? [step.pageId] : []),
+            // Include the page currently shown in the topbar even if no step references it yet -
+            // otherwise a page that was just scanned/renamed but not wired into this test's steps
+            // silently generates nothing, with no error to explain why.
+            ...(existingPageForUrl ? [existingPageForUrl.id] : []),
+          ])]
         : undefined
       const result = await workspaceService.generate(pageIds, selected ? [selected.id] : undefined)
       setWorking(`Generated ${result.artifacts.length} artifacts`)
       setTimeout(() => setWorking(undefined), 3000)
+      setGenerationWarnings(result.warnings)
     } catch (cause) {
       setError(message(cause))
       setWorking(undefined)
@@ -329,7 +326,7 @@ export function App() {
   async function runTest() {
     if (!selected || !snapshot) return
     if (selected.steps.filter((step) => step.enabled).length === 0) {
-      setError('Add or record at least one enabled step before running.')
+      setError('Add at least one enabled step before running.')
       return
     }
     setActive('runs')
@@ -337,10 +334,6 @@ export function App() {
     setActiveStepId(undefined)
     setRun(undefined)
     try {
-      if (recording) {
-        await window.cliq?.browser.setRecording(false)
-        setRecording(false)
-      }
       const started = await workspaceService.startRun(selected.id, snapshot.project.defaultBrowser)
       setRun(started)
     } catch (cause) {
@@ -364,7 +357,7 @@ export function App() {
         <div className="welcome-card">
           <div className="logo">C</div>
           <span className="eyebrow">CLIQ WORKBENCH</span>
-          <h1>Record workflows. Generate maintainable Selenium code.</h1>
+          <h1>Build workflows. Generate maintainable Selenium code.</h1>
           <p>Open a folder to initialize or load its versioned <code>.cliq</code> workspace.</p>
           <button onClick={() => void openWorkspace()}>Open workspace</button>
           {error && <div className="error-banner">{error}</div>}
@@ -388,13 +381,20 @@ export function App() {
       />
       <section className="workspace">
         <header className="topbar">
-          <div><small>{snapshot.project.name}</small><h1>{active === 'runs' ? 'Run results' : active === 'settings' ? 'Settings' : selected?.name || 'Tests'}</h1></div>
           <div className="top-actions">
+            <input
+              className="page-name-input"
+              aria-label="Page object name"
+              type="text"
+              value={pageName}
+              onChange={(event) => setPageName(event.target.value)}
+              onBlur={() => void renamePageIfChanged()}
+              onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }}
+              placeholder="Page name"
+              title={existingPageForUrl ? 'Renames the existing page object' : 'Name for the next scanned page'}
+            />
             <button onClick={() => void scanPage()} disabled={Boolean(working)}><ScanSearch />Scan</button>
             <button onClick={() => void generate()} disabled={Boolean(working)}><Code2 />Generate</button>
-            <button className={`record ${recording ? 'on' : ''}`} onClick={() => void toggleRecording()}>
-              {recording ? <Square /> : <Radio />}{recording ? 'Stop' : 'Record'}
-            </button>
             <button className="run" onClick={() => void runTest()} disabled={running || !selected}>
               {running ? <LoaderCircle className="spin" /> : <CirclePlay />}{running ? 'Running' : 'Run'}
             </button>
@@ -402,7 +402,38 @@ export function App() {
         </header>
         {error && <button className="error-banner" onClick={() => setError(undefined)}>{error}</button>}
         {working && <div className="working-banner">{working}</div>}
-        {active === 'tests' && <TestEditor test={selected} pages={snapshot.pages} onChange={saveTest} />}
+        {locatorDiff && <LocatorDiffBanner diff={locatorDiff} onDismiss={() => setLocatorDiff(undefined)} />}
+        <DynamicElementSuggestionsBanner
+          suggestions={dynamicElementSuggestions}
+          onAccept={(suggestion) => void acceptDynamicElementSuggestion(suggestion)}
+          onDismiss={() => setDynamicElementSuggestions([])}
+        />
+        {scanScreenshot && (
+          <button
+            className={`screenshot-toggle ${scanScreenshotOpen ? 'active' : ''}`}
+            onClick={() => void toggleScanScreenshot()}
+          ><Camera />Scan screenshot</button>
+        )}
+        {scanScreenshotOpen && (
+          <div className="screenshot-panel">
+            {!scanScreenshotState && <LoaderCircle className="spin" />}
+            {scanScreenshotState?.status === 'ready' && <img src={scanScreenshotState.url} alt="Scan screenshot" />}
+            {scanScreenshotState?.status === 'missing' && <span>Screenshot is no longer available.</span>}
+            {scanScreenshotState?.status === 'error' && (
+              <span className="screenshot-error">Couldn't load screenshot: {scanScreenshotState.message}</span>
+            )}
+          </div>
+        )}
+        <GenerationWarningBanner warnings={generationWarnings} onDismiss={() => setGenerationWarnings([])} />
+        {active === 'tests' && (
+          <TestEditor
+            test={selected}
+            pages={snapshot.pages}
+            onChange={saveTest}
+            onSaveDynamicElement={(pageId, element) => void saveDynamicElement(pageId, element)}
+            onDeleteDynamicElement={(pageId, elementId) => void deleteDynamicElement(pageId, elementId)}
+          />
+        )}
         {active === 'runs' && (
           <RunResults
             run={run}
@@ -412,23 +443,12 @@ export function App() {
             onCancel={() => void cancelRun()}
           />
         )}
-        {active === 'settings' && (
-          <SettingsPanel
-            settings={settings}
-            saving={settingsSaving}
-            saved={settingsSaved}
-            error={settingsError}
-            onSave={(next) => void saveSettings(next)}
-          />
-        )}
       </section>
       <BrowserPane
         state={browser}
         url={url}
-        recording={recording}
         onUrl={setUrl}
         onNavigate={navigateBrowser}
-        onStopRecording={() => void toggleRecording()}
       />
     </main>
   )
@@ -438,42 +458,19 @@ function normalizeUrl(value: string) {
   return /^https?:\/\//i.test(value) ? value : `https://${value}`
 }
 
-function isHttpUrl(value: string) {
-  try {
-    const protocol = new URL(value).protocol
-    return protocol === 'http:' || protocol === 'https:'
-  } catch {
-    return false
-  }
-}
-
-function pageIdFor(value: string) {
-  const url = new URL(value)
-  const slug = `${url.hostname}-${url.pathname}`.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-  return slug.slice(0, 120) || 'page'
-}
-
 function pageNameFor(value: string) {
   try {
     const url = new URL(normalizeUrl(value))
     const segment = url.pathname.split('/').filter(Boolean).at(-1) || url.hostname
     return segment.replace(/[-_]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
   } catch {
-    return 'Recorded page'
+    return 'New page'
   }
 }
 
 function upsert<T extends { id: string }>(items: T[], item: T) {
   const index = items.findIndex((candidate) => candidate.id === item.id)
   return index < 0 ? [...items, item] : items.map((candidate) => candidate.id === item.id ? item : candidate)
-}
-
-function uniqueElementName(element: PageElement, existing: PageElement[]) {
-  const used = new Set(existing.map((candidate) => candidate.name.toLowerCase()))
-  if (!used.has(element.name.toLowerCase())) return element
-  let suffix = 2
-  while (used.has(`${element.name} ${suffix}`.toLowerCase())) suffix += 1
-  return { ...element, name: `${element.name} ${suffix}` }
 }
 
 function message(cause: unknown) {

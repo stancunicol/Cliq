@@ -26,6 +26,8 @@ contextBridge.exposeInMainWorld('cliq', {
     saveSettings: (settings: unknown) => ipcRenderer.invoke('workspace:save-settings', settings),
     getScreenshot: (runId: string, fileName: string) =>
       ipcRenderer.invoke('workspace:get-screenshot', { runId, fileName }),
+    getDiscoveryScreenshot: (fileName: string) =>
+      ipcRenderer.invoke('workspace:get-discovery-screenshot', { fileName }),
     onRunEvent: (callback: (event: unknown) => void) =>
       subscribe('workspace:run-event', callback),
     onOpened: (callback: (snapshot: unknown) => void) => subscribe('workspace:opened', callback),
@@ -37,9 +39,6 @@ contextBridge.exposeInMainWorld('cliq', {
     reload: () => ipcRenderer.invoke('browser:reload'),
     setBounds: (bounds: unknown) => ipcRenderer.invoke('browser:bounds', bounds),
     setVisible: (visible: boolean) => ipcRenderer.invoke('browser:visible', visible),
-    setRecording: (value: boolean) => ipcRenderer.invoke('browser:recording', value),
     onState: (callback: (state: unknown) => void) => subscribe('browser:state', callback),
-    onRecordedInteraction: (callback: (interaction: unknown) => void) =>
-      subscribe('browser:recorded-interaction', callback),
   },
 })

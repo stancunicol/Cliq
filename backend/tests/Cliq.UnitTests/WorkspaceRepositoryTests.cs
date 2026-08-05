@@ -9,8 +9,8 @@ namespace Cliq.UnitTests;
 [TestFixture]
 public sealed class WorkspaceRepositoryTests
 {
-    private static readonly string[] DefaultStrategyOrder = ["testId", "id", "name"];
-    private static readonly string[] CustomStrategyOrder = ["id", "testId"];
+    private static readonly string[] DefaultStrategyOrder = ["testId", "xpath"];
+    private static readonly string[] CustomStrategyOrder = ["xpath", "testId"];
 
     private string _root = null!;
 
@@ -158,6 +158,227 @@ public sealed class WorkspaceRepositoryTests
     }
 
     [Test]
+    public async Task SaveTestAsync_AllowsValidDynamicElementReference()
+    {
+        using var repository = new WorkspaceRepository();
+        await repository.OpenAsync(_root, CancellationToken.None);
+        var dynamicElement = new DynamicElement(
+            "row-button", "row button", StepAction.Click, LocatorStrategy.XPath, "//tr[{param}]/button");
+        var page = new PageDefinition(
+            PageDefinition.CurrentSchemaVersion,
+            "orders-page",
+            "Orders",
+            "https://example.com/orders",
+            [],
+            DateTimeOffset.UtcNow,
+            [dynamicElement]);
+        await repository.SavePageAsync(page, CancellationToken.None);
+
+        var test = new TestCase(
+            TestCase.CurrentSchemaVersion,
+            "orders",
+            "Orders",
+            null,
+            [],
+            [
+                new TestStep(
+                    "click-row",
+                    StepAction.Click,
+                    "Click row",
+                    true,
+                    PageId: "orders-page",
+                    DynamicElementId: "row-button",
+                    DynamicParameterValue: "3"),
+            ],
+            DateTimeOffset.UtcNow);
+
+        var saved = await repository.SaveTestAsync(test, CancellationToken.None);
+
+        Assert.That(saved.Steps.Single().DynamicElementId, Is.EqualTo("row-button"));
+    }
+
+    [Test]
+    public async Task SaveTestAsync_RejectsStepReferencingNonexistentDynamicElement()
+    {
+        using var repository = new WorkspaceRepository();
+        await repository.OpenAsync(_root, CancellationToken.None);
+        var page = new PageDefinition(
+            PageDefinition.CurrentSchemaVersion,
+            "orders-page",
+            "Orders",
+            "https://example.com/orders",
+            [],
+            DateTimeOffset.UtcNow);
+        await repository.SavePageAsync(page, CancellationToken.None);
+
+        var test = new TestCase(
+            TestCase.CurrentSchemaVersion,
+            "orders",
+            "Orders",
+            null,
+            [],
+            [
+                new TestStep(
+                    "click-row",
+                    StepAction.Click,
+                    "Click row",
+                    true,
+                    PageId: "orders-page",
+                    DynamicElementId: "does-not-exist",
+                    DynamicParameterValue: "3"),
+            ],
+            DateTimeOffset.UtcNow);
+
+        Assert.ThrowsAsync<WorkspaceValidationException>(async () =>
+            await repository.SaveTestAsync(test, CancellationToken.None));
+    }
+
+    [Test]
+    public async Task SavePageAsync_RejectsDynamicElementWithUnsupportedAction()
+    {
+        using var repository = new WorkspaceRepository();
+        await repository.OpenAsync(_root, CancellationToken.None);
+        var page = new PageDefinition(
+            PageDefinition.CurrentSchemaVersion,
+            "orders-page",
+            "Orders",
+            "https://example.com/orders",
+            [],
+            DateTimeOffset.UtcNow,
+            [
+                new DynamicElement(
+                    "row-check", "row check", StepAction.AssertVisible, LocatorStrategy.XPath, "//tr[{param}]"),
+            ]);
+
+        Assert.ThrowsAsync<WorkspaceValidationException>(async () =>
+            await repository.SavePageAsync(page, CancellationToken.None));
+    }
+
+    [Test]
+    public async Task SavePageAsync_RejectsDynamicElementWithoutParamPlaceholder()
+    {
+        using var repository = new WorkspaceRepository();
+        await repository.OpenAsync(_root, CancellationToken.None);
+        var page = new PageDefinition(
+            PageDefinition.CurrentSchemaVersion,
+            "orders-page",
+            "Orders",
+            "https://example.com/orders",
+            [],
+            DateTimeOffset.UtcNow,
+            [
+                new DynamicElement(
+                    "row-button", "row button", StepAction.Click, LocatorStrategy.XPath, "//tr[1]/button"),
+            ]);
+
+        Assert.ThrowsAsync<WorkspaceValidationException>(async () =>
+            await repository.SavePageAsync(page, CancellationToken.None));
+    }
+
+    [TestCase(LocatorStrategy.Id)]
+    [TestCase(LocatorStrategy.Name)]
+    public async Task SavePageAsync_RejectsDynamicElementWithIdOrNameStrategy(LocatorStrategy strategy)
+    {
+        using var repository = new WorkspaceRepository();
+        await repository.OpenAsync(_root, CancellationToken.None);
+        var page = new PageDefinition(
+            PageDefinition.CurrentSchemaVersion,
+            "orders-page",
+            "Orders",
+            "https://example.com/orders",
+            [],
+            DateTimeOffset.UtcNow,
+            [
+                new DynamicElement(
+                    "row-button", "row button", StepAction.Click, strategy, "row-{param}"),
+            ]);
+
+        Assert.ThrowsAsync<WorkspaceValidationException>(async () =>
+            await repository.SavePageAsync(page, CancellationToken.None));
+    }
+
+    [Test]
+    public async Task SavePageAsync_RejectsDynamicElementNameCollidingWithAnotherDynamicElement()
+    {
+        using var repository = new WorkspaceRepository();
+        await repository.OpenAsync(_root, CancellationToken.None);
+        var page = new PageDefinition(
+            PageDefinition.CurrentSchemaVersion,
+            "orders-page",
+            "Orders",
+            "https://example.com/orders",
+            [],
+            DateTimeOffset.UtcNow,
+            [
+                new DynamicElement(
+                    "row-button-1", "row button", StepAction.Click, LocatorStrategy.XPath, "//tr[{param}]/td[1]"),
+                new DynamicElement(
+                    "row-button-2", "Row Button", StepAction.Click, LocatorStrategy.XPath, "//tr[{param}]/td[2]"),
+            ]);
+
+        Assert.ThrowsAsync<WorkspaceValidationException>(async () =>
+            await repository.SavePageAsync(page, CancellationToken.None));
+    }
+
+    [Test]
+    public async Task SavePageAsync_RejectsDynamicElementNameCollidingWithAStaticElement()
+    {
+        using var repository = new WorkspaceRepository();
+        await repository.OpenAsync(_root, CancellationToken.None);
+        var page = new PageDefinition(
+            PageDefinition.CurrentSchemaVersion,
+            "orders-page",
+            "Orders",
+            "https://example.com/orders",
+            [
+                new PageElement(
+                    "row-button-static", "row_button", "button", StepAction.Click,
+                    new Locator(LocatorStrategy.Id, "row-button")),
+            ],
+            DateTimeOffset.UtcNow,
+            [
+                new DynamicElement(
+                    "row-button-dynamic", "row button", StepAction.Click, LocatorStrategy.XPath, "//tr[{param}]/button"),
+            ]);
+
+        Assert.ThrowsAsync<WorkspaceValidationException>(async () =>
+            await repository.SavePageAsync(page, CancellationToken.None));
+    }
+
+    [Test]
+    public async Task GetDiscoveryScreenshotPath_ReturnsNullForAnUnsafeFileName()
+    {
+        using var repository = new WorkspaceRepository();
+        await repository.OpenAsync(_root, CancellationToken.None);
+
+        Assert.That(repository.GetDiscoveryScreenshotPath("../secrets.json"), Is.Null);
+    }
+
+    [Test]
+    public async Task GetDiscoveryScreenshotPath_ReturnsNullWhenTheFileDoesNotExist()
+    {
+        using var repository = new WorkspaceRepository();
+        await repository.OpenAsync(_root, CancellationToken.None);
+
+        Assert.That(repository.GetDiscoveryScreenshotPath("missing.png"), Is.Null);
+    }
+
+    [Test]
+    public async Task GetDiscoveryScreenshotPath_ReturnsThePathWhenTheFileExists()
+    {
+        using var repository = new WorkspaceRepository();
+        await repository.OpenAsync(_root, CancellationToken.None);
+        var directory = Path.Combine(_root, ".cliq", "runs", "discovery");
+        Directory.CreateDirectory(directory);
+        var expected = Path.Combine(directory, "login_discovered_2026-08-05T12-00-00-000Z.png");
+        await File.WriteAllBytesAsync(expected, [1, 2, 3]);
+
+        var path = repository.GetDiscoveryScreenshotPath("login_discovered_2026-08-05T12-00-00-000Z.png");
+
+        Assert.That(path, Is.EqualTo(expected));
+    }
+
+    [Test]
     public async Task OpenAsync_CreatesDefaultSettings()
     {
         using var repository = new WorkspaceRepository();
@@ -174,8 +395,8 @@ public sealed class WorkspaceRepositoryTests
             Assert.That(settings.TestExecution.PageReadyTimeoutMs, Is.EqualTo(15_000));
             Assert.That(settings.Scanning.LoadTimeoutMs, Is.EqualTo(30_000));
             Assert.That(settings.Scanning.NetworkIdleGraceMs, Is.EqualTo(3_000));
-            Assert.That(settings.Scanning.CaptureScreenshot, Is.True);
-            Assert.That(settings.TestExecution.CaptureScreenshotOnFailure, Is.True);
+            Assert.That(settings.Scanning.CaptureScreenshot, Is.False);
+            Assert.That(settings.TestExecution.CaptureScreenshotOnFailure, Is.False);
             Assert.That(settings.ElementIdentification.IgnoreIdPatterns, Is.Not.Empty);
         });
     }

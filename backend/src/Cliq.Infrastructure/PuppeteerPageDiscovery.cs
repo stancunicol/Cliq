@@ -16,6 +16,15 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     };
 
+    // Separate from JsonOptions above (which only deserializes the scanner's own JS output and
+    // is never read by a person): this report is meant to be opened and read, so it's indented
+    // and spells out the locator strategy name instead of its underlying enum ordinal.
+    private static readonly JsonSerializerOptions DiffReportJsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        WriteIndented = true,
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
+    };
+
     public async Task<PageScanResult> ScanAsync(
         string url,
         string name,
@@ -46,7 +55,8 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
 
             var freshElements = BuildElements(scanOutput.Elements, settings.ElementIdentification.TestIdAttribute);
             var previous = await repository.GetPageAsync(pageId, cancellationToken);
-            var (elements, report) = ElementReconciler.Reconcile(freshElements, previous?.Elements ?? []);
+            var (elements, report, newElements) = ElementReconciler.Reconcile(freshElements, previous?.Elements ?? []);
+            var dynamicSuggestions = BuildDynamicElementSuggestions(scanOutput.DynamicSuggestions);
 
             var page = new PageDefinition(
                 PageDefinition.CurrentSchemaVersion,
@@ -55,7 +65,21 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
                 url,
                 elements,
                 DateTimeOffset.UtcNow);
-            return new PageScanResult(page, report);
+
+            // Only worth producing once there's a previous scan to diff against, and only when
+            // something actually moved - a clean re-scan writes nothing, per the "minimal
+            // information surfaced" principle this replaced self-healing with.
+            var missingElements = elements.Where(element => element.NotFound).ToList();
+            var scannedAt = DateTimeOffset.UtcNow;
+            var locatorDiff = previous is not null && (newElements.Count > 0 || missingElements.Count > 0)
+                ? await WriteLocatorDiffReportAsync(root, pageId, scannedAt, newElements, missingElements, cancellationToken)
+                : null;
+
+            var screenshotFileName = scanOutput.ScreenshotPath is { Length: > 0 }
+                ? Path.GetFileName(scanOutput.ScreenshotPath)
+                : null;
+
+            return new PageScanResult(page, report, locatorDiff, dynamicSuggestions, screenshotFileName);
         }
         finally
         {
@@ -69,6 +93,31 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
             }
         }
     }
+
+    internal static async Task<LocatorDiffReport> WriteLocatorDiffReportAsync(
+        string root,
+        string pageId,
+        DateTimeOffset scannedAt,
+        IReadOnlyList<PageElement> newElements,
+        IReadOnlyList<PageElement> missingElements,
+        CancellationToken cancellationToken)
+    {
+        var diff = new LocatorDiffReport(
+            pageId,
+            scannedAt,
+            [.. newElements.Select(ToDiffEntry)],
+            [.. missingElements.Select(ToDiffEntry)]);
+
+        var directory = Path.Combine(root, ".cliq", "runs", "diffs");
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, $"{pageId}_{scannedAt:yyyyMMddTHHmmssfffZ}.json");
+        await File.WriteAllTextAsync(path, JsonSerializer.Serialize(diff, DiffReportJsonOptions), cancellationToken);
+
+        return diff;
+    }
+
+    private static LocatorDiffEntry ToDiffEntry(PageElement element) =>
+        new(element.Id, element.Name, element.Tag, element.Locator);
 
     private static async Task<ScanOutput> RunScanProcessAsync(
         string url,
@@ -193,14 +242,25 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
             "Could not locate the repository root to find the Puppeteer scanner script. Set CLIQ_PUPPETEER_SCANNER_PATH.");
     }
 
-    private static IReadOnlyList<PageElement> BuildElements(IReadOnlyList<RawElement> rawElements, string testIdAttribute)
+    internal static IReadOnlyList<PageElement> BuildElements(IReadOnlyList<RawElement> rawElements, string testIdAttribute)
     {
         var elements = new List<PageElement>();
         var usedNames = new Dictionary<string, int>();
+        // Defensive: the scanner only ever accepts a testId/xpath candidate after verifying it
+        // resolves to exactly one DOM node (see extract-elements.js's isUniqueMatch/
+        // isUniqueXPathMatch), so two distinct elements should never legitimately share a
+        // locator - but if they somehow did, keep only the first rather than emitting duplicate
+        // Page Object entries for what would read as "the same" element.
+        var seenLocators = new HashSet<string>();
 
         for (var i = 0; i < rawElements.Count; i++)
         {
             var el = rawElements[i];
+            if (!seenLocators.Add($"{el.Tag}|{el.Strategy}|{el.LocatorValue}"))
+            {
+                continue;
+            }
+
             var baseName = el.Kind == "radio"
                 ? el.GroupName
                 : el.TestId ?? el.Id ?? el.Name ?? el.Placeholder ?? el.Text;
@@ -224,10 +284,50 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
                 el.Tag,
                 ToAction(el.Kind),
                 ToLocator(el.Strategy, el.LocatorValue, name, testIdAttribute),
-                el.AssertText));
+                el.AssertText,
+                DataType: ToDataType(el.Kind, el.InputType)));
         }
 
         return elements;
+    }
+
+    /// <summary>Maps the scanner's detected repeating-group candidates (see extract-elements.js's
+    /// detectDynamicElementSuggestions) into domain suggestions - parallel to <see cref="BuildElements"/>,
+    /// same naming-hint precedence and dedup approach, but simpler: every suggestion is xpath (the
+    /// scanner never proposes anything else) so there's no locator-strategy branching to do.</summary>
+    internal static IReadOnlyList<DynamicElementSuggestion> BuildDynamicElementSuggestions(
+        IReadOnlyList<RawSuggestion> rawSuggestions)
+    {
+        var suggestions = new List<DynamicElementSuggestion>();
+        var usedNames = new Dictionary<string, int>();
+
+        for (var i = 0; i < rawSuggestions.Count; i++)
+        {
+            var raw = rawSuggestions[i];
+            var baseName = raw.TestId ?? raw.Id ?? raw.Name ?? raw.Placeholder ?? raw.Text;
+            if (string.IsNullOrWhiteSpace(baseName))
+            {
+                baseName = $"{raw.Tag}_group_{i}";
+            }
+
+            var name = IdentifierNaming.Sanitize(baseName, $"{raw.Tag}_group_{i}");
+
+            usedNames.TryGetValue(name, out var seen);
+            usedNames[name] = seen + 1;
+            if (seen > 0)
+            {
+                name = $"{name}_{seen + 1}";
+            }
+
+            suggestions.Add(new DynamicElementSuggestion(
+                name,
+                ToAction(raw.Kind),
+                DomainLocator.XPath,
+                raw.LocatorTemplate,
+                raw.SampleCount));
+        }
+
+        return suggestions;
     }
 
     private static StepAction ToAction(string kind) => kind switch
@@ -239,6 +339,24 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
         "assert" => StepAction.AssertText,
         _ => throw new InvalidOperationException($"Unknown element kind '{kind}'"),
     };
+
+    // Only "fill" elements carry a meaningful data type - everything else defaults to "string"
+    // and PageObjectCodeGenerator ignores it for those kinds anyway (Select/MultiSelect decide
+    // their own wrapper type from the action, not from this field).
+    private static string ToDataType(string kind, string? inputType)
+    {
+        if (kind != "fill")
+        {
+            return "string";
+        }
+
+        return (inputType ?? "text").ToLowerInvariant() switch
+        {
+            "number" or "range" => "int",
+            "date" or "datetime-local" or "month" or "week" => "DateTime",
+            _ => "string",
+        };
+    }
 
     private static Locator ToLocator(string strategy, string value, string name, string testIdAttribute)
     {
@@ -253,8 +371,8 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
         return new Locator(
             strategy switch
             {
-                "id" => DomainLocator.Id,
                 "name" => DomainLocator.Name,
+                "xpath" => DomainLocator.XPath,
                 _ => DomainLocator.Css,
             },
             value,
@@ -271,10 +389,11 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
     private sealed class ScanOutput
     {
         public List<RawElement> Elements { get; set; } = [];
+        public List<RawSuggestion> DynamicSuggestions { get; set; } = [];
         public string? ScreenshotPath { get; set; }
     }
 
-    private sealed class RawElement
+    internal sealed class RawElement
     {
         public string Tag { get; set; } = "";
         public string Kind { get; set; } = "";
@@ -287,5 +406,19 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
         public string? Placeholder { get; set; }
         public string? Text { get; set; }
         public string? AssertText { get; set; }
+        public string? InputType { get; set; }
+    }
+
+    internal sealed class RawSuggestion
+    {
+        public string Tag { get; set; } = "";
+        public string Kind { get; set; } = "";
+        public string LocatorTemplate { get; set; } = "";
+        public string? TestId { get; set; }
+        public string? Id { get; set; }
+        public string? Name { get; set; }
+        public string? Placeholder { get; set; }
+        public string? Text { get; set; }
+        public int SampleCount { get; set; }
     }
 }

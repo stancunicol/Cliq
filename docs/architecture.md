@@ -25,37 +25,48 @@ permissions/downloads, sandboxing, context isolation, and restricted navigation.
 Page discovery runs as a background Puppeteer operation: `PuppeteerPageDiscovery` shells out to a
 standalone Node script (`backend/tools/puppeteer-scanner`) that drives a headless/headed browser,
 extracts candidate elements, and hands back the same `PageDefinition`/locator model the app has
-always used. Interactive workflow runs still execute inside Electron's isolated `WebContentsView`,
-allowing the user to watch every highlighted, paced action. The main process owns one active run,
-cancellation, failure screenshots, and persistence through the authenticated sidecar. Generated
-NUnit workflows continue to use Selenium for CI and external execution, and `SeleniumTestRunner`
-still drives interactive runs the same way it always has - only discovery's engine changed.
+always used. Interactive test runs no longer execute inside Electron's `WebContentsView` at all -
+that view is navigation-only now (`BrowserController`, used while scanning). `SeleniumTestRunner`
+launches a separate, non-headless Selenium browser window for every run, the same engine generated
+NUnit workflows use for CI and external execution, so a step behaves identically live and in CI.
+Live-recording (capturing clicks/input from the embedded browser into test steps) was removed
+entirely; steps are now composed by hand against scanned elements. The main process still owns one
+active run, cancellation, failure screenshots, and persistence through the authenticated sidecar.
 
 ## Workspace model
 
 `project.json`, `pages/*.json`, `tests/*.json`, and `settings.json` carry `schemaVersion: 1`.
 Writes are atomic and all configured output paths are checked to remain inside the open workspace.
 
-Automatic DOM scans and Electron recordings create the same `PageDefinition` and stable locator
-model. Locator priority - by default `data-testid`, unique `id`, unique `name`, then verified CSS
-(XPath accepted for manually maintained definitions) - is configurable per workspace via
-`settings.json`'s `elementIdentification` section (custom test-id attribute, strategy order),
-validated on save. `settings.json` also carries `testExecution` (step/page-ready timeouts,
-failure-screenshot toggle) and `scanning` (load/network-idle timeouts, screenshot toggle).
+Automatic DOM scans create the `PageDefinition` and its stable locator model. Locator priority - by default `data-testid`, then a generated XPath (label, ancestor test-id,
+own text/attribute, or nearest-id-ancestor based), then a structural CSS fallback - is configurable
+per workspace via `settings.json`'s `elementIdentification` section (custom test-id attribute,
+strategy order), validated on save. `id` is deliberately excluded from locator strategies -
+framework-generated ids are too often volatile - and is only ever used as a naming hint.
+`settings.json` also carries `testExecution` (step/page-ready timeouts, failure-screenshot toggle)
+and `scanning` (load/network-idle timeouts, screenshot toggle).
 
 Re-scanning a page reconciles against its previous `PageDefinition` (`ElementReconciler`): elements
-still present keep their original `Id` so existing test references stay valid; elements no longer
-found are kept, flagged `NotFound`, rather than silently dropped. The scan response reports
-matched/new/missing counts. At test-run time, if a saved locator stops resolving,
-`SelfHealingLocator` re-derives it live from the current page - but only acts on an unambiguous
-match, and persists the healed locator back so future runs don't repeat the work; a healed step
-reports `SelfHealed` on its result, never silently.
+still present (matched by test id, then xpath, then an exact css-value match, in that order - no
+positional or other fuzzy fallback beyond these) keep their original `Id` so existing test
+references stay valid; anything that matches none of the three tiers is reported as a new element,
+with its previous counterpart kept and flagged `NotFound` rather than silently dropped. The scan
+response reports matched/new/missing counts, and - only when there was a previous scan to diff
+against and something actually changed - a locators-only `LocatorDiffReport` (new/missing entries,
+each with tag, name and locator) is written to `.cliq/runs/diffs/<pageId>_<timestamp>.json` and
+returned alongside the scan result. This replaces self-healing: at test-run time, if a saved
+locator stops resolving, the step simply fails with the Selenium timeout, and the next scan's diff
+report is how a stale locator gets surfaced for a human to fix.
 
 Test steps reference page and element IDs rather than duplicating selectors; saving a test
 validates that every element-touching step's page/element reference actually exists, so a broken
-reference is caught at save time rather than discovered mid-run. Generation emits one partial Page
-Object per page plus an NUnit workflow per test. Generated files may be replaced; matching
-`.Custom.cs` files are created once and never overwritten.
+reference is caught at save time rather than discovered mid-run. Generation emits one Page Object
+class per page plus an NUnit workflow per test, and a shared `CliqCustomMethodAttribute.cs` once
+per namespace. Every generation run replaces the Page Object file outright, but first extracts any
+method marked `[CliqCustomMethod]` from the existing file (`CustomMethodExtractor`, a
+comment/string-aware brace scan, not a full C# parse) and re-emits it verbatim at the end of the
+new one - that attribute is the only thing that survives regeneration; anything else hand-added
+without it is replaced like the rest of the file.
 
 ## Security posture
 

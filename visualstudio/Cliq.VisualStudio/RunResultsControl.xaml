@@ -111,9 +111,6 @@
                     <DataGridTextColumn Header="Step" Binding="{Binding Label}" Width="*" />
                     <DataGridTextColumn Header="Duration" Binding="{Binding Duration}" Width="85" />
                     <DataGridTextColumn Header="Breakdown" Binding="{Binding Timing}" Width="145" />
-                    <DataGridCheckBoxColumn Header="Healed"
-                                            Binding="{Binding IsSelfHealed, Mode=OneWay}"
-                                            Width="65" />
                 </DataGrid.Columns>
             </DataGrid>
 

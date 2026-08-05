@@ -173,8 +173,16 @@ api.MapPost("/pages/scan", async (
         request.Headless,
         cancellationToken);
     var saved = await repository.SavePageAsync(result.Page, cancellationToken);
-    return Results.Ok(new ScanPageResponse(saved, result.Reconciliation));
+    return Results.Ok(new ScanPageResponse(
+        saved, result.Reconciliation, result.LocatorDiff, result.DynamicElementSuggestions, result.ScreenshotPath));
 });
+
+api.MapGet("/pages/discovery-screenshots/{fileName}", (
+    string fileName,
+    IWorkspaceRepository repository) =>
+    repository.GetDiscoveryScreenshotPath(fileName) is { } path
+        ? Results.File(path, "image/png")
+        : Results.NotFound());
 
 api.MapGet("/tests", async (
     IWorkspaceRepository repository,

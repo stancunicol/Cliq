@@ -86,7 +86,7 @@ If the experimental instance needs to be reset, close it and run the Visual Stud
 - Tests, pages, settings, and masked secrets can be edited and explicitly saved.
 - Page scan uses installed Edge or Chrome and supports progress and cancellation.
 - Selected and full generation refreshes files and can open or reveal artifacts without editing legacy project files.
-- A visible run streams steps and timings, shows self-healing/failures/screenshots, and cancels cleanly.
+- A visible run streams steps and timings, shows failures and screenshots, and cancels cleanly.
 - Recording hands the exclusive workspace lease to Cliq Desktop and Visual Studio reacquires it after Desktop exits.
 - Two Visual Studio instances use independent authenticated sidecars and random ports.
 - Closing Visual Studio terminates the sidecar process tree.

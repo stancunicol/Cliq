@@ -340,7 +340,7 @@ public sealed class CliqPackage : AsyncPackage, ICliqShellCommandTarget
         }
 
         await JoinableTaskFactory.SwitchToMainThreadAsync(DisposalToken);
-        var dialog = new GenerationResultDialog(result.Artifacts)
+        var dialog = new GenerationResultDialog(result)
         {
             Owner = Application.Current?.MainWindow,
         };

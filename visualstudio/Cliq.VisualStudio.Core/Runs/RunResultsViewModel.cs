@@ -52,7 +52,6 @@ public sealed class RunStepViewModel : BindableBase
                 OnPropertyChanged(nameof(Duration));
                 OnPropertyChanged(nameof(Timing));
                 OnPropertyChanged(nameof(Error));
-                OnPropertyChanged(nameof(IsSelfHealed));
                 OnPropertyChanged(nameof(ScreenshotPath));
                 OnPropertyChanged(nameof(HasScreenshotPath));
             }
@@ -102,7 +101,6 @@ public sealed class RunStepViewModel : BindableBase
     }
 
     public string? Error => Result?.Error;
-    public bool IsSelfHealed => Result?.SelfHealed == true;
     public string? ScreenshotPath => Result?.ScreenshotPath;
     public bool HasScreenshotPath => !string.IsNullOrWhiteSpace(ScreenshotPath);
 

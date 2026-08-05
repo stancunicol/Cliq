@@ -1,16 +1,16 @@
-import { Activity, Check, CirclePlay, Plus, Search, Settings, X } from 'lucide-react'
+import { Activity, Check, CirclePlay, Plus, Search, X } from 'lucide-react'
 import type { ProjectManifest, TestCase } from '../../types'
 
 interface SidebarProps {
   project: ProjectManifest
   tests: TestCase[]
   selectedId?: string
-  active: 'tests' | 'runs' | 'settings'
+  active: 'tests' | 'runs'
   search: string
   onSearch(value: string): void
   onSelect(id: string): void
   onCreate(): void
-  onActive(value: 'tests' | 'runs' | 'settings'): void
+  onActive(value: 'tests' | 'runs'): void
 }
 
 export function Sidebar(props: SidebarProps) {
@@ -27,9 +27,6 @@ export function Sidebar(props: SidebarProps) {
         </button>
         <button className={props.active === 'runs' ? 'active' : ''} onClick={() => props.onActive('runs')}>
           <CirclePlay />Runs
-        </button>
-        <button className={props.active === 'settings' ? 'active' : ''} onClick={() => props.onActive('settings')}>
-          <Settings />Settings
         </button>
       </nav>
       <div className="sidebar-library">

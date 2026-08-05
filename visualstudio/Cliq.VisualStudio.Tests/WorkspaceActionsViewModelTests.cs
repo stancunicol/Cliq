@@ -129,7 +129,8 @@ public sealed class WorkspaceActionsViewModelTests
                             "CheckoutTests",
                             @"C:\workspace\Generated\Tests\CheckoutTests.cs",
                             true),
-                    }));
+                    },
+                    Array.Empty<CustomMethodRecoveryWarning>()));
         }
     }
 }

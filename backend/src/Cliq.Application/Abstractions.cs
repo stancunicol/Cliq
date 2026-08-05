@@ -21,6 +21,7 @@ public interface IWorkspaceRepository
     Task DeleteTestAsync(string id, CancellationToken cancellationToken);
     Task SaveRunAsync(TestRun run, CancellationToken cancellationToken);
     string? GetScreenshotPath(string runId, string fileName);
+    string? GetDiscoveryScreenshotPath(string fileName);
 }
 
 public interface IPageDiscovery

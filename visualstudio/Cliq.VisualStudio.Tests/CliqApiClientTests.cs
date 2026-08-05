@@ -65,6 +65,42 @@ public sealed class CliqApiClientTests
     }
 
     [Test]
+    public async Task SavePage_SerializesXPathStrategyAsLowercase()
+    {
+        string? body = null;
+        var handler = new StubHttpHandler(async request =>
+        {
+            body = await request.Content!.ReadAsStringAsync();
+            return Json(HttpStatusCode.OK, body);
+        });
+        var client = CreateClient(handler);
+        var page = new PageDefinition(
+            PageDefinition.CurrentSchemaVersion,
+            "orders",
+            "Orders",
+            "https://example.com/orders",
+            new[]
+            {
+                new PageElement(
+                    "edit-order",
+                    "Edit order",
+                    "button",
+                    StepAction.Click,
+                    new Locator(LocatorStrategy.XPath, "//button[@data-action='edit']")),
+            },
+            DateTimeOffset.Parse("2026-01-01T00:00:00Z"));
+
+        var saved = await client.SavePageAsync(page, CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(body, Does.Contain("\"strategy\":\"xpath\""));
+            Assert.That(body, Does.Not.Contain("\"strategy\":\"xPath\""));
+            Assert.That(saved.Elements[0].Locator.Strategy, Is.EqualTo(LocatorStrategy.XPath));
+        });
+    }
+
+    [Test]
     public void WorkspaceConflict_MapsStructuredProblemAndOwner()
     {
         const string problem = """
@@ -162,7 +198,7 @@ public sealed class CliqApiClientTests
     {
         const string events = """
             event: step
-            data: {"stepId":"s1","status":"passed","durationMs":7,"selfHealed":true}
+            data: {"stepId":"s1","status":"passed","durationMs":7}
 
             event: done
             data: {"id":"r1","testId":"t1","status":"passed","startedAt":"2026-07-29T10:00:00Z","completedAt":"2026-07-29T10:00:01Z","steps":[]}
@@ -185,7 +221,6 @@ public sealed class CliqApiClientTests
         {
             Assert.That(received, Has.Count.EqualTo(2));
             Assert.That(received[0].Step!.Status, Is.EqualTo(RunStatus.Passed));
-            Assert.That(received[0].Step!.SelfHealed, Is.True);
             Assert.That(received[1].Run!.Status, Is.EqualTo(RunStatus.Passed));
         });
     }

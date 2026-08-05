@@ -100,7 +100,10 @@ export class BackendSupervisor {
     }
 
     if (response.status === 204) return undefined as T
-    return (await response.json()) as T
+    // Some 2xx responses (e.g. Results.Accepted() with no value, from the run-cancel endpoint)
+    // have an empty body - response.json() throws on empty input, so check first.
+    const text = await response.text()
+    return (text ? JSON.parse(text) : undefined) as T
   }
 
   async requestDataUrl(route: string): Promise<string | null> {

@@ -7,8 +7,13 @@
 // identification strategies tried before falling back to a structural CSS
 // selector; see backend/tools/puppeteer-scanner's --locator-config flag,
 // driven by the workspace's settings.json.
+//
+// `id` is deliberately not a locator strategy: framework-generated ids are
+// too often volatile, so an element's `id` is only ever used as a naming
+// hint (see the `id` field on the returned objects), never as the thing
+// Selenium looks the element up by.
 function extractElements(config) {
-  const defaults = { testIdAttribute: 'data-testid', strategyOrder: ['testId', 'id', 'name'], ignoreIdPatterns: [] };
+  const defaults = { testIdAttribute: 'data-testid', strategyOrder: ['testId', 'xpath'], ignoreIdPatterns: [] };
   const { testIdAttribute, strategyOrder, ignoreIdPatterns } = { ...defaults, ...config };
 
   const ignoreIdRegexes = ignoreIdPatterns.map((pattern) => new RegExp(pattern, 'i'));
@@ -48,16 +53,153 @@ function extractElements(config) {
     }
   }
 
+  // Bare `div`s are the least stable thing to select on - they carry no semantic meaning and
+  // shift constantly as layout wrappers get added or removed - so the structural CSS fallback
+  // steps over them with a wildcard instead of pinning to the tag name.
   function structuralSelector(el) {
     const parts = [];
     let node = el;
     while (node && node.parentElement && node.nodeName.toLowerCase() !== 'body') {
       const siblings = Array.from(node.parentElement.children);
       const index = siblings.indexOf(node) + 1;
-      parts.unshift(`${node.nodeName.toLowerCase()}:nth-child(${index})`);
+      const tag = node.nodeName.toLowerCase() === 'div' ? '*' : node.nodeName.toLowerCase();
+      parts.unshift(`${tag}:nth-child(${index})`);
       node = node.parentElement;
     }
     return parts.join(' > ');
+  }
+
+  // XPath 1.0 has no string-escape mechanism, so a literal containing both quote characters has
+  // to be assembled with concat() instead of quoted directly.
+  function xpathLiteral(value) {
+    if (!value.includes('"')) return `"${value}"`;
+    if (!value.includes("'")) return `'${value}'`;
+    const segments = value.split('"');
+    return `concat(${segments.map((part, i) => i < segments.length - 1 ? `"${part}", '"'` : `"${part}"`).join(', ')})`;
+  }
+
+  function normalizeText(value) {
+    return (value || '').replace(/\s+/g, ' ').trim();
+  }
+
+  function isUniqueXPathMatch(xpath, el) {
+    try {
+      const result = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+      return result.snapshotLength === 1 && result.snapshotItem(0) === el;
+    } catch {
+      return false;
+    }
+  }
+
+  function labelTextFor(el) {
+    if (el.id) {
+      const byFor = document.querySelector(`label[for="${cssEscape(el.id)}"]`);
+      if (byFor) return normalizeText(byFor.textContent);
+    }
+    const wrapping = el.closest('label');
+    if (wrapping) return normalizeText(wrapping.textContent);
+    const labelledBy = el.getAttribute('aria-labelledby');
+    if (labelledBy) {
+      const ref = document.getElementById(labelledBy);
+      if (ref) return normalizeText(ref.textContent);
+    }
+    return null;
+  }
+
+  // A field's own <label> is the most human-legible, most refactor-resistant anchor there is -
+  // it survives id/class churn and reads the same way a manual tester would describe the field.
+  function xpathByLabel(el) {
+    const text = labelTextFor(el);
+    if (!text) return null;
+    const tag = el.tagName.toLowerCase();
+    const xp = `//label[contains(normalize-space(string(.)), ${xpathLiteral(text)})]/following::${tag}[1]`;
+    return isUniqueXPathMatch(xp, el) ? xp : null;
+  }
+
+  // No label association - look for a nearby container that already carries a test id and scope
+  // the search to it, so the resulting path reads as "the Nth <tag> inside that known region"
+  // rather than an absolute, layout-dependent chain.
+  function xpathByAncestorTestId(el, attribute) {
+    const tag = el.tagName.toLowerCase();
+    let node = el.parentElement;
+    let depth = 0;
+    while (node && depth < 6) {
+      const testId = node.getAttribute(attribute);
+      if (testId) {
+        const scoped = `//*[@${attribute}=${xpathLiteral(testId)}]//${tag}`;
+        const matches = document.evaluate(scoped, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+        for (let i = 0; i < matches.snapshotLength; i++) {
+          if (matches.snapshotItem(i) === el) {
+            return matches.snapshotLength === 1 ? scoped : `(${scoped})[${i + 1}]`;
+          }
+        }
+      }
+      node = node.parentElement;
+      depth += 1;
+    }
+    return null;
+  }
+
+  // Buttons, links and headings usually carry their own identifying text - contains() over
+  // normalize-space tolerates incidental whitespace changes that an exact match would break on.
+  function xpathByOwnAttribute(el) {
+    const tag = el.tagName.toLowerCase();
+    const text = normalizeText(el.textContent);
+    if (text) {
+      const byText = `//${tag}[contains(normalize-space(string(.)), ${xpathLiteral(text)})]`;
+      if (isUniqueXPathMatch(byText, el)) return byText;
+    }
+    const placeholder = el.getAttribute('placeholder');
+    if (placeholder) {
+      const byPlaceholder = `//${tag}[contains(@placeholder, ${xpathLiteral(placeholder)})]`;
+      if (isUniqueXPathMatch(byPlaceholder, el)) return byPlaceholder;
+    }
+    const ariaLabel = el.getAttribute('aria-label');
+    if (ariaLabel) {
+      const byAria = `//${tag}[contains(@aria-label, ${xpathLiteral(ariaLabel)})]`;
+      if (isUniqueXPathMatch(byAria, el)) return byAria;
+    }
+    return null;
+  }
+
+  function relativePositionPath(el, ancestor) {
+    const parts = [];
+    let node = el;
+    while (node && node !== ancestor) {
+      const siblings = Array.from(node.parentElement.children).filter((sibling) => sibling.tagName === node.tagName);
+      const index = siblings.indexOf(node) + 1;
+      parts.unshift(`${node.tagName.toLowerCase()}[${index}]`);
+      node = node.parentElement;
+    }
+    return parts.join('/');
+  }
+
+  // Last resort within the xpath tier: anchor on the nearest ancestor that has a non-volatile id,
+  // rather than an absolute /html/body/... chain that breaks on any unrelated layout change. Reuses
+  // the same isIgnoredId check as everything else, so a framework-regenerated ancestor id (a React
+  // Select/Ember/Angular Material wrapper, say) can't end up baked into a "stable" xpath either.
+  // If nothing qualifies up the tree, this - and the whole xpath tier - gives up, and locatorFor()
+  // falls through to the structural CSS selector.
+  function xpathByNearestIdAncestor(el) {
+    let node = el.parentElement;
+    let depth = 0;
+    while (node && depth < 8) {
+      if (node.id && !isIgnoredId(node.id)) {
+        const relative = relativePositionPath(el, node);
+        const xp = `//*[@id=${xpathLiteral(node.id)}]/${relative}`;
+        if (isUniqueXPathMatch(xp, el)) return xp;
+      }
+      node = node.parentElement;
+      depth += 1;
+    }
+    return null;
+  }
+
+  function xpathFor(el) {
+    return xpathByLabel(el)
+      || xpathByAncestorTestId(el, testIdAttribute)
+      || xpathByOwnAttribute(el)
+      || xpathByNearestIdAncestor(el);
   }
 
   const strategyChecks = {
@@ -67,13 +209,9 @@ function extractElements(config) {
       const candidate = `[${testIdAttribute}="${cssEscape(testId)}"]`;
       return isUniqueMatch(candidate, el) ? { strategy: 'css', value: candidate } : null;
     },
-    id: (el) => (el.id && !isIgnoredId(el.id) && isUniqueMatch(`#${CSS.escape(el.id)}`, el))
-      ? { strategy: 'id', value: el.id }
-      : null,
-    name: (el) => {
-      if (!el.name) return null;
-      const candidate = `${el.tagName.toLowerCase()}[name="${cssEscape(el.name)}"]`;
-      return isUniqueMatch(candidate, el) ? { strategy: 'name', value: el.name } : null;
+    xpath: (el) => {
+      const xp = xpathFor(el);
+      return xp ? { strategy: 'xpath', value: xp } : null;
     },
   };
 
@@ -103,7 +241,7 @@ function extractElements(config) {
 
   const seenRadioGroups = new Set();
 
-  return candidates
+  const elements = candidates
     .map((el) => {
       if (!isVisible(el)) return null;
 
@@ -141,9 +279,119 @@ function extractElements(config) {
         placeholder: el.getAttribute('placeholder'),
         text: text.slice(0, 40),
         assertText: kind === 'assert' ? text : null,
+        inputType: kind === 'fill' ? (el.getAttribute('type') || 'text').toLowerCase() : null,
       };
     })
     .filter(Boolean);
+
+  // --- Repeating-group detection for dynamic-element suggestions ---
+
+  // Only these four have a dynamic-element equivalent at all - mirrors
+  // WorkspaceRepository.ValidateDynamicElements' SupportedDynamicActions on
+  // the C# side. check/radio/multiselect are skipped entirely.
+  function isSuggestibleKind(kind) {
+    return kind === 'fill' || kind === 'click' || kind === 'select' || kind === 'assert';
+  }
+
+  // Walks up from `el` (inclusive) looking for an ancestor that has 3+
+  // siblings sharing its own tag name under the same parent - a "repeating
+  // row". Returns the OUTERMOST such ancestor found within the depth bound,
+  // not the nearest one: a <button> inside a <td> inside a <tr> would
+  // otherwise match on the <td> first (other <td> siblings in the same row
+  // also "repeat"), which describes the wrong axis of repetition - the row
+  // is what actually repeats once per record, not the columns within it.
+  function repeatingRowAncestorFor(el) {
+    const minGroupSize = 3;
+    let node = el;
+    let depth = 0;
+    let found = null;
+    while (node && depth < 8) {
+      const parent = node.parentElement;
+      if (parent) {
+        const siblings = Array.from(parent.children).filter((sibling) => sibling.tagName === node.tagName);
+        if (siblings.length >= minGroupSize) found = node;
+      }
+      node = parent;
+      depth += 1;
+    }
+    return found;
+  }
+
+  // Groups candidates that occupy the same relative position within a
+  // detected repeating row, and proposes one parameterized xpath template per
+  // group - e.g. every "edit" button, one per <tr>, becomes a single
+  // suggestion instead of each row's button being its own flat element (which
+  // still happens too, independently, via the elements list above; this is
+  // purely additive information, not a replacement for it).
+  function detectDynamicElementSuggestions(allCandidates) {
+    const minGroupSize = 3;
+    const maxSuggestions = 10;
+    const groups = new Map();
+
+    for (const el of allCandidates) {
+      if (!isVisible(el)) continue;
+      const kind = kindFor(el);
+      if (!isSuggestibleKind(kind)) continue;
+      // Mirrors the main elements list: a heading with no text is useless both as an assertion
+      // target and as a naming hint.
+      if (kind === 'assert' && !normalizeText(el.textContent)) continue;
+
+      const row = repeatingRowAncestorFor(el);
+      if (!row) continue;
+
+      const relativePath = relativePositionPath(el, row);
+      // structuralSelector gives a position-based path that's unique per
+      // element in this scan run - reused here purely as a grouping key
+      // (never as an actual locator), so distinct repeating regions on the
+      // same page (two different tables, say) don't get merged together.
+      const key = `${structuralSelector(row.parentElement)}|${row.tagName}|${relativePath}|${kind}`;
+
+      if (!groups.has(key)) {
+        groups.set(key, { row, relativePath, kind, tag: el.tagName.toLowerCase(), members: [] });
+      }
+      groups.get(key).members.push(el);
+    }
+
+    const suggestions = [];
+    for (const group of groups.values()) {
+      if (group.members.length < minGroupSize) continue;
+
+      // Anchor on the row's *container*, not the row itself - xpathFor
+      // already handles any element generically (label/ancestor-testid/own-
+      // attribute/nearest-id-ancestor), it just normally runs on a leaf
+      // candidate rather than a container. No stable anchor found means no
+      // safe way to say "the Nth row in here" - drop the group rather than
+      // fall back to a brittle absolute path (same philosophy as
+      // locatorFor() giving up instead of guessing).
+      const anchor = xpathFor(group.row.parentElement);
+      if (!anchor) continue;
+
+      const rowTag = group.row.tagName.toLowerCase();
+      const template = group.relativePath
+        ? `${anchor}/${rowTag}[{param}]/${group.relativePath}`
+        : `${anchor}/${rowTag}[{param}]`;
+
+      const representative = group.members[0];
+      const text = normalizeText(representative.textContent).slice(0, 40);
+
+      suggestions.push({
+        tag: group.tag,
+        kind: group.kind,
+        locatorTemplate: template,
+        testId: representative.getAttribute(testIdAttribute),
+        id: (representative.id && !isIgnoredId(representative.id)) ? representative.id : null,
+        name: representative.getAttribute('name'),
+        placeholder: representative.getAttribute('placeholder'),
+        text,
+        sampleCount: group.members.length,
+      });
+    }
+
+    suggestions.sort((a, b) => b.sampleCount - a.sampleCount);
+    return suggestions.slice(0, maxSuggestions);
+  }
+
+  return { elements, dynamicSuggestions: detectDynamicElementSuggestions(candidates) };
 }
 
 module.exports = { extractElements };
