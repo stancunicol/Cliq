@@ -59,6 +59,54 @@ public sealed class PuppeteerPageDiscoveryTests
         });
     }
 
+    [TestCase(null, "string")]
+    [TestCase("text", "string")]
+    [TestCase("email", "string")]
+    [TestCase("number", "int")]
+    [TestCase("range", "int")]
+    [TestCase("date", "DateTime")]
+    [TestCase("datetime-local", "DateTime")]
+    public void BuildElements_Fill_InfersDataTypeFromScannedInputType(string? inputType, string expectedDataType)
+    {
+        var raw = new[]
+        {
+            new PuppeteerPageDiscovery.RawElement
+            {
+                Tag = "input",
+                Kind = "fill",
+                Strategy = "id",
+                LocatorValue = "amount",
+                Name = "amount",
+                InputType = inputType,
+            },
+        };
+
+        var elements = PuppeteerPageDiscovery.BuildElements(raw, "data-testid");
+
+        Assert.That(elements[0].DataType, Is.EqualTo(expectedDataType));
+    }
+
+    [Test]
+    public void BuildElements_NonFillKind_IgnoresInputTypeAndDefaultsToString()
+    {
+        var raw = new[]
+        {
+            new PuppeteerPageDiscovery.RawElement
+            {
+                Tag = "button",
+                Kind = "click",
+                Strategy = "id",
+                LocatorValue = "submit",
+                Name = "submit",
+                InputType = "number",
+            },
+        };
+
+        var elements = PuppeteerPageDiscovery.BuildElements(raw, "data-testid");
+
+        Assert.That(elements[0].DataType, Is.EqualTo("string"));
+    }
+
     [Test]
     public void BuildElements_DistinctXPaths_KeepsBoth()
     {

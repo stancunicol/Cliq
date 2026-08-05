@@ -9,6 +9,10 @@ public static class PageObjectCodeGenerator
     /// <see cref="GenerateAttributeFile"/>.</summary>
     public const string CustomMethodAttributeName = "CliqCustomMethod";
 
+    /// <summary>Class name of the generated helper that pairs a locator with typed read/write
+    /// access - see <see cref="GenerateElementWrapperFile"/>.</summary>
+    public const string ElementWrapperClassName = "ElementWrapper";
+
     public static string Generate(
         string className,
         string @namespace,
@@ -16,6 +20,9 @@ public static class PageObjectCodeGenerator
         int defaultStepTimeoutMs,
         IReadOnlyList<string> customMethods)
     {
+        var wrapped = elements.Where(IsWrapped).ToList();
+        var plain = elements.Where(element => !IsWrapped(element)).ToList();
+
         var sb = new StringBuilder();
         sb.AppendLine("using System.Collections.Generic;");
         sb.AppendLine("using OpenQA.Selenium;");
@@ -28,14 +35,33 @@ public static class PageObjectCodeGenerator
         sb.AppendLine("{");
         sb.AppendLine("    private readonly IWebDriver _driver;");
         sb.AppendLine("    private readonly WebDriverWait _wait;");
+
+        // Fill/Select elements get a locator-and-data wrapper property instead of a plain
+        // action method - see ElementWrapper<TData> in GenerateElementWrapperFile. Everything
+        // else (Click, Assert, Check, Radio) has no associated data to read or write, so it
+        // keeps the plain-method shape below rather than being forced through a wrapper with an
+        // unused/meaningless data type.
+        foreach (var element in wrapped)
+        {
+            var name = IdentifierNaming.ToPascalCase(element.SuggestedName);
+            sb.AppendLine($"    public {ElementWrapperClassName}<{WrapperDataType(element)}> {name} {{ get; }}");
+        }
+
         sb.AppendLine();
         sb.AppendLine($"    public {className}(IWebDriver driver)");
         sb.AppendLine("    {");
         sb.AppendLine("        _driver = driver;");
         sb.AppendLine($"        _wait = new WebDriverWait(driver, TimeSpan.FromMilliseconds({defaultStepTimeoutMs}));");
+
+        foreach (var element in wrapped)
+        {
+            sb.AppendLine();
+            AppendWrappedInit(sb, element);
+        }
+
         sb.AppendLine("    }");
 
-        foreach (var element in elements)
+        foreach (var element in plain)
         {
             sb.AppendLine();
             AppendMethod(sb, element);
@@ -74,6 +100,111 @@ public static class PageObjectCodeGenerator
         return sb.ToString();
     }
 
+    /// <summary>
+    /// The <c>ElementWrapper&lt;TData&gt;</c> definition, generated once per namespace (not per
+    /// page, same reasoning as <see cref="GenerateAttributeFile"/>). Pairs a locator with typed
+    /// read/write access to its current value; each Fill/Select property in a generated Page
+    /// Object constructs one with element-specific upload/read delegates (see
+    /// <see cref="AppendWrappedInit"/>), so the type-specific Selenium calls live in the
+    /// generated Page Object, not in this generic shell.
+    /// </summary>
+    public static string GenerateElementWrapperFile(string @namespace)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"namespace {@namespace};");
+        sb.AppendLine();
+        sb.AppendLine("// Pairs a locator with typed read/write access to its current value - navigate to");
+        sb.AppendLine($"// the property on a generated Page Object ({{page}}.{{ElementName}}) to reach both.");
+        sb.AppendLine($"public sealed class {ElementWrapperClassName}<TData>");
+        sb.AppendLine("{");
+        sb.AppendLine("    private readonly Action<TData> _upload;");
+        sb.AppendLine("    private readonly Func<TData> _read;");
+        sb.AppendLine();
+        sb.AppendLine($"    public {ElementWrapperClassName}(Action<TData> upload, Func<TData> read)");
+        sb.AppendLine("    {");
+        sb.AppendLine("        _upload = upload;");
+        sb.AppendLine("        _read = read;");
+        sb.AppendLine("    }");
+        sb.AppendLine();
+        sb.AppendLine("    public void Upload(TData value) => _upload(value);");
+        sb.AppendLine();
+        sb.AppendLine("    public TData Read() => _read();");
+        sb.AppendLine("}");
+        return sb.ToString();
+    }
+
+    private static bool IsWrapped(ElementDescriptor element) =>
+        element.Kind is ElementActionKind.Fill or ElementActionKind.Select or ElementActionKind.MultiSelect;
+
+    private static string WrapperDataType(ElementDescriptor element) => element.Kind switch
+    {
+        ElementActionKind.Fill => element.DataType,
+        ElementActionKind.Select => "string",
+        ElementActionKind.MultiSelect => "string[]",
+        _ => throw new ArgumentOutOfRangeException(nameof(element)),
+    };
+
+    private static void AppendWrappedInit(StringBuilder sb, ElementDescriptor element)
+    {
+        var name = IdentifierNaming.ToPascalCase(element.SuggestedName);
+        var by = ByExpression(element);
+        var dataType = WrapperDataType(element);
+        var (upload, read) = WrapperBody(element, by);
+
+        sb.AppendLine($"        // Locator ({StrategyLabel(element.Strategy)}): {SingleLine(element.LocatorValue)}");
+        sb.AppendLine($"        {name} = new {ElementWrapperClassName}<{dataType}>(");
+        sb.AppendLine("            value =>");
+        sb.AppendLine("            {");
+        foreach (var line in upload)
+        {
+            sb.AppendLine($"                {line}");
+        }
+
+        sb.AppendLine("            },");
+        sb.AppendLine("            () =>");
+        sb.AppendLine("            {");
+        foreach (var line in read)
+        {
+            sb.AppendLine($"                {line}");
+        }
+
+        sb.AppendLine("            });");
+    }
+
+    /// <summary>Upload/read body lines (without leading indentation - the caller supplies it) for
+    /// a wrapped element's constructor initializer.</summary>
+    private static (string[] Upload, string[] Read) WrapperBody(ElementDescriptor element, string by)
+    {
+        var locate = $"var element = _wait.Until(d => d.FindElement({by}));";
+        return element.Kind switch
+        {
+            ElementActionKind.Fill when element.DataType == "int" => (
+                [locate, "element.Clear();", "element.SendKeys(value.ToString());"],
+                [locate, "return int.Parse(element.GetAttribute(\"value\")!);"]),
+            ElementActionKind.Fill when element.DataType == "DateTime" => (
+                [locate, "element.Clear();", "element.SendKeys(value.ToString(\"yyyy-MM-dd\"));"],
+                [locate, "return DateTime.Parse(element.GetAttribute(\"value\")!);"]),
+            ElementActionKind.Fill => (
+                [locate, "element.Clear();", "element.SendKeys(value);"],
+                [locate, "return element.GetAttribute(\"value\") ?? \"\";"]),
+            ElementActionKind.Select => (
+                [locate, "new SelectElement(element).SelectByValue(value);"],
+                [locate, "return new SelectElement(element).SelectedOption.GetAttribute(\"value\") ?? \"\";"]),
+            ElementActionKind.MultiSelect => (
+                [
+                    locate,
+                    "var select = new SelectElement(element);",
+                    "select.DeselectAll();",
+                    "foreach (var item in value)",
+                    "{",
+                    "    select.SelectByValue(item);",
+                    "}",
+                ],
+                [locate, "return new SelectElement(element).AllSelectedOptions.Select(o => o.GetAttribute(\"value\") ?? \"\").ToArray();"]),
+            _ => throw new ArgumentOutOfRangeException(nameof(element)),
+        };
+    }
+
     private static void AppendMethod(StringBuilder sb, ElementDescriptor element)
     {
         var name = IdentifierNaming.ToPascalCase(element.SuggestedName);
@@ -88,15 +219,6 @@ public static class PageObjectCodeGenerator
 
         switch (element.Kind)
         {
-            case ElementActionKind.Fill:
-                sb.AppendLine($"    public void Fill{name}(string value)");
-                sb.AppendLine("    {");
-                sb.AppendLine($"        var element = _wait.Until(d => d.FindElement({by}));");
-                sb.AppendLine("        element.Clear();");
-                sb.AppendLine("        element.SendKeys(value);");
-                sb.AppendLine("    }");
-                break;
-
             case ElementActionKind.Click:
                 sb.AppendLine($"    public void Click{name}()");
                 sb.AppendLine("    {");
@@ -108,27 +230,6 @@ public static class PageObjectCodeGenerator
                 sb.AppendLine("    {");
                 sb.AppendLine($"        var element = _wait.Until(d => d.FindElement({by}));");
                 sb.AppendLine("        new Actions(_driver).MoveToElement(element).Perform();");
-                sb.AppendLine("    }");
-                break;
-
-            case ElementActionKind.Select:
-                sb.AppendLine($"    public void Select{name}(string value)");
-                sb.AppendLine("    {");
-                sb.AppendLine($"        var element = _wait.Until(d => d.FindElement({by}));");
-                sb.AppendLine("        new SelectElement(element).SelectByValue(value);");
-                sb.AppendLine("    }");
-                break;
-
-            case ElementActionKind.MultiSelect:
-                sb.AppendLine($"    public void Select{name}Multiple(IEnumerable<string> values)");
-                sb.AppendLine("    {");
-                sb.AppendLine($"        var element = _wait.Until(d => d.FindElement({by}));");
-                sb.AppendLine("        var select = new SelectElement(element);");
-                sb.AppendLine("        select.DeselectAll();");
-                sb.AppendLine("        foreach (var value in values)");
-                sb.AppendLine("        {");
-                sb.AppendLine("            select.SelectByValue(value);");
-                sb.AppendLine("        }");
                 sb.AppendLine("    }");
                 break;
 

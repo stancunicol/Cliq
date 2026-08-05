@@ -69,6 +69,9 @@ export interface PageElement {
   locator: Locator
   expectedText?: string
   notFound?: boolean
+  /** Only meaningful when action is 'fill' - 'string' | 'int' | 'DateTime', inferred from the
+   * scanned <input> type. Defaults to 'string' when absent. */
+  dataType?: string
 }
 
 export interface ScanReconciliationReport {

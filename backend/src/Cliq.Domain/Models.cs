@@ -97,7 +97,10 @@ public sealed record PageElement(
     StepAction Action,
     Locator Locator,
     string? ExpectedText = null,
-    bool NotFound = false);
+    bool NotFound = false,
+    // Only meaningful for Fill (the value type an <input> holds - "string"/"int"/"DateTime",
+    // inferred from the scanned input type); ignored for every other action.
+    string DataType = "string");
 
 public sealed record ScanReconciliationReport(
     int MatchedCount,

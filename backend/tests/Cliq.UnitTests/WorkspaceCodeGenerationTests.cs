@@ -130,7 +130,7 @@ public sealed class WorkspaceCodeGenerationTests
         {
             Assert.That(regenerated, Does.Contain("[CliqCustomMethod]"));
             Assert.That(regenerated, Does.Contain("public void WaitForSpinnerToClear()"));
-            Assert.That(regenerated, Does.Contain("public void FillUsername(string value)"));
+            Assert.That(regenerated, Does.Contain("Username = new ElementWrapper<string>("));
             Assert.That(second.Warnings, Is.Empty);
         });
     }

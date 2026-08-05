@@ -46,6 +46,13 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
             cancellationToken);
         artifacts.Add(new GeneratedArtifact("attribute", "CliqCustomMethodAttribute", attributePath, true));
 
+        var wrapperPath = Path.Combine(pageObjectDirectory, "ElementWrapper.cs");
+        await WriteAtomicTextAsync(
+            wrapperPath,
+            PageObjectCodeGenerator.GenerateElementWrapperFile(project.Output.PageObjectsNamespace),
+            cancellationToken);
+        artifacts.Add(new GeneratedArtifact("wrapper", "ElementWrapper", wrapperPath, true));
+
         var pageClassNames = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var page in pages)
         {
@@ -208,7 +215,8 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
                 ? $"[{testIdAttribute}=\"{CssAttributeEscape(element.Locator.Value)}\"]"
                 : element.Locator.Value,
             element.Name,
-            element.ExpectedText);
+            element.ExpectedText,
+            DataType: element.DataType);
 
     private static string GenerateWorkflowTest(
         ProjectManifest project,

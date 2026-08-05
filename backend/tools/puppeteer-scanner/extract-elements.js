@@ -279,6 +279,7 @@ function extractElements(config) {
         placeholder: el.getAttribute('placeholder'),
         text: text.slice(0, 40),
         assertText: kind === 'assert' ? text : null,
+        inputType: kind === 'fill' ? (el.getAttribute('type') || 'text').toLowerCase() : null,
       };
     })
     .filter(Boolean);

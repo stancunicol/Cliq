@@ -54,12 +54,12 @@ public class PageObjectCodeGeneratorTests
 
         var code = PageObjectCodeGenerator.Generate("LoginPage", "Generated", elements, 10_000, []);
         var commentIndex = code.IndexOf($"// Locator (xpath): {fullXPath}", StringComparison.Ordinal);
-        var methodIndex = code.IndexOf("public void FillUsername(string value)", StringComparison.Ordinal);
+        var initIndex = code.IndexOf("Username = new ElementWrapper<string>(", StringComparison.Ordinal);
 
         Assert.Multiple(() =>
         {
-            Assert.That(commentIndex, Is.GreaterThanOrEqualTo(0), "expected the full xpath in a comment above the method");
-            Assert.That(commentIndex, Is.LessThan(methodIndex), "the comment should precede the method it documents");
+            Assert.That(commentIndex, Is.GreaterThanOrEqualTo(0), "expected the full xpath in a comment above the wrapper init");
+            Assert.That(commentIndex, Is.LessThan(initIndex), "the comment should precede the wrapper init it documents");
         });
     }
 
@@ -80,12 +80,12 @@ public class PageObjectCodeGeneratorTests
         Assert.Multiple(() =>
         {
             Assert.That(commentLine, Does.Contain("line one line two"));
-            Assert.That(code, Does.Contain("public void FillUsername(string value)"));
+            Assert.That(code, Does.Contain("Username = new ElementWrapper<string>("));
         });
     }
 
     [Test]
-    public void Generate_Fill_ProducesClearAndSendKeys()
+    public void Generate_Fill_ProducesElementWrapperPropertyWithClearAndSendKeys()
     {
         var elements = new List<ElementDescriptor>
         {
@@ -94,10 +94,57 @@ public class PageObjectCodeGeneratorTests
 
         var code = PageObjectCodeGenerator.Generate("LoginPage", "Generated", elements, 10_000, []);
 
-        Assert.That(code, Does.Contain("public void FillUsername(string value)"));
+        Assert.That(code, Does.Contain("public ElementWrapper<string> Username { get; }"));
+        Assert.That(code, Does.Contain("Username = new ElementWrapper<string>("));
         Assert.That(code, Does.Contain("d.FindElement(By.Id(\"username\"))"));
         Assert.That(code, Does.Contain("element.Clear();"));
         Assert.That(code, Does.Contain("element.SendKeys(value);"));
+        Assert.That(code, Does.Contain("return element.GetAttribute(\"value\") ?? \"\";"));
+    }
+
+    [Test]
+    public void Generate_FillWithIntDataType_ParsesAndFormatsAsInt()
+    {
+        var elements = new List<ElementDescriptor>
+        {
+            new("input", ElementActionKind.Fill, LocatorStrategy.Id, "age", "age", DataType: "int"),
+        };
+
+        var code = PageObjectCodeGenerator.Generate("Page", "Generated", elements, 10_000, []);
+
+        Assert.That(code, Does.Contain("public ElementWrapper<int> Age { get; }"));
+        Assert.That(code, Does.Contain("element.SendKeys(value.ToString());"));
+        Assert.That(code, Does.Contain("return int.Parse(element.GetAttribute(\"value\")!);"));
+    }
+
+    [Test]
+    public void Generate_FillWithDateTimeDataType_ParsesAndFormatsAsIsoDate()
+    {
+        var elements = new List<ElementDescriptor>
+        {
+            new("input", ElementActionKind.Fill, LocatorStrategy.Id, "dob", "dob", DataType: "DateTime"),
+        };
+
+        var code = PageObjectCodeGenerator.Generate("Page", "Generated", elements, 10_000, []);
+
+        Assert.That(code, Does.Contain("public ElementWrapper<DateTime> Dob { get; }"));
+        Assert.That(code, Does.Contain("element.SendKeys(value.ToString(\"yyyy-MM-dd\"));"));
+        Assert.That(code, Does.Contain("return DateTime.Parse(element.GetAttribute(\"value\")!);"));
+    }
+
+    [Test]
+    public void Generate_Select_ProducesElementWrapperPropertyWithSelectByValue()
+    {
+        var elements = new List<ElementDescriptor>
+        {
+            new("select", ElementActionKind.Select, LocatorStrategy.Id, "country", "country"),
+        };
+
+        var code = PageObjectCodeGenerator.Generate("Page", "Generated", elements, 10_000, []);
+
+        Assert.That(code, Does.Contain("public ElementWrapper<string> Country { get; }"));
+        Assert.That(code, Does.Contain("new SelectElement(element).SelectByValue(value);"));
+        Assert.That(code, Does.Contain("return new SelectElement(element).SelectedOption.GetAttribute(\"value\") ?? \"\";"));
     }
 
     [Test]
@@ -153,7 +200,7 @@ public class PageObjectCodeGeneratorTests
     }
 
     [Test]
-    public void Generate_MultiSelect_ProducesDeselectAllAndForeach()
+    public void Generate_MultiSelect_ProducesElementWrapperPropertyWithDeselectAllAndForeach()
     {
         var elements = new List<ElementDescriptor>
         {
@@ -162,8 +209,10 @@ public class PageObjectCodeGeneratorTests
 
         var code = PageObjectCodeGenerator.Generate("Page", "Generated", elements, 10_000, []);
 
-        Assert.That(code, Does.Contain("public void SelectMultiMultiple(IEnumerable<string> values)"));
+        Assert.That(code, Does.Contain("public ElementWrapper<string[]> Multi { get; }"));
         Assert.That(code, Does.Contain("select.DeselectAll();"));
+        Assert.That(code, Does.Contain("foreach (var item in value)"));
+        Assert.That(code, Does.Contain("AllSelectedOptions.Select(o => o.GetAttribute(\"value\") ?? \"\").ToArray();"));
     }
 
     [Test]
@@ -217,13 +266,13 @@ public class PageObjectCodeGeneratorTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(code, Does.Contain("public void FillUsername(string value)"));
+            Assert.That(code, Does.Contain("Username = new ElementWrapper<string>("));
             Assert.That(code, Does.Contain("[CliqCustomMethod]"));
             Assert.That(code, Does.Contain("public void WaitForSpinnerToClear()"));
             Assert.That(
-                code.IndexOf("FillUsername", StringComparison.Ordinal),
+                code.IndexOf("Username", StringComparison.Ordinal),
                 Is.LessThan(code.IndexOf("WaitForSpinnerToClear", StringComparison.Ordinal)),
-                "generated methods should come before preserved custom ones");
+                "generated members should come before preserved custom ones");
         });
     }
 
@@ -237,6 +286,20 @@ public class PageObjectCodeGeneratorTests
             Assert.That(code, Does.Contain("namespace Generated;"));
             Assert.That(code, Does.Contain("[AttributeUsage(AttributeTargets.Method)]"));
             Assert.That(code, Does.Contain("class CliqCustomMethodAttribute : Attribute"));
+        });
+    }
+
+    [Test]
+    public void GenerateElementWrapperFile_ProducesTheGenericWrapperDefinition()
+    {
+        var code = PageObjectCodeGenerator.GenerateElementWrapperFile("Generated");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(code, Does.Contain("namespace Generated;"));
+            Assert.That(code, Does.Contain("public sealed class ElementWrapper<TData>"));
+            Assert.That(code, Does.Contain("public void Upload(TData value) => _upload(value);"));
+            Assert.That(code, Does.Contain("public TData Read() => _read();"));
         });
     }
 }

@@ -279,7 +279,8 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
                 el.Tag,
                 ToAction(el.Kind),
                 ToLocator(el.Strategy, el.LocatorValue, name, testIdAttribute),
-                el.AssertText));
+                el.AssertText,
+                DataType: ToDataType(el.Kind, el.InputType)));
         }
 
         return elements;
@@ -294,6 +295,24 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
         "assert" => StepAction.AssertText,
         _ => throw new InvalidOperationException($"Unknown element kind '{kind}'"),
     };
+
+    // Only "fill" elements carry a meaningful data type - everything else defaults to "string"
+    // and PageObjectCodeGenerator ignores it for those kinds anyway (Select/MultiSelect decide
+    // their own wrapper type from the action, not from this field).
+    private static string ToDataType(string kind, string? inputType)
+    {
+        if (kind != "fill")
+        {
+            return "string";
+        }
+
+        return (inputType ?? "text").ToLowerInvariant() switch
+        {
+            "number" or "range" => "int",
+            "date" or "datetime-local" or "month" or "week" => "DateTime",
+            _ => "string",
+        };
+    }
 
     private static Locator ToLocator(string strategy, string value, string name, string testIdAttribute)
     {
@@ -342,5 +361,6 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
         public string? Placeholder { get; set; }
         public string? Text { get; set; }
         public string? AssertText { get; set; }
+        public string? InputType { get; set; }
     }
 }

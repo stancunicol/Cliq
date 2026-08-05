@@ -124,6 +124,7 @@ Generated/
   PageObjects/
     <PageName>Page.cs
     CliqCustomMethodAttribute.cs
+    ElementWrapper.cs
   Tests/
     <TestName>Tests.cs
 ```
@@ -135,6 +136,13 @@ shared by every Page Object in the namespace); anything else in the file is rege
 is not preserved. If fewer marked methods come back out than the previous file's marker count
 suggests it should, generation backs that file up under `.cliq/runs/custom-method-backups/` and
 reports it as a warning instead of silently dropping the difference.
+
+Fill/Select/multi-select elements are exposed as `ElementWrapper<TData>` properties (defined once
+in the generated `ElementWrapper.cs`) instead of plain methods - `page.Username.Upload("ana")` /
+`page.Username.Read()` - so the locator and its associated data stay together. `TData` is `string`
+by default, or `int`/`DateTime` for a Fill element when the scanned `<input type>` implies it
+(`number`/`range` → `int`; `date`/`datetime-local`/`month`/`week` → `DateTime`). Click, assert,
+checkbox, and radio elements have no associated data and stay as plain methods.
 
 Test steps reference stable page and element IDs instead of copying selectors. Automatic scans
 and browser recording both produce the same `PageDefinition` model.

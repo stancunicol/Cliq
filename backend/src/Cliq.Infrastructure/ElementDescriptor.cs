@@ -26,7 +26,10 @@ public sealed record ElementDescriptor(
     string LocatorValue,
     string SuggestedName,
     string? ExpectedText = null,
-    string? GroupName = null)
+    string? GroupName = null,
+    // Only meaningful for Fill - "string"/"int"/"DateTime". Select/MultiSelect decide their own
+    // wrapper data type from Kind alone (see PageObjectCodeGenerator.WrapperDataType).
+    string DataType = "string")
 {
     public string Selector => Strategy switch
     {
