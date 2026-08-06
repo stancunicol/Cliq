@@ -11,7 +11,6 @@ public enum BrowserKind
 public enum LocatorStrategy
 {
     TestId,
-    Id,
     Name,
     Css,
     // The default camelCase JsonStringEnumConverter lowercases only the leading run of capitals

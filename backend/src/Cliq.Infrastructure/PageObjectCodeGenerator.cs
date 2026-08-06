@@ -437,7 +437,6 @@ public static class PageObjectCodeGenerator
 
     private static string StrategyLabel(LocatorStrategy strategy) => strategy switch
     {
-        LocatorStrategy.Id => "id",
         LocatorStrategy.Name => "name",
         LocatorStrategy.CssSelector => "css",
         LocatorStrategy.XPath => "xpath",

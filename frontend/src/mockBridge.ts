@@ -252,7 +252,7 @@ function mockPage(): PageDefinition {
         name: 'display name',
         tag: 'input',
         action: 'fill',
-        locator: { strategy: 'id', value: 'display-name' },
+        locator: { strategy: 'css', value: '#display-name' },
       },
       {
         id: 'counter-output',

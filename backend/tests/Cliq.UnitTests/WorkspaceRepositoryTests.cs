@@ -110,7 +110,7 @@ public sealed class WorkspaceRepositoryTests
             "login-page",
             "Login Page",
             "https://example.com/login",
-            [new PageElement("username-1", "username", "input", StepAction.Fill, new Locator(LocatorStrategy.Id, "username"))],
+            [new PageElement("username-1", "username", "input", StepAction.Fill, new Locator(LocatorStrategy.XPath, "username"))],
             DateTimeOffset.UtcNow);
         await repository.SavePageAsync(page, CancellationToken.None);
 
@@ -137,7 +137,7 @@ public sealed class WorkspaceRepositoryTests
             "login-page",
             "Login Page",
             "https://example.com/login",
-            [new PageElement("username-1", "username", "input", StepAction.Fill, new Locator(LocatorStrategy.Id, "username"))],
+            [new PageElement("username-1", "username", "input", StepAction.Fill, new Locator(LocatorStrategy.XPath, "username"))],
             DateTimeOffset.UtcNow);
         await repository.SavePageAsync(page, CancellationToken.None);
 
@@ -273,9 +273,8 @@ public sealed class WorkspaceRepositoryTests
             await repository.SavePageAsync(page, CancellationToken.None));
     }
 
-    [TestCase(LocatorStrategy.Id)]
-    [TestCase(LocatorStrategy.Name)]
-    public async Task SavePageAsync_RejectsDynamicElementWithIdOrNameStrategy(LocatorStrategy strategy)
+    [Test]
+    public async Task SavePageAsync_RejectsDynamicElementWithNameStrategy()
     {
         var repository = new WorkspaceRepository();
         await repository.OpenAsync(_root, CancellationToken.None);
@@ -288,7 +287,7 @@ public sealed class WorkspaceRepositoryTests
             DateTimeOffset.UtcNow,
             [
                 new DynamicElement(
-                    "row-button", "row button", StepAction.Click, strategy, "row-{param}"),
+                    "row-button", "row button", StepAction.Click, LocatorStrategy.Name, "row-{param}"),
             ]);
 
         Assert.ThrowsAsync<WorkspaceValidationException>(async () =>
@@ -331,7 +330,7 @@ public sealed class WorkspaceRepositoryTests
             [
                 new PageElement(
                     "row-button-static", "row_button", "button", StepAction.Click,
-                    new Locator(LocatorStrategy.Id, "row-button")),
+                    new Locator(LocatorStrategy.XPath, "row-button")),
             ],
             DateTimeOffset.UtcNow,
             [

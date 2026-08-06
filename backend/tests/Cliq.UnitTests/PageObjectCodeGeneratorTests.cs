@@ -42,11 +42,10 @@ public class PageObjectCodeGeneratorTests
         Assert.That(PageObjectCodeGenerator.ByExpression(element), Is.EqualTo(expected));
     }
 
-    [TestCase(LocatorStrategy.Id)]
-    [TestCase(LocatorStrategy.Name)]
-    public void ByExpression_RejectsIdAndName_NeitherIsAStaticDiscoveryStrategy(LocatorStrategy strategy)
+    [Test]
+    public void ByExpression_RejectsName_NotAStaticDiscoveryStrategy()
     {
-        var element = new ElementDescriptor("input", ElementActionKind.Fill, strategy, "username", "name");
+        var element = new ElementDescriptor("input", ElementActionKind.Fill, LocatorStrategy.Name, "username", "name");
 
         Assert.Throws<ArgumentOutOfRangeException>(() => PageObjectCodeGenerator.ByExpression(element));
     }
@@ -432,15 +431,10 @@ public class PageObjectCodeGeneratorTests
     }
 
     [Test]
-    public void InterpolatedByExpression_RejectsIdAndName_NeitherIsASupportedDynamicStrategy()
+    public void InterpolatedByExpression_RejectsName_NotASupportedDynamicStrategy()
     {
-        Assert.Multiple(() =>
-        {
-            Assert.Throws<ArgumentOutOfRangeException>(() => PageObjectCodeGenerator.InterpolatedByExpression(
-                new DynamicElementDescriptor(ElementActionKind.Click, LocatorStrategy.Id, "row-{param}", "rowButton")));
-            Assert.Throws<ArgumentOutOfRangeException>(() => PageObjectCodeGenerator.InterpolatedByExpression(
-                new DynamicElementDescriptor(ElementActionKind.Click, LocatorStrategy.Name, "row-{param}", "rowButton")));
-        });
+        Assert.Throws<ArgumentOutOfRangeException>(() => PageObjectCodeGenerator.InterpolatedByExpression(
+            new DynamicElementDescriptor(ElementActionKind.Click, LocatorStrategy.Name, "row-{param}", "rowButton")));
     }
 
     [Test]

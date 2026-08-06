@@ -1,4 +1,4 @@
-import { Camera, Check, CircleAlert, Hourglass, LoaderCircle, Square, X } from 'lucide-react'
+import { Camera, Check, CircleAlert, LoaderCircle, Square, X } from 'lucide-react'
 import { useState } from 'react'
 import { screenshotService } from '../../services'
 import type { StepResult, TestCase, TestRun } from '../../types'
@@ -83,17 +83,7 @@ export function RunResults({
                 {isCurrent ? <LoaderCircle className="spin" /> : result?.status === 'passed' ? <Check /> : result ? <X /> : <span />}
               </span>
               <div>
-                <strong>
-                  {step.label}
-                  {result?.extendedTimeoutMs !== undefined && (
-                    <span
-                      className="extended-badge"
-                      title="This step's history shows it routinely takes longer, so the wait was extended automatically."
-                    >
-                      <Hourglass />Timeout extended to {result.extendedTimeoutMs}ms
-                    </span>
-                  )}
-                </strong>
+                <strong>{step.label}</strong>
                 <small>{isCurrent ? 'Executing in the Cliq browser…' : result?.error || result?.status || 'Waiting'}</small>
               </div>
               {result?.screenshotPath && (
@@ -133,6 +123,5 @@ function timingBreakdown(result: StepResult) {
   const parts: string[] = []
   if (result.locateMs !== undefined) parts.push(`locate ${result.locateMs}ms`)
   if (result.actionMs !== undefined) parts.push(`action ${result.actionMs}ms`)
-  if (result.syncMs !== undefined) parts.push(`sync ${result.syncMs}ms`)
   return parts.join(' · ')
 }

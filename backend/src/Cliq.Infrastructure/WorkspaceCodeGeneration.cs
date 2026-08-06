@@ -225,7 +225,6 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
             },
             element.Locator.Strategy switch
             {
-                DomainLocator.Id => GenerationLocator.Id,
                 DomainLocator.Name => GenerationLocator.Name,
                 DomainLocator.XPath => GenerationLocator.XPath,
                 DomainLocator.TestId or DomainLocator.Css => GenerationLocator.CssSelector,
@@ -249,7 +248,6 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
             },
             element.Strategy switch
             {
-                DomainLocator.Id => GenerationLocator.Id,
                 DomainLocator.Name => GenerationLocator.Name,
                 DomainLocator.XPath => GenerationLocator.XPath,
                 DomainLocator.TestId or DomainLocator.Css => GenerationLocator.CssSelector,
@@ -508,7 +506,6 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
         var value = Literal(locatorValue);
         return element.Locator.Strategy switch
         {
-            DomainLocator.Id => $"By.Id({value})",
             DomainLocator.Name => $"By.Name({value})",
             DomainLocator.XPath => $"By.XPath({value})",
             DomainLocator.TestId => $"By.CssSelector({value})",

@@ -1,5 +1,5 @@
 export type BrowserKind = 'chrome' | 'edge'
-export type LocatorStrategy = 'testId' | 'id' | 'name' | 'css' | 'xpath'
+export type LocatorStrategy = 'testId' | 'name' | 'css' | 'xpath'
 export type StepAction =
   | 'navigate'
   | 'click'
@@ -199,8 +199,6 @@ export interface StepResult {
   screenshotPath?: string
   locateMs?: number
   actionMs?: number
-  syncMs?: number
-  extendedTimeoutMs?: number
 }
 
 export interface TestRun {
