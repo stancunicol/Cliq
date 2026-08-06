@@ -25,9 +25,35 @@ function extractElements(config) {
     return ignoreIdRegexes.some((regex) => regex.test(id));
   }
 
-  const candidates = Array.from(document.querySelectorAll(
+  const semanticCandidates = Array.from(document.querySelectorAll(
     'input, textarea, select, button, a[href], h1, h2, h3, h4, h5, h6'
   ));
+
+  // Framework-rendered actions are often non-semantic - a <span>/<div> wired up with a click
+  // handler via JS rather than a real <button> (common for icon-only actions, e.g. a data
+  // table's Edit/Delete). No native onclick attribute or listener is reliably inspectable here
+  // (React and friends attach handlers via synthetic event delegation, not real DOM attributes),
+  // so a deliberate `cursor: pointer` style is the most reliable signal available that an
+  // element was authored to be clicked. Only the outermost element introducing that cursor
+  // within its own ancestor chain qualifies - cursor is an inherited CSS property, so without
+  // this check every descendant of an already-clickable container (an icon or text span inside
+  // it) would match too.
+  const semanticCandidateSet = new Set(semanticCandidates);
+
+  function hasPointerCursor(el) {
+    return window.getComputedStyle(el).cursor === 'pointer';
+  }
+
+  function isNonSemanticClickCandidate(el) {
+    if (el === document.body || el === document.documentElement) return false;
+    if (semanticCandidateSet.has(el) || !hasPointerCursor(el)) return false;
+    const parent = el.parentElement;
+    return !parent || !hasPointerCursor(parent);
+  }
+
+  const nonSemanticClickCandidates = Array.from(document.querySelectorAll('*')).filter(isNonSemanticClickCandidate);
+  const nonSemanticClickSet = new Set(nonSemanticClickCandidates);
+  const candidates = [...semanticCandidates, ...nonSemanticClickCandidates];
 
   function cssEscape(value) {
     return value.replace(/["\\]/g, '\\$&');
@@ -224,6 +250,9 @@ function extractElements(config) {
   }
 
   function kindFor(el) {
+    // A non-semantic element only ever gets here via cursor:pointer detection - there's no tag
+    // to infer fill/select/assert from, so 'click' is the only sensible kind for it.
+    if (nonSemanticClickSet.has(el)) return 'click';
     const tag = el.tagName.toLowerCase();
     if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tag)) return 'assert';
     if (tag === 'textarea') return 'fill';

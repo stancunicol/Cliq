@@ -400,6 +400,32 @@ public sealed class WorkspaceRepositoryTests
     }
 
     [Test]
+    public async Task GetSettingsAsync_SettingsJsonPredatingHighlightPauseMs_DefaultsItTo400()
+    {
+        // Reproduces a real, already-on-disk settings.json written before HighlightPauseMs
+        // existed - unlike ElementIdentificationSettings.IgnoreIdPatterns (a reference type with
+        // no C# default, deserializes as null, needs the explicit backfill in GetSettingsAsync),
+        // HighlightPauseMs has a real constructor default (`= 400`), which System.Text.Json's
+        // constructor-based deserialization applies on its own for a missing property - no
+        // backfill code needed, but worth locking in as a passing test rather than an assumption.
+        var repository = new WorkspaceRepository();
+        await repository.OpenAsync(_root, CancellationToken.None);
+        var settingsPath = Path.Combine(_root, ".cliq", "settings.json");
+        await File.WriteAllTextAsync(settingsPath, """
+            {
+              "schemaVersion": 1,
+              "elementIdentification": { "testIdAttribute": "data-testid", "strategyOrder": ["testId", "xpath"], "ignoreIdPatterns": [] },
+              "testExecution": { "defaultStepTimeoutMs": 10000, "pageReadyTimeoutMs": 15000, "captureScreenshotOnFailure": false },
+              "scanning": { "loadTimeoutMs": 30000, "networkIdleGraceMs": 3000, "captureScreenshot": false }
+            }
+            """);
+
+        var settings = await repository.GetSettingsAsync(CancellationToken.None);
+
+        Assert.That(settings.TestExecution.HighlightPauseMs, Is.EqualTo(400));
+    }
+
+    [Test]
     public async Task SaveSettingsAsync_RoundTripsCustomIdentificationRules()
     {
         var repository = new WorkspaceRepository();

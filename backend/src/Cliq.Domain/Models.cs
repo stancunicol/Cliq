@@ -69,7 +69,11 @@ public sealed record ElementIdentificationSettings(
 public sealed record TestExecutionSettings(
     int DefaultStepTimeoutMs,
     int PageReadyTimeoutMs,
-    bool CaptureScreenshotOnFailure);
+    bool CaptureScreenshotOnFailure,
+    // How long a live run (SeleniumTestRunner only - never the generated NUnit code, which stays
+    // unattended-CI fast) pauses on an outlined element before acting on it, so a human watching
+    // the visible browser window can actually see what's about to happen.
+    int HighlightPauseMs = 400);
 
 public sealed record ScanningSettings(
     int LoadTimeoutMs,
@@ -100,12 +104,26 @@ public sealed record PageElement(
     bool NotFound = false,
     // Only meaningful for Fill (the value type an <input> holds - "string"/"int"/"DateTime",
     // inferred from the scanned input type); ignored for every other action.
-    string DataType = "string");
+    string DataType = "string",
+    // Only meaningful for Select (a <select multiple> was scanned) - StepAction has no dedicated
+    // MultiSelect value (same reasoning as Radio - see WorkspaceCodeGeneration.ToDescriptor), so
+    // this is the only place that distinguishes a multi-select from a regular one after the scan.
+    bool Multiple = false,
+    // Only meaningful for Click (a checkbox was scanned) - StepAction has no dedicated Check
+    // value either (a checkbox's Action is StepAction.Click, same as a button), so this is the
+    // only place that survives to tell them apart after the scan.
+    bool Checkbox = false);
 
 public sealed record ScanReconciliationReport(
     int MatchedCount,
     int NewCount,
-    int MissingCount);
+    int MissingCount,
+    // True when the page had never been scanned before (nothing to reconcile against) - lets the
+    // UI say "N elements found" instead of a matched/new/missing breakdown that's meaningless when
+    // there was no previous scan to compare with. Set by the caller (PuppeteerPageDiscovery), not
+    // ElementReconciler itself, which only ever sees an elements list, never whether a previous
+    // PageDefinition existed at all versus existed-but-was-empty.
+    bool IsFirstScan = false);
 
 public sealed record LocatorDiffEntry(
     string ElementId,
@@ -206,7 +224,11 @@ public sealed record TestStep(
     // Set instead of ElementId when this step targets a DynamicElement; DynamicParameterValue is
     // the concrete value (e.g. "3") this step substitutes into that element's template.
     string? DynamicElementId = null,
-    string? DynamicParameterValue = null);
+    string? DynamicParameterValue = null,
+    // Set instead of Value when this is a Select step against a PageElement.Multiple element -
+    // one selection per entry, uploaded together as a single array (see
+    // ElementWrapper<string[]>.Upload). Unused, like Value, for every other action.
+    IReadOnlyList<StepValue>? Values = null);
 
 public sealed record TestCase(
     int SchemaVersion,

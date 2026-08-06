@@ -100,6 +100,14 @@
 .step-config { display: grid; grid-template-columns: minmax(110px, .75fr) minmax(140px, 1fr); gap: 6px; margin-top: 8px; }
 .step-config input,.step-config select { min-width: 0; height: 30px; border: 1px solid #303330; border-radius: 6px; background: #202220; color: #cfd1cd; padding: 0 8px; font-size: 11px; outline: none; }
 .step-config input:focus,.step-config select:focus { border-color: #8066c8; box-shadow: 0 0 0 2px #8066c822; }
+.multi-values { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 6px; }
+.multi-value-row { display: flex; gap: 6px; align-items: center; }
+.multi-value-row select { flex: none; width: 95px; }
+.multi-value-row input { flex: 1; min-width: 0; }
+.multi-value-row button { flex: none; border: 0; background: none; color: #777; display: flex; align-items: center; padding: 3px; }
+.multi-value-row button svg { width: 13px; }
+.multi-values > button:last-child { align-self: flex-start; border: 1px dashed #343734; background: #161716; color: #777; border-radius: 6px; padding: 6px 10px; display: flex; align-items: center; gap: 5px; font-size: 11px; }
+.multi-values > button:last-child svg { width: 13px; }
 button { cursor: pointer; }
 
 @media (max-width: 1200px) {

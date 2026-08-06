@@ -172,6 +172,46 @@ public class PageObjectCodeGeneratorTests
     }
 
     [Test]
+    public void Generate_EmitsAClickWithFallbackHelper_UsedByClickCheckAndRadio()
+    {
+        var elements = new List<ElementDescriptor>
+        {
+            new("button", ElementActionKind.Click, LocatorStrategy.CssSelector, "submit", "submit"),
+            new("input", ElementActionKind.Check, LocatorStrategy.CssSelector, "agree", "agree"),
+            new("input", ElementActionKind.Radio, LocatorStrategy.Name, "snack", "snack"),
+        };
+
+        var code = PageObjectCodeGenerator.Generate("Page", "Generated", elements, 10_000, []);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(code, Does.Contain("private void ClickWithFallback(IWebElement element)"));
+            Assert.That(code, Does.Contain("catch (ElementClickInterceptedException)"));
+            Assert.That(
+                code,
+                Does.Contain("((IJavaScriptExecutor)_driver).ExecuteScript(\"arguments[0].click();\", element);"));
+            // Click/Check/Radio all route their click through the helper - none call
+            // element.Click() directly except the helper's own body.
+            Assert.That(CountOccurrences(code, "element.Click();"), Is.EqualTo(1));
+            Assert.That(code, Does.Contain("        ClickWithFallback(element);"));
+            Assert.That(code, Does.Contain("            ClickWithFallback(element);"));
+        });
+    }
+
+    [Test]
+    public void Generate_DynamicClick_UsesTheSameClickWithFallbackHelper()
+    {
+        var dynamicElements = new List<DynamicElementDescriptor>
+        {
+            new(ElementActionKind.Click, LocatorStrategy.XPath, "//tr[{param}]/button", "rowButton"),
+        };
+
+        var code = PageObjectCodeGenerator.Generate("Page", "Generated", [], 10_000, [], dynamicElements);
+
+        Assert.That(code, Does.Contain("        ClickWithFallback(element);"));
+    }
+
+    [Test]
     public void Generate_Click_LocatorIsAStaticFieldSharedByClickAndHover()
     {
         var elements = new List<ElementDescriptor>

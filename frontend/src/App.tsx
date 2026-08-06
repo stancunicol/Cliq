@@ -253,7 +253,11 @@ export function App() {
       const { page, reconciliation, locatorDiff, dynamicElementSuggestions, screenshotPath } =
         await workspaceService.scanPage(url, name, snapshot.project.defaultBrowser)
       updateSnapshot({ ...snapshot, pages: upsert(snapshot.pages, page) })
-      setWorking(`Scanned: ${reconciliation.matchedCount} matched · ${reconciliation.newCount} new · ${reconciliation.missingCount} missing`)
+      setWorking(
+        reconciliation.isFirstScan
+          ? `Scanned: ${reconciliation.newCount} elements found`
+          : `Scanned: ${reconciliation.matchedCount} matched · ${reconciliation.newCount} new · ${reconciliation.missingCount} missing`,
+      )
       setTimeout(() => setWorking(undefined), 3000)
       setLocatorDiff(locatorDiff)
       setDynamicElementSuggestions(dynamicElementSuggestions ?? [])

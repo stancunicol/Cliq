@@ -203,7 +203,23 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
             element.Action switch
             {
                 StepAction.Fill or StepAction.PressKey => GenerationKind.Fill,
+                // Domain StepAction has no dedicated Radio value - a scanned radio group is just
+                // StepAction.Select with a Name-strategy locator (the group's shared `name`
+                // attribute; see PuppeteerPageDiscovery.ToAction/ToLocator), the only combination
+                // that ever produces one. Without this check every radio group would generate as
+                // an ordinary Select property using SelectElement, which throws on a non-<select>
+                // element - the same distinction SeleniumTestRunner.ExecuteStep already makes for
+                // live execution.
+                StepAction.Select when element.Locator.Strategy == DomainLocator.Name => GenerationKind.Radio,
+                // Same reasoning as Radio just above: StepAction has no dedicated MultiSelect
+                // value either (a scanned <select multiple> is just StepAction.Select), so
+                // PageElement.Multiple is the only surviving signal - see BuildElements, which
+                // sets it from the scanner's own kind ("multiselect" vs "select").
+                StepAction.Select when element.Multiple => GenerationKind.MultiSelect,
                 StepAction.Select => GenerationKind.Select,
+                // Same pattern again: a checkbox's Action is StepAction.Click (same as a plain
+                // button), distinguished only by PageElement.Checkbox - see BuildElements.
+                StepAction.Click when element.Checkbox => GenerationKind.Check,
                 StepAction.AssertText or StepAction.AssertVisible => GenerationKind.Assert,
                 _ => GenerationKind.Click,
             },
@@ -370,14 +386,27 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
         var value = ValueExpression(step.Value);
         switch (step.Action)
         {
+            case StepAction.Click when element.Checkbox:
+                // Set{Name}(bool) is idempotent (only clicks if the current state differs from
+                // the requested one) - see PageObjectCodeGenerator.AppendMethod's Check case. A
+                // bare bool literal, not a quoted string - Set{Name} takes an actual bool.
+                sb.AppendLine($"        {pageVariable}.Set{member}({(step.Value?.Value == "true" ? "true" : "false")});");
+                break;
             case StepAction.Click:
                 sb.AppendLine($"        {pageVariable}.Click{member}();");
                 break;
             case StepAction.Fill:
             case StepAction.PressKey:
-            case StepAction.Select:
                 // Fill/Select elements are ElementWrapper<TData> properties, not Fill{Name}(value)/
                 // Select{Name}(value) methods - see PageObjectCodeGenerator's wrapped-element path.
+                sb.AppendLine($"        {pageVariable}.{member}.Upload({value});");
+                break;
+            case StepAction.Select when element.Multiple:
+                // ElementWrapper<string[]> for a multi-select - one value per selected option,
+                // uploaded together (see PageObjectCodeGenerator.WrapperBody's MultiSelect case).
+                sb.AppendLine($"        {pageVariable}.{member}.Upload({ValuesArrayExpression(step.Values)});");
+                break;
+            case StepAction.Select:
                 sb.AppendLine($"        {pageVariable}.{member}.Upload({value});");
                 break;
             case StepAction.AssertText:
@@ -491,6 +520,9 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
         value?.Kind == "secret"
             ? $"RequiredSecret({Literal(NormalizeSecretKey(value.Value))})"
             : Literal(value?.Value ?? "");
+
+    private static string ValuesArrayExpression(IReadOnlyList<StepValue>? values) =>
+        $"new[] {{ {string.Join(", ", (values ?? []).Select(item => ValueExpression(item)))} }}";
 
     private static string NormalizeSecretKey(string value) =>
         string.Concat(value.Select(character => char.IsLetterOrDigit(character)

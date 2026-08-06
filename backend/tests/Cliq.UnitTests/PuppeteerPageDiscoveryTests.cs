@@ -107,6 +107,48 @@ public sealed class PuppeteerPageDiscoveryTests
         Assert.That(elements[0].DataType, Is.EqualTo("string"));
     }
 
+    [TestCase("multiselect", true)]
+    [TestCase("select", false)]
+    public void BuildElements_SetsMultipleFromTheScannedKind(string kind, bool expectedMultiple)
+    {
+        var raw = new[]
+        {
+            new PuppeteerPageDiscovery.RawElement
+            {
+                Tag = "select",
+                Kind = kind,
+                Strategy = "id",
+                LocatorValue = "colors",
+                Name = "colors",
+            },
+        };
+
+        var elements = PuppeteerPageDiscovery.BuildElements(raw, "data-testid");
+
+        Assert.That(elements[0].Multiple, Is.EqualTo(expectedMultiple));
+    }
+
+    [TestCase("check", true)]
+    [TestCase("click", false)]
+    public void BuildElements_SetsCheckboxFromTheScannedKind(string kind, bool expectedCheckbox)
+    {
+        var raw = new[]
+        {
+            new PuppeteerPageDiscovery.RawElement
+            {
+                Tag = "input",
+                Kind = kind,
+                Strategy = "id",
+                LocatorValue = "agree",
+                Name = "agree",
+            },
+        };
+
+        var elements = PuppeteerPageDiscovery.BuildElements(raw, "data-testid");
+
+        Assert.That(elements[0].Checkbox, Is.EqualTo(expectedCheckbox));
+    }
+
     [Test]
     public void BuildElements_DistinctXPaths_KeepsBoth()
     {

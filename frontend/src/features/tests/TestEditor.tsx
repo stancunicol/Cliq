@@ -60,6 +60,7 @@ export function TestEditor({
         dynamicElementId: undefined,
         dynamicParameterValue: undefined,
         value: undefined,
+        values: undefined,
         url: step.url || pages[0]?.url || 'https://example.com',
       })
       return
@@ -74,6 +75,7 @@ export function TestEditor({
         dynamicParameterValue: undefined,
         url: undefined,
         value: step.value ?? { kind: 'literal', value: pages[0]?.url || 'https://example.com' },
+        values: undefined,
       })
       return
     }
@@ -89,6 +91,7 @@ export function TestEditor({
       dynamicElementId: undefined,
       dynamicParameterValue: undefined,
       value: needsValue(action) ? step.value ?? { kind: 'literal', value: '' } : undefined,
+      values: undefined,
     })
   }
 
@@ -211,7 +214,55 @@ export function TestEditor({
                       )}
                     </>
                   )}
-                  {(needsValue(step.action) || step.action === 'assertUrl') && (
+                  {step.action === 'click' && element?.checkbox ? (
+                    <select
+                      aria-label={`Checked state for step ${index + 1}`}
+                      value={step.value?.value === 'true' ? 'true' : 'false'}
+                      onChange={(event) => updateStep(step.id, { value: { kind: 'literal', value: event.target.value } })}
+                    >
+                      <option value="true">Checked</option>
+                      <option value="false">Unchecked</option>
+                    </select>
+                  ) : step.action === 'select' && element?.multiple ? (
+                    <div className="multi-values">
+                      {(step.values ?? []).map((entry, valueIndex) => (
+                        <div className="multi-value-row" key={valueIndex}>
+                          <select
+                            aria-label={`Value ${valueIndex + 1} type for step ${index + 1}`}
+                            value={entry.kind}
+                            onChange={(event) => updateStep(step.id, {
+                              values: (step.values ?? []).map((item, i) =>
+                                i === valueIndex ? { ...item, kind: event.target.value as 'literal' | 'secret' } : item),
+                            })}
+                          >
+                            <option value="literal">Literal</option>
+                            <option value="secret">Secret</option>
+                          </select>
+                          <input
+                            aria-label={`Value ${valueIndex + 1} for step ${index + 1}`}
+                            value={entry.value}
+                            onChange={(event) => updateStep(step.id, {
+                              values: (step.values ?? []).map((item, i) =>
+                                i === valueIndex ? { ...item, value: event.target.value } : item),
+                            })}
+                            placeholder={entry.kind === 'secret' ? 'secret_key' : 'Value'}
+                          />
+                          <button
+                            aria-label={`Remove value ${valueIndex + 1} for step ${index + 1}`}
+                            onClick={() => updateStep(step.id, {
+                              values: (step.values ?? []).filter((_, i) => i !== valueIndex),
+                            })}
+                          ><Trash2 /></button>
+                        </div>
+                      ))}
+                      <button
+                        aria-label={`Add value for step ${index + 1}`}
+                        onClick={() => updateStep(step.id, {
+                          values: [...(step.values ?? []), { kind: 'literal', value: '' }],
+                        })}
+                      ><Plus />Add value</button>
+                    </div>
+                  ) : (needsValue(step.action) || step.action === 'assertUrl') && (
                     <>
                       <select
                         aria-label={`Value type for step ${index + 1}`}

@@ -23,6 +23,9 @@ export interface TestExecutionSettings {
   defaultStepTimeoutMs: number
   pageReadyTimeoutMs: number
   captureScreenshotOnFailure: boolean
+  /** How long a live run pauses on an outlined element before acting on it - live runs only,
+   * never the generated NUnit code. */
+  highlightPauseMs: number
 }
 
 export interface ScanningSettings {
@@ -72,12 +75,17 @@ export interface PageElement {
   /** Only meaningful when action is 'fill' - 'string' | 'int' | 'DateTime', inferred from the
    * scanned <input> type. Defaults to 'string' when absent. */
   dataType?: string
+  /** Only meaningful when action is 'select' - true when the scanned <select> had `multiple`. */
+  multiple?: boolean
+  /** Only meaningful when action is 'click' - true when the scanned element was a checkbox. */
+  checkbox?: boolean
 }
 
 export interface ScanReconciliationReport {
   matchedCount: number
   newCount: number
   missingCount: number
+  isFirstScan: boolean
 }
 
 export interface LocatorDiffEntry {
@@ -168,6 +176,9 @@ export interface TestStep {
   dynamicElementId?: string
   /** The concrete value (e.g. "3") this step substitutes into that element's template. */
   dynamicParameterValue?: string
+  /** Set instead of value for a 'select' step targeting a multi-select element - one entry per
+   * selected option, uploaded together. */
+  values?: StepValue[]
 }
 
 export interface TestCase {
