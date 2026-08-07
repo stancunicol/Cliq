@@ -121,6 +121,15 @@ public partial class WorkbenchControl : UserControl
         RunOperation(async () => { await _viewModel.SaveSelectedAsync(); });
     }
 
+    private void RunTest_Click(object sender, RoutedEventArgs e)
+    {
+        var package = CliqPackage.Current;
+        if (package != null)
+        {
+            RunOperation(package.RunSelectedTestAsync);
+        }
+    }
+
     private void SaveAll_Click(object sender, RoutedEventArgs e)
     {
         RunOperation(async () => { await _viewModel.SaveAllAsync(); });
