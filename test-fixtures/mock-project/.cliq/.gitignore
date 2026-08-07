@@ -1,3 +1,4 @@
 runs/
 secrets.local.json
+workspace.lock
 *.tmp

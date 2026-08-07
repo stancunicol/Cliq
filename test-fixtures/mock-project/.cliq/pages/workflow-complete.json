@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "workflow-complete",
+  "name": "Workflow complete",
+  "url": "http://127.0.0.1:4174/complete.html",
+  "elements": [
+    {
+      "id": "completion-title",
+      "name": "Completion title",
+      "tag": "h1",
+      "action": "assertText",
+      "locator": {
+        "strategy": "xpath",
+        "value": "//h1[normalize-space()='Workflow complete']",
+        "displayName": "Workflow complete"
+      },
+      "expectedText": "Workflow complete"
+    },
+    {
+      "id": "start-over",
+      "name": "Start over",
+      "tag": "a",
+      "action": "click",
+      "locator": {
+        "strategy": "xpath",
+        "value": "//a[@href='/']",
+        "displayName": "Start over"
+      }
+    }
+  ],
+  "updatedAt": "2026-08-06T11:30:00Z"
+}

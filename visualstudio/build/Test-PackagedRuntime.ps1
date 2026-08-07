@@ -82,6 +82,19 @@ try {
         -ContentType 'application/json' `
         -Body (@{ rootPath = $workspace } | ConvertTo-Json) | Out-Null
 
+    $settings = Invoke-RestMethod `
+        -Method Get `
+        -Uri "$baseAddress/api/v1/settings" `
+        -Headers $headers
+    $settings.testExecution.captureScreenshotOnFailure = $true
+    $settings.scanning.captureScreenshot = $true
+    Invoke-RestMethod `
+        -Method Put `
+        -Uri "$baseAddress/api/v1/settings" `
+        -Headers $headers `
+        -ContentType 'application/json' `
+        -Body ($settings | ConvertTo-Json -Depth 8) | Out-Null
+
     $scan = Invoke-RestMethod `
         -Method Post `
         -Uri "$baseAddress/api/v1/pages/scan" `
@@ -93,6 +106,17 @@ try {
             browser = $Browser
             headless = $true
         } | ConvertTo-Json)
+    $discoveryScreenshotBytes = 0
+    if (-not [string]::IsNullOrWhiteSpace($scan.screenshotPath)) {
+        $response = Invoke-WebRequest `
+            -UseBasicParsing `
+            -Uri "$baseAddress/api/v1/pages/discovery-screenshots/$($scan.screenshotPath)" `
+            -Headers $headers
+        $discoveryScreenshotBytes = $response.RawContentStream.Length
+    }
+    if ($discoveryScreenshotBytes -le 0) {
+        throw 'Packaged page scan did not produce a downloadable screenshot.'
+    }
 
     $test = @{
         schemaVersion = 1
@@ -164,6 +188,9 @@ try {
             -Headers $headers
         $screenshotBytes = $response.RawContentStream.Length
     }
+    if ($screenshotBytes -le 0) {
+        throw 'Packaged Selenium failure did not produce a downloadable screenshot.'
+    }
 
     $cancelledRun = Invoke-RestMethod `
         -Method Post `
@@ -204,6 +231,7 @@ try {
         Address = $baseAddress
         PageId = $scan.page.id
         Elements = @($scan.page.elements).Count
+        DiscoveryScreenshotBytes = $discoveryScreenshotBytes
         Artifacts = @($generation.artifacts).Count
         RunStatus = $run.status
         ScreenshotBytes = $screenshotBytes

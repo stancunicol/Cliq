@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "id": "recorder-fixture",
+  "name": "Recorder fixture",
+  "url": "http://127.0.0.1:4174/",
+  "elements": [
+    {
+      "id": "increment-counter",
+      "name": "Increment counter",
+      "tag": "button",
+      "action": "click",
+      "locator": {
+        "strategy": "testId",
+        "value": "increment-counter",
+        "displayName": "Increment counter"
+      }
+    },
+    {
+      "id": "counter-output",
+      "name": "Counter output",
+      "tag": "output",
+      "action": "assertText",
+      "locator": {
+        "strategy": "xpath",
+        "value": "//output[@aria-live='polite']",
+        "displayName": "Counter output"
+      }
+    },
+    {
+      "id": "display-name",
+      "name": "Display name",
+      "tag": "input",
+      "action": "fill",
+      "locator": {
+        "strategy": "xpath",
+        "value": "//input[@id='display-name']",
+        "displayName": "Display name"
+      }
+    },
+    {
+      "id": "role",
+      "name": "Role",
+      "tag": "select",
+      "action": "select",
+      "locator": {
+        "strategy": "xpath",
+        "value": "//select[@id='role']",
+        "displayName": "Role"
+      }
+    },
+    {
+      "id": "terms",
+      "name": "Accept terms",
+      "tag": "input",
+      "action": "click",
+      "locator": {
+        "strategy": "xpath",
+        "value": "//input[@id='terms']",
+        "displayName": "Accept terms"
+      }
+    },
+    {
+      "id": "continue",
+      "name": "Continue to completion",
+      "tag": "a",
+      "action": "click",
+      "locator": {
+        "strategy": "xpath",
+        "value": "//a[@href='/complete.html']",
+        "displayName": "Continue to completion"
+      }
+    }
+  ],
+  "updatedAt": "2026-08-06T11:30:00Z"
+}

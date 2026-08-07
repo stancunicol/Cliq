@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "id": "complete-workflow",
+  "name": "Complete sample workflow",
+  "description": "Fills the form, accepts the terms, navigates to completion, and verifies the result.",
+  "tags": [
+    "demo",
+    "critical"
+  ],
+  "steps": [
+    {
+      "id": "open-sample-page",
+      "action": "navigate",
+      "label": "Open the sample page",
+      "enabled": true,
+      "url": "http://127.0.0.1:4174/"
+    },
+    {
+      "id": "enter-display-name",
+      "action": "fill",
+      "label": "Enter the mentor demo name",
+      "enabled": true,
+      "pageId": "recorder-fixture",
+      "elementId": "display-name",
+      "value": {
+        "kind": "literal",
+        "value": "Mentor demo"
+      }
+    },
+    {
+      "id": "select-tester-role",
+      "action": "select",
+      "label": "Select the tester role",
+      "enabled": true,
+      "pageId": "recorder-fixture",
+      "elementId": "role",
+      "value": {
+        "kind": "literal",
+        "value": "tester"
+      }
+    },
+    {
+      "id": "accept-terms",
+      "action": "click",
+      "label": "Accept the terms",
+      "enabled": true,
+      "pageId": "recorder-fixture",
+      "elementId": "terms"
+    },
+    {
+      "id": "continue-to-completion",
+      "action": "click",
+      "label": "Continue to completion",
+      "enabled": true,
+      "pageId": "recorder-fixture",
+      "elementId": "continue"
+    },
+    {
+      "id": "verify-completion",
+      "action": "assertText",
+      "label": "Verify the completion page",
+      "enabled": true,
+      "pageId": "workflow-complete",
+      "elementId": "completion-title",
+      "value": {
+        "kind": "literal",
+        "value": "Workflow complete"
+      }
+    }
+  ],
+  "updatedAt": "2026-08-06T11:30:00Z"
+}
