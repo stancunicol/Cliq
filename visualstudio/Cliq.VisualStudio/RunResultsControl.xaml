@@ -24,6 +24,7 @@
             <Setter Property="Background" Value="{DynamicResource Cliq.Run.ToolbarBackground}" />
             <Setter Property="Foreground" Value="{DynamicResource Cliq.Run.Foreground}" />
             <Setter Property="BorderBrush" Value="{DynamicResource Cliq.Run.Border}" />
+            <Setter Property="Padding" Value="8,4" />
         </Style>
         <Style TargetType="DataGridRow">
             <Style.Triggers>
@@ -35,6 +36,7 @@
         </Style>
         <Style TargetType="DataGridCell">
             <Setter Property="Foreground" Value="{DynamicResource Cliq.Run.Foreground}" />
+            <Setter Property="Padding" Value="6,2" />
             <Style.Triggers>
                 <Trigger Property="IsSelected" Value="True">
                     <Setter Property="Background" Value="{DynamicResource Cliq.Run.Accent}" />
@@ -81,24 +83,22 @@
             </Grid>
         </Border>
 
-        <ScrollViewer Grid.Row="1"
-                      HorizontalScrollBarVisibility="Auto"
-                      VerticalScrollBarVisibility="Disabled">
-        <Grid MinWidth="760">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="6" />
-                <ColumnDefinition Width="2*" />
-            </Grid.ColumnDefinitions>
+        <Grid Grid.Row="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="3*" MinHeight="150" />
+                <RowDefinition Height="6" />
+                <RowDefinition Height="2*" MinHeight="120" />
+            </Grid.RowDefinitions>
 
             <DataGrid x:Name="StepsGrid"
-                      Grid.Column="0"
                       Margin="10"
                       ItemsSource="{Binding Steps}"
                       AutoGenerateColumns="False"
                       CanUserAddRows="False"
                       IsReadOnly="True"
                       HeadersVisibility="Column"
+                      HorizontalScrollBarVisibility="Auto"
+                      VerticalScrollBarVisibility="Auto"
                       Background="{DynamicResource Cliq.Run.Background}"
                       Foreground="{DynamicResource Cliq.Run.Foreground}"
                       BorderBrush="{DynamicResource Cliq.Run.Border}"
@@ -107,20 +107,21 @@
                       SelectionChanged="StepsGrid_SelectionChanged"
                       AutomationProperties.Name="Run step timeline">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="90" />
-                    <DataGridTextColumn Header="Step" Binding="{Binding Label}" Width="*" />
-                    <DataGridTextColumn Header="Duration" Binding="{Binding Duration}" Width="85" />
-                    <DataGridTextColumn Header="Breakdown" Binding="{Binding Timing}" Width="145" />
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="85" MinWidth="80" />
+                    <DataGridTextColumn Header="Step" Binding="{Binding Label}" Width="240" MinWidth="180" />
+                    <DataGridTextColumn Header="Duration" Binding="{Binding Duration}" Width="95" MinWidth="90" />
+                    <DataGridTextColumn Header="Breakdown" Binding="{Binding Timing}" Width="160" MinWidth="140" />
                 </DataGrid.Columns>
             </DataGrid>
 
-            <GridSplitter Grid.Column="1"
+            <GridSplitter Grid.Row="1"
                           HorizontalAlignment="Stretch"
-                          ResizeDirection="Columns"
+                          VerticalAlignment="Stretch"
+                          ResizeDirection="Rows"
                           ResizeBehavior="PreviousAndNext"
                           Background="{DynamicResource Cliq.Run.Border}" />
 
-            <Grid Grid.Column="2" Margin="10">
+            <Grid Grid.Row="2" Margin="10">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
@@ -177,7 +178,6 @@
                 </Border>
             </Grid>
         </Grid>
-        </ScrollViewer>
 
         <Border Grid.Row="2"
                 Padding="10,6"
