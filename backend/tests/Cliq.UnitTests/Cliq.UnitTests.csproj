@@ -18,6 +18,7 @@
     <Using Include="NUnit.Framework" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Cliq.Api\Cliq.Api.csproj" />
     <ProjectReference Include="..\..\src\Cliq.Application\Cliq.Application.csproj" />
     <ProjectReference Include="..\..\src\Cliq.Domain\Cliq.Domain.csproj" />
     <ProjectReference Include="..\..\src\Cliq.Infrastructure\Cliq.Infrastructure.csproj" />

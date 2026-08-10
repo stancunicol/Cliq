@@ -6,6 +6,6 @@
   "description": "Standalone Puppeteer-driven page scanner used by Cliq.Infrastructure's PuppeteerPageDiscovery.",
   "main": "scan.js",
   "dependencies": {
-    "puppeteer": "25.3.0"
+    "puppeteer-core": "25.3.0"
   }
 }

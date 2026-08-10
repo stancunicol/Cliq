@@ -27,7 +27,7 @@ public sealed class WorkspaceCodeGenerationTests
     [Test]
     public async Task GenerateAsync_CreatesPageObjectWorkflowAndAttributeFile()
     {
-        var repository = new WorkspaceRepository();
+        using var repository = new WorkspaceRepository();
         var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
         var page = new PageDefinition(
             PageDefinition.CurrentSchemaVersion,
@@ -93,7 +93,7 @@ public sealed class WorkspaceCodeGenerationTests
         // attribute). Before the fix, this generated (or, after the css/xpath-only ByExpression
         // restriction, threw trying to generate) an ordinary Select property instead of a Radio
         // method.
-        var repository = new WorkspaceRepository();
+        using var repository = new WorkspaceRepository();
         var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
         var page = new PageDefinition(
             PageDefinition.CurrentSchemaVersion,
@@ -128,7 +128,7 @@ public sealed class WorkspaceCodeGenerationTests
         // Same class of bug as the Radio case above: a scanned <select multiple> is also just
         // StepAction.Select (no dedicated MultiSelect value in the domain model either), and
         // PageElement.Multiple is the only place that distinguishes it after the scan.
-        var repository = new WorkspaceRepository();
+        using var repository = new WorkspaceRepository();
         var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
         var page = new PageDefinition(
             PageDefinition.CurrentSchemaVersion,
@@ -183,7 +183,7 @@ public sealed class WorkspaceCodeGenerationTests
         // Same class of bug once more: a scanned checkbox's Action is StepAction.Click (no
         // dedicated Check value in the domain model either), and PageElement.Checkbox is the
         // only place that distinguishes it after the scan.
-        var repository = new WorkspaceRepository();
+        using var repository = new WorkspaceRepository();
         var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
         var page = new PageDefinition(
             PageDefinition.CurrentSchemaVersion,
@@ -235,7 +235,7 @@ public sealed class WorkspaceCodeGenerationTests
     [Test]
     public async Task GenerateAsync_PreservesMethodsMarkedAsCustomAcrossRegeneration()
     {
-        var repository = new WorkspaceRepository();
+        using var repository = new WorkspaceRepository();
         var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
         var page = new PageDefinition(
             PageDefinition.CurrentSchemaVersion,
@@ -286,7 +286,7 @@ public sealed class WorkspaceCodeGenerationTests
     [Test]
     public async Task GenerateAsync_MarkerCountExceedsRecoveredMethods_BacksUpFileAndReturnsWarning()
     {
-        var repository = new WorkspaceRepository();
+        using var repository = new WorkspaceRepository();
         var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
         var page = new PageDefinition(
             PageDefinition.CurrentSchemaVersion,
@@ -333,7 +333,7 @@ public sealed class WorkspaceCodeGenerationTests
     [Test]
     public async Task GenerateAsync_RenamedPage_DeletesStaleFileWhenItHasNoCustomMethods()
     {
-        var repository = new WorkspaceRepository();
+        using var repository = new WorkspaceRepository();
         var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
         var page = new PageDefinition(
             PageDefinition.CurrentSchemaVersion,
@@ -369,7 +369,7 @@ public sealed class WorkspaceCodeGenerationTests
     [Test]
     public async Task GenerateAsync_RenamedPage_KeepsStaleFileAndWarnsWhenItHasCustomMethods()
     {
-        var repository = new WorkspaceRepository();
+        using var repository = new WorkspaceRepository();
         var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
         var page = new PageDefinition(
             PageDefinition.CurrentSchemaVersion,
@@ -423,7 +423,7 @@ public sealed class WorkspaceCodeGenerationTests
     [Test]
     public async Task GenerateAsync_EscapesQuotedTestIdInVisibilityAssertion()
     {
-        var repository = new WorkspaceRepository();
+        using var repository = new WorkspaceRepository();
         var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
         var page = new PageDefinition(
             PageDefinition.CurrentSchemaVersion,
@@ -463,7 +463,7 @@ public sealed class WorkspaceCodeGenerationTests
     [Test]
     public async Task GenerateAsync_FillStep_CallsUploadOnTheElementWrapperProperty()
     {
-        var repository = new WorkspaceRepository();
+        using var repository = new WorkspaceRepository();
         var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
         var page = new PageDefinition(
             PageDefinition.CurrentSchemaVersion,
@@ -516,7 +516,7 @@ public sealed class WorkspaceCodeGenerationTests
     [Test]
     public async Task GenerateAsync_DynamicClickStep_GeneratesFactoryMethodAndParameterizedCall()
     {
-        var repository = new WorkspaceRepository();
+        using var repository = new WorkspaceRepository();
         var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
         var dynamicElement = new DynamicElement(
             "row-button",

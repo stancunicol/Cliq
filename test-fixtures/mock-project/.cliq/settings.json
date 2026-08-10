@@ -16,7 +16,7 @@
   "testExecution": {
     "defaultStepTimeoutMs": 10000,
     "pageReadyTimeoutMs": 15000,
-    "captureScreenshotOnFailure": false
+    "captureScreenshotOnFailure": true
   },
   "scanning": {
     "loadTimeoutMs": 30000,

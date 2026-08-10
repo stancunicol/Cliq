@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "id": "counter-and-form",
+  "name": "Counter and form interactions",
+  "description": "Demonstrates click, text assertion, input, and select actions on the sample page.",
+  "tags": [
+    "demo",
+    "smoke"
+  ],
+  "steps": [
+    {
+      "id": "open-sample-page",
+      "action": "navigate",
+      "label": "Open the sample page",
+      "enabled": true,
+      "pageId": null,
+      "elementId": null,
+      "url": "http://127.0.0.1:4174/",
+      "value": null,
+      "timeoutMs": null
+    },
+    {
+      "id": "increment-counter",
+      "action": "click",
+      "label": "Increment the counter",
+      "enabled": true,
+      "pageId": "recorder-fixture",
+      "elementId": "increment-counter",
+      "url": null,
+      "value": null,
+      "timeoutMs": null
+    },
+    {
+      "id": "verify-counter",
+      "action": "assertText",
+      "label": "Verify the counter value",
+      "enabled": true,
+      "pageId": "recorder-fixture",
+      "elementId": "counter-output",
+      "url": null,
+      "value": {
+        "kind": "literal",
+        "value": "Count: 99"
+      },
+      "timeoutMs": null
+    },
+    {
+      "id": "enter-display-name",
+      "action": "fill",
+      "label": "Enter a display name",
+      "enabled": true,
+      "pageId": "recorder-fixture",
+      "elementId": "display-name",
+      "url": null,
+      "value": {
+        "kind": "literal",
+        "value": "Cliq demo"
+      },
+      "timeoutMs": null
+    },
+    {
+      "id": "select-tester-role",
+      "action": "select",
+      "label": "Select the tester role",
+      "enabled": true,
+      "pageId": "recorder-fixture",
+      "elementId": "role",
+      "url": null,
+      "value": {
+        "kind": "literal",
+        "value": "tester"
+      },
+      "timeoutMs": null
+    }
+  ],
+  "updatedAt": "2026-08-07T10:02:43.9558732+00:00"
+}

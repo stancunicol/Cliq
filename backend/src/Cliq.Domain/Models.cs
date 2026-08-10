@@ -17,7 +17,9 @@ public enum LocatorStrategy
     // before a lowercase letter, so XPath would otherwise serialize as "xPath" - override it to
     // match the "xpath" string used as a strategy identifier everywhere else (the JS scanner,
     // settings.json's strategyOrder, the frontend's LocatorStrategy type).
+#if NET9_0_OR_GREATER
     [JsonStringEnumMemberName("xpath")]
+#endif
     XPath,
 }
 
@@ -222,11 +224,14 @@ public sealed record TestStep(
     int? TimeoutMs = null,
     // Set instead of ElementId when this step targets a DynamicElement; DynamicParameterValue is
     // the concrete value (e.g. "3") this step substitutes into that element's template.
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     string? DynamicElementId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     string? DynamicParameterValue = null,
     // Set instead of Value when this is a Select step against a PageElement.Multiple element -
     // one selection per entry, uploaded together as a single array (see
     // ElementWrapper<string[]>.Upload). Unused, like Value, for every other action.
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     IReadOnlyList<StepValue>? Values = null);
 
 public sealed record TestCase(

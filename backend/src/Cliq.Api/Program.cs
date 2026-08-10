@@ -32,7 +32,7 @@ eventJsonOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.Cam
 var apiToken = Environment.GetEnvironmentVariable("CLIQ_API_TOKEN");
 if (string.IsNullOrWhiteSpace(apiToken))
 {
-    throw new InvalidOperationException("CLIQ_API_TOKEN must be provided by the Electron host.");
+    throw new InvalidOperationException("CLIQ_API_TOKEN must be provided by the sidecar host.");
 }
 
 app.Use(async (context, next) =>
@@ -68,22 +68,9 @@ app.Use(async (context, next) =>
     }
     catch (Exception exception)
     {
-        var status = exception switch
-        {
-            WorkspaceNotOpenException => StatusCodes.Status409Conflict,
-            WorkspaceValidationException or ArgumentException => StatusCodes.Status400BadRequest,
-            DirectoryNotFoundException or KeyNotFoundException => StatusCodes.Status404NotFound,
-            InvalidOperationException when exception.Message.Contains("already active", StringComparison.Ordinal) =>
-                StatusCodes.Status409Conflict,
-            _ => StatusCodes.Status500InternalServerError,
-        };
-        context.Response.StatusCode = status;
-        await context.Response.WriteAsJsonAsync(new ProblemDetails
-        {
-            Status = status,
-            Title = status == 500 ? "Internal server error" : "Request failed",
-            Detail = exception.Message,
-        });
+        var problem = ApiErrors.Create(exception);
+        context.Response.StatusCode = problem.Status!.Value;
+        await context.Response.WriteAsJsonAsync(problem);
     }
 });
 
@@ -100,6 +87,14 @@ api.MapPost("/workspaces/open", async (
     IWorkspaceRepository repository,
     CancellationToken cancellationToken) =>
     Results.Ok(await repository.OpenAsync(request.RootPath, cancellationToken)));
+
+api.MapPost("/workspaces/close", async (
+    IWorkspaceRepository repository,
+    CancellationToken cancellationToken) =>
+{
+    await repository.CloseAsync(cancellationToken);
+    return Results.NoContent();
+});
 
 api.MapGet("/workspace", async (
     IWorkspaceRepository repository,
@@ -239,6 +234,15 @@ api.MapGet("/secrets", async (
     CancellationToken cancellationToken) =>
     Results.Ok(await secretStore.ReadAsync(cancellationToken)));
 
+api.MapDelete("/secrets/{key}", async (
+    string key,
+    ISecretStore secretStore,
+    CancellationToken cancellationToken) =>
+{
+    await secretStore.DeleteAsync(key, cancellationToken);
+    return Results.NoContent();
+});
+
 api.MapPost("/generation", async (
     GenerationRequest request,
     IWorkspaceRepository repository,
@@ -246,14 +250,24 @@ api.MapPost("/generation", async (
     CancellationToken cancellationToken) =>
 {
     var snapshot = await repository.GetSnapshotAsync(cancellationToken);
-    var pageIds = request.PageIds?.ToHashSet(StringComparer.Ordinal);
     var testIds = request.TestIds?.ToHashSet(StringComparer.Ordinal);
-    var pages = pageIds is null
-        ? snapshot.Pages
-        : snapshot.Pages.Where(page => pageIds.Contains(page.Id)).ToList();
     var tests = testIds is null
         ? snapshot.Tests
         : snapshot.Tests.Where(test => testIds.Contains(test.Id)).ToList();
+    var pageIds = request.PageIds?.ToHashSet(StringComparer.Ordinal);
+    if (pageIds is null && testIds is not null)
+    {
+        pageIds = tests
+            .SelectMany(test => test.Steps)
+            .Select(step => step.PageId)
+            .Where(pageId => !string.IsNullOrWhiteSpace(pageId))
+            .Cast<string>()
+            .ToHashSet(StringComparer.Ordinal);
+    }
+
+    var pages = pageIds is null
+        ? snapshot.Pages
+        : snapshot.Pages.Where(page => pageIds.Contains(page.Id)).ToList();
     return Results.Ok(await generation.GenerateAsync(
         snapshot.Project,
         pages,

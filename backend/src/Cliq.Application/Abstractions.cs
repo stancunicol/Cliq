@@ -6,6 +6,7 @@ public interface IWorkspaceRepository
 {
     string? RootPath { get; }
     Task<WorkspaceSnapshot> OpenAsync(string rootPath, CancellationToken cancellationToken);
+    Task CloseAsync(CancellationToken cancellationToken);
     Task<WorkspaceSnapshot> GetSnapshotAsync(CancellationToken cancellationToken);
     Task<ProjectManifest> SaveProjectAsync(ProjectManifest project, CancellationToken cancellationToken);
     Task<CliqSettings> GetSettingsAsync(CancellationToken cancellationToken);
@@ -59,11 +60,23 @@ public interface ISecretStore
 {
     Task<IReadOnlyDictionary<string, string>> ReadAsync(CancellationToken cancellationToken);
     Task SaveAsync(IReadOnlyDictionary<string, string> secrets, CancellationToken cancellationToken);
+    Task DeleteAsync(string key, CancellationToken cancellationToken);
 }
 
 public sealed class WorkspaceNotOpenException : InvalidOperationException
 {
     public WorkspaceNotOpenException() : base("No Cliq workspace is open.") { }
+}
+
+public sealed record WorkspaceLeaseOwner(
+    string HostKind,
+    int ProcessId,
+    DateTimeOffset AcquiredAt);
+
+public sealed class WorkspaceInUseException(WorkspaceLeaseOwner? owner)
+    : InvalidOperationException("The Cliq workspace is open in another host.")
+{
+    public WorkspaceLeaseOwner? Owner { get; } = owner;
 }
 
 public sealed class WorkspaceValidationException(string message) : InvalidOperationException(message);
