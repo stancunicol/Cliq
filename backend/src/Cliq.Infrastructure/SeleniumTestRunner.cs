@@ -128,13 +128,34 @@ public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRu
         // something SelectElement (Selenium's <select> wrapper, used for the case below) can do.
         // Mirrors PageObjectCodeGenerator.AppendMethod's Radio case, which builds the same
         // name+value selector for the same reason.
+        var highlightPauseMs = settings.TestExecution.HighlightPauseMs;
+
+        // A multi-select is just a regular <select> found the regular way - PageElement.Multiple
+        // (the only surviving signal StepAction.Select was originally a "multiselect" scan kind;
+        // see WorkspaceCodeGeneration.ToDescriptor's comment) only changes what happens to it in
+        // the switch below, not how it's located.
+        var isMultiSelect = false;
+
+        // Same pattern once more: a checkbox is just a regular element found the regular way -
+        // PageElement.Checkbox only changes what a Click step does with it (set to a specific
+        // state, idempotently, rather than a blind toggle - mirrors PageObjectCodeGenerator.
+        // AppendMethod's Check case exactly, so a live run and the generated NUnit test behave
+        // the same way for the same step).
+        var isCheckbox = false;
+
         if (step.Action == StepAction.Select && step.DynamicElementId is null)
         {
             var candidate = ResolveElement(step, pages);
             if (candidate.Locator.Strategy == DomainLocator.Name)
             {
-                return ExecuteRadioSelect(driver, candidate, step, secrets, timeout);
+                return ExecuteRadioSelect(driver, candidate, step, secrets, timeout, highlightPauseMs);
             }
+
+            isMultiSelect = candidate.Multiple;
+        }
+        else if (step.Action == StepAction.Click && step.DynamicElementId is null)
+        {
+            isCheckbox = ResolveElement(step, pages).Checkbox;
         }
 
         var (locator, elementName) = ResolveLocator(step, pages, testIdAttribute);
@@ -143,38 +164,73 @@ public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRu
         var webElement = new WebDriverWait(driver, timeout).Until(current => current.FindElement(locator));
         var locateMs = locateStopwatch.ElapsedMilliseconds;
 
-        var actionStopwatch = Stopwatch.StartNew();
-        switch (step.Action)
+        Highlight(driver, webElement);
+        try
         {
-            case StepAction.Click:
-                webElement.Click();
-                break;
-            case StepAction.Fill:
-                webElement.Clear();
-                webElement.SendKeys(ResolveValue(step.Value, secrets));
-                break;
-            case StepAction.Select:
-                new SelectElement(webElement).SelectByValue(ResolveValue(step.Value, secrets));
-                break;
-            case StepAction.PressKey:
-                webElement.SendKeys(ResolveValue(step.Value, secrets));
-                break;
-            case StepAction.AssertVisible:
-                if (!webElement.Displayed)
-                {
-                    throw new InvalidOperationException($"Element '{elementName}' is not visible.");
-                }
-                break;
-            case StepAction.AssertText:
-                var expected = ResolveValue(step.Value, secrets);
-                if (!string.Equals(webElement.Text, expected, StringComparison.Ordinal))
-                {
-                    throw new InvalidOperationException($"Expected text '{expected}' but found '{webElement.Text}'.");
-                }
-                break;
-        }
+            Pause(highlightPauseMs);
 
-        return new StepTiming(locateMs, actionStopwatch.ElapsedMilliseconds);
+            // The pause is a deliberate window where the page can legitimately re-render (React
+            // replacing a node, a tooltip mounting, ...) and detach the element this reference
+            // points to - re-locate right before acting so the action always targets what's
+            // actually on screen now, not whatever used to be there when the wait first resolved.
+            webElement = driver.FindElement(locator);
+
+            var actionStopwatch = Stopwatch.StartNew();
+            switch (step.Action)
+            {
+                case StepAction.Click when isCheckbox:
+                    var desiredChecked = ResolveValue(step.Value, secrets) == "true";
+                    if (webElement.Selected != desiredChecked)
+                    {
+                        ClickWithFallback(driver, webElement);
+                    }
+
+                    break;
+                case StepAction.Click:
+                    ClickWithFallback(driver, webElement);
+                    break;
+                case StepAction.Fill:
+                    webElement.Clear();
+                    webElement.SendKeys(ResolveValue(step.Value, secrets));
+                    break;
+                case StepAction.Select when isMultiSelect:
+                    var multiSelect = new SelectElement(webElement);
+                    multiSelect.DeselectAll();
+                    foreach (var optionValue in ResolveValues(step.Values, secrets))
+                    {
+                        multiSelect.SelectByValue(optionValue);
+                    }
+
+                    break;
+                case StepAction.Select:
+                    new SelectElement(webElement).SelectByValue(ResolveValue(step.Value, secrets));
+                    break;
+                case StepAction.PressKey:
+                    webElement.SendKeys(ResolveValue(step.Value, secrets));
+                    break;
+                case StepAction.AssertVisible:
+                    if (!webElement.Displayed)
+                    {
+                        throw new InvalidOperationException($"Element '{elementName}' is not visible.");
+                    }
+
+                    break;
+                case StepAction.AssertText:
+                    var expected = ResolveValue(step.Value, secrets);
+                    if (!string.Equals(webElement.Text, expected, StringComparison.Ordinal))
+                    {
+                        throw new InvalidOperationException($"Expected text '{expected}' but found '{webElement.Text}'.");
+                    }
+
+                    break;
+            }
+
+            return new StepTiming(locateMs, actionStopwatch.ElapsedMilliseconds);
+        }
+        finally
+        {
+            Unhighlight(driver, webElement);
+        }
     }
 
     private static StepTiming ExecuteRadioSelect(
@@ -182,7 +238,8 @@ public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRu
         PageElement element,
         TestStep step,
         IReadOnlyDictionary<string, string> secrets,
-        TimeSpan timeout)
+        TimeSpan timeout,
+        int highlightPauseMs)
     {
         var value = ResolveValue(step.Value, secrets);
         var locator = By.CssSelector(RadioOptionCssSelector(element.Locator.Value, value));
@@ -191,9 +248,86 @@ public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRu
         var webElement = new WebDriverWait(driver, timeout).Until(current => current.FindElement(locator));
         var locateMs = locateStopwatch.ElapsedMilliseconds;
 
-        var actionStopwatch = Stopwatch.StartNew();
-        webElement.Click();
-        return new StepTiming(locateMs, actionStopwatch.ElapsedMilliseconds);
+        Highlight(driver, webElement);
+        try
+        {
+            Pause(highlightPauseMs);
+            webElement = driver.FindElement(locator);
+
+            var actionStopwatch = Stopwatch.StartNew();
+            ClickWithFallback(driver, webElement);
+            return new StepTiming(locateMs, actionStopwatch.ElapsedMilliseconds);
+        }
+        finally
+        {
+            Unhighlight(driver, webElement);
+        }
+    }
+
+    private static void Pause(int highlightPauseMs)
+    {
+        if (highlightPauseMs > 0)
+        {
+            Thread.Sleep(highlightPauseMs);
+        }
+    }
+
+    // Purely cosmetic - lets a human watching the visible run window see which element is about
+    // to be acted on before it happens. Stashes the element's own inline outline (rather than its
+    // whole style attribute) in a data attribute so Unhighlight can restore exactly what was
+    // there, not just blank it out. Never touches the generated NUnit code's Page Objects, which
+    // have no reason to slow down or draw attention to anything for an unattended CI run.
+    //
+    // Both directions swallow WebDriverException (covers StaleElementReferenceException, the
+    // element having been detached by a page re-render in the pause window Highlight and the
+    // actual action bracket) rather than letting a cosmetic nicety fail the step outright - if
+    // the element is gone, there's nothing left to draw attention to or clean up either way.
+    private static void Highlight(IWebDriver driver, IWebElement element)
+    {
+        try
+        {
+            ((IJavaScriptExecutor)driver).ExecuteScript(
+                "arguments[0].setAttribute('data-cliq-outline', arguments[0].style.outline || ''); "
+                + "arguments[0].style.outline = '3px solid #ff5f57'; "
+                + "arguments[0].style.outlineOffset = '2px';",
+                element);
+        }
+        catch (WebDriverException)
+        {
+        }
+    }
+
+    private static void Unhighlight(IWebDriver driver, IWebElement element)
+    {
+        try
+        {
+            ((IJavaScriptExecutor)driver).ExecuteScript(
+                "arguments[0].style.outline = arguments[0].getAttribute('data-cliq-outline') || ''; "
+                + "arguments[0].removeAttribute('data-cliq-outline');",
+                element);
+        }
+        catch (WebDriverException)
+        {
+        }
+    }
+
+    // A transient overlay (an ad iframe, a tooltip, a toast) can sit on top of an otherwise
+    // perfectly interactable element for a moment, which Selenium's real-mouse-click simulation
+    // refuses to click through (ElementClickInterceptedException) even though a human clicking
+    // the same spot a moment later would succeed. A JS-dispatched click bypasses that "is
+    // anything covering this point" check entirely, so it's used only as a fallback, not the
+    // default - a real click is still preferred wherever it works, since it exercises more of
+    // the actual interaction (hover states, focus handling) a user would trigger.
+    private static void ClickWithFallback(IWebDriver driver, IWebElement element)
+    {
+        try
+        {
+            element.Click();
+        }
+        catch (ElementClickInterceptedException)
+        {
+            ((IJavaScriptExecutor)driver).ExecuteScript("arguments[0].click();", element);
+        }
     }
 
     /// <summary>Selects one option out of a Radio group by combining its shared `name` with the
@@ -262,9 +396,10 @@ public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRu
     // elementIdentification.strategyOrder (testId, xpath) plus the always-available css fallback
     // in extract-elements.js's locatorFor. Id/Name are never assigned to a regular element's
     // Locator.Strategy (id is excluded as a locator entirely, kept only as a naming hint); Name is
-    // assigned only to a Radio group's Locator, which live execution doesn't resolve through here
-    // at all - see the StepAction.Select case in ExecuteStep, which is Selenium's <select> wrapper
-    // and isn't wired up for a Radio input group regardless of what this method returns for it.
+    // assigned only to a Radio group's Locator, which never reaches this method at all - Radio has
+    // its own resolution path (ResolveElement + ExecuteRadioSelect, keyed on Locator.Strategy ==
+    // Name) that builds its own name+value selector directly, the same way ByExpression's Radio
+    // case in PageObjectCodeGenerator never calls the shared ByExpression helper either.
     private static By ByFor(Locator locator, string testIdAttribute) => locator.Strategy switch
     {
         DomainLocator.TestId => By.CssSelector($"[{testIdAttribute}=\"{CssEscape(locator.Value)}\"]"),
@@ -292,6 +427,11 @@ public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRu
             ? secret
             : throw new WorkspaceValidationException($"Secret '{value.Value}' is not configured.");
     }
+
+    private static IReadOnlyList<string> ResolveValues(
+        IReadOnlyList<StepValue>? values,
+        IReadOnlyDictionary<string, string> secrets) =>
+        (values ?? []).Select(value => ResolveValue(value, secrets)).ToList();
 
     private string? CaptureFailure(
         IWebDriver driver,

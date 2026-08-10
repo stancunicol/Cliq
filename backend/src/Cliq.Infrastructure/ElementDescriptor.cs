@@ -13,7 +13,6 @@ public enum ElementActionKind
 
 public enum LocatorStrategy
 {
-    Id,
     Name,
     CssSelector,
     XPath,

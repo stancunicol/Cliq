@@ -91,8 +91,8 @@ public sealed class ElementReconcilerTests
     [Test]
     public void Reconcile_NoMatch_NewElementKeepsFreshId_OldElementMarkedMissing()
     {
-        var previous = new[] { El("old-5", "legacy_field", "input", StepAction.Fill, LocatorStrategy.Id, "legacy-field") };
-        var fresh = new[] { El("fresh-2", "new_field", "select", StepAction.Select, LocatorStrategy.Id, "new-field") };
+        var previous = new[] { El("old-5", "legacy_field", "input", StepAction.Fill, LocatorStrategy.XPath, "legacy-field") };
+        var fresh = new[] { El("fresh-2", "new_field", "select", StepAction.Select, LocatorStrategy.XPath, "new-field") };
 
         var (elements, report, newElements) = ElementReconciler.Reconcile(fresh, previous);
 
@@ -111,8 +111,8 @@ public sealed class ElementReconcilerTests
     {
         var fresh = new[]
         {
-            El("fresh-1", "username", "input", StepAction.Fill, LocatorStrategy.Id, "username"),
-            El("fresh-2", "password", "input", StepAction.Fill, LocatorStrategy.Id, "password"),
+            El("fresh-1", "username", "input", StepAction.Fill, LocatorStrategy.XPath, "username"),
+            El("fresh-2", "password", "input", StepAction.Fill, LocatorStrategy.XPath, "password"),
         };
 
         var (elements, report, newElements) = ElementReconciler.Reconcile(fresh, []);

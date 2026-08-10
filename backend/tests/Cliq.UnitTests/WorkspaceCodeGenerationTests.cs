@@ -85,6 +85,154 @@ public sealed class WorkspaceCodeGenerationTests
     }
 
     [Test]
+    public async Task GenerateAsync_ScannedRadioGroup_GeneratesARadioMethodNotABrokenSelectProperty()
+    {
+        // Reproduces a real scan of https://demoqa.com/radio-button: a radio group's Action is
+        // StepAction.Select (the domain model has no dedicated Radio value - see ToDescriptor's
+        // comment), distinguished only by its Name-strategy locator (the group's shared `name`
+        // attribute). Before the fix, this generated (or, after the css/xpath-only ByExpression
+        // restriction, threw trying to generate) an ordinary Select property instead of a Radio
+        // method.
+        using var repository = new WorkspaceRepository();
+        var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
+        var page = new PageDefinition(
+            PageDefinition.CurrentSchemaVersion,
+            "radio-button",
+            "Radio Button",
+            "https://demoqa.com/radio-button",
+            [
+                new PageElement(
+                    "like-12",
+                    "like",
+                    "input",
+                    StepAction.Select,
+                    new Locator(LocatorStrategy.Name, "like")),
+            ],
+            DateTimeOffset.UtcNow);
+        var generator = new WorkspaceCodeGeneration(repository);
+
+        var result = await generator.GenerateAsync(snapshot.Project, [page], [], _root, CancellationToken.None);
+        var code = await File.ReadAllTextAsync(result.Artifacts.Single(item => item.Kind == "pageObject").Path);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(code, Does.Contain("public void SelectLike(string value)"));
+            Assert.That(code, Does.Contain("input[name='like'][value='"));
+            Assert.That(code, Does.Not.Contain("ElementWrapper<string> Like"));
+        });
+    }
+
+    [Test]
+    public async Task GenerateAsync_ScannedMultiSelect_GeneratesAMultiSelectPropertyAndArrayUploadCall()
+    {
+        // Same class of bug as the Radio case above: a scanned <select multiple> is also just
+        // StepAction.Select (no dedicated MultiSelect value in the domain model either), and
+        // PageElement.Multiple is the only place that distinguishes it after the scan.
+        using var repository = new WorkspaceRepository();
+        var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
+        var page = new PageDefinition(
+            PageDefinition.CurrentSchemaVersion,
+            "form",
+            "Form",
+            "https://example.com/form",
+            [
+                new PageElement(
+                    "colors-1",
+                    "colors",
+                    "select",
+                    StepAction.Select,
+                    new Locator(LocatorStrategy.Css, "#colors"),
+                    Multiple: true),
+            ],
+            DateTimeOffset.UtcNow);
+        var test = new TestCase(
+            TestCase.CurrentSchemaVersion,
+            "pick-colors",
+            "Pick colors",
+            null,
+            [],
+            [
+                new TestStep(
+                    "select-colors",
+                    StepAction.Select,
+                    "Select colors",
+                    true,
+                    page.Id,
+                    "colors-1",
+                    Values: [StepValue.Literal("red"), StepValue.Literal("blue")]),
+            ],
+            DateTimeOffset.UtcNow);
+        var generator = new WorkspaceCodeGeneration(repository);
+
+        var result = await generator.GenerateAsync(snapshot.Project, [page], [test], _root, CancellationToken.None);
+        var pageObjectCode = await File.ReadAllTextAsync(
+            result.Artifacts.Single(item => item.Kind == "pageObject").Path);
+        var testCode = await File.ReadAllTextAsync(result.Artifacts.Single(item => item.Kind == "test").Path);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(pageObjectCode, Does.Contain("public ElementWrapper<string[]> Colors { get; }"));
+            Assert.That(pageObjectCode, Does.Contain("select.DeselectAll();"));
+            Assert.That(testCode, Does.Contain(".Colors.Upload(new[] { \"red\", \"blue\" });"));
+        });
+    }
+
+    [Test]
+    public async Task GenerateAsync_ScannedCheckbox_GeneratesASetMethodAndBoolCallNotAClickCall()
+    {
+        // Same class of bug once more: a scanned checkbox's Action is StepAction.Click (no
+        // dedicated Check value in the domain model either), and PageElement.Checkbox is the
+        // only place that distinguishes it after the scan.
+        using var repository = new WorkspaceRepository();
+        var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
+        var page = new PageDefinition(
+            PageDefinition.CurrentSchemaVersion,
+            "form",
+            "Form",
+            "https://example.com/form",
+            [
+                new PageElement(
+                    "agree-1",
+                    "agree",
+                    "input",
+                    StepAction.Click,
+                    new Locator(LocatorStrategy.Css, "#agree"),
+                    Checkbox: true),
+            ],
+            DateTimeOffset.UtcNow);
+        var test = new TestCase(
+            TestCase.CurrentSchemaVersion,
+            "agree-flow",
+            "Agree flow",
+            null,
+            [],
+            [
+                new TestStep(
+                    "check-agree",
+                    StepAction.Click,
+                    "Check agree",
+                    true,
+                    page.Id,
+                    "agree-1",
+                    Value: StepValue.Literal("true")),
+            ],
+            DateTimeOffset.UtcNow);
+        var generator = new WorkspaceCodeGeneration(repository);
+
+        var result = await generator.GenerateAsync(snapshot.Project, [page], [test], _root, CancellationToken.None);
+        var pageObjectCode = await File.ReadAllTextAsync(
+            result.Artifacts.Single(item => item.Kind == "pageObject").Path);
+        var testCode = await File.ReadAllTextAsync(result.Artifacts.Single(item => item.Kind == "test").Path);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(pageObjectCode, Does.Contain("public void SetAgree(bool isChecked)"));
+            Assert.That(testCode, Does.Contain(".SetAgree(true);"));
+            Assert.That(testCode, Does.Not.Contain(".ClickAgree();"));
+        });
+    }
+
+    [Test]
     public async Task GenerateAsync_PreservesMethodsMarkedAsCustomAcrossRegeneration()
     {
         using var repository = new WorkspaceRepository();

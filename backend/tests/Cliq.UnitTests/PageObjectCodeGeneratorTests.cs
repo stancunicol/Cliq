@@ -42,11 +42,10 @@ public class PageObjectCodeGeneratorTests
         Assert.That(PageObjectCodeGenerator.ByExpression(element), Is.EqualTo(expected));
     }
 
-    [TestCase(LocatorStrategy.Id)]
-    [TestCase(LocatorStrategy.Name)]
-    public void ByExpression_RejectsIdAndName_NeitherIsAStaticDiscoveryStrategy(LocatorStrategy strategy)
+    [Test]
+    public void ByExpression_RejectsName_NotAStaticDiscoveryStrategy()
     {
-        var element = new ElementDescriptor("input", ElementActionKind.Fill, strategy, "username", "name");
+        var element = new ElementDescriptor("input", ElementActionKind.Fill, LocatorStrategy.Name, "username", "name");
 
         Assert.Throws<ArgumentOutOfRangeException>(() => PageObjectCodeGenerator.ByExpression(element));
     }
@@ -169,6 +168,46 @@ public class PageObjectCodeGeneratorTests
         Assert.That(code, Does.Contain("public void ClickSubmit()"));
         Assert.That(code, Does.Contain("public void HoverSubmit()"));
         Assert.That(code, Does.Contain("new Actions(_driver).MoveToElement(element).Perform();"));
+    }
+
+    [Test]
+    public void Generate_EmitsAClickWithFallbackHelper_UsedByClickCheckAndRadio()
+    {
+        var elements = new List<ElementDescriptor>
+        {
+            new("button", ElementActionKind.Click, LocatorStrategy.CssSelector, "submit", "submit"),
+            new("input", ElementActionKind.Check, LocatorStrategy.CssSelector, "agree", "agree"),
+            new("input", ElementActionKind.Radio, LocatorStrategy.Name, "snack", "snack"),
+        };
+
+        var code = PageObjectCodeGenerator.Generate("Page", "Generated", elements, 10_000, []);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(code, Does.Contain("private void ClickWithFallback(IWebElement element)"));
+            Assert.That(code, Does.Contain("catch (ElementClickInterceptedException)"));
+            Assert.That(
+                code,
+                Does.Contain("((IJavaScriptExecutor)_driver).ExecuteScript(\"arguments[0].click();\", element);"));
+            // Click/Check/Radio all route their click through the helper - none call
+            // element.Click() directly except the helper's own body.
+            Assert.That(CountOccurrences(code, "element.Click();"), Is.EqualTo(1));
+            Assert.That(code, Does.Contain("        ClickWithFallback(element);"));
+            Assert.That(code, Does.Contain("            ClickWithFallback(element);"));
+        });
+    }
+
+    [Test]
+    public void Generate_DynamicClick_UsesTheSameClickWithFallbackHelper()
+    {
+        var dynamicElements = new List<DynamicElementDescriptor>
+        {
+            new(ElementActionKind.Click, LocatorStrategy.XPath, "//tr[{param}]/button", "rowButton"),
+        };
+
+        var code = PageObjectCodeGenerator.Generate("Page", "Generated", [], 10_000, [], dynamicElements);
+
+        Assert.That(code, Does.Contain("        ClickWithFallback(element);"));
     }
 
     [Test]
@@ -392,15 +431,10 @@ public class PageObjectCodeGeneratorTests
     }
 
     [Test]
-    public void InterpolatedByExpression_RejectsIdAndName_NeitherIsASupportedDynamicStrategy()
+    public void InterpolatedByExpression_RejectsName_NotASupportedDynamicStrategy()
     {
-        Assert.Multiple(() =>
-        {
-            Assert.Throws<ArgumentOutOfRangeException>(() => PageObjectCodeGenerator.InterpolatedByExpression(
-                new DynamicElementDescriptor(ElementActionKind.Click, LocatorStrategy.Id, "row-{param}", "rowButton")));
-            Assert.Throws<ArgumentOutOfRangeException>(() => PageObjectCodeGenerator.InterpolatedByExpression(
-                new DynamicElementDescriptor(ElementActionKind.Click, LocatorStrategy.Name, "row-{param}", "rowButton")));
-        });
+        Assert.Throws<ArgumentOutOfRangeException>(() => PageObjectCodeGenerator.InterpolatedByExpression(
+            new DynamicElementDescriptor(ElementActionKind.Click, LocatorStrategy.Name, "row-{param}", "rowButton")));
     }
 
     [Test]

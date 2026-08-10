@@ -77,6 +77,23 @@ public static class PageObjectCodeGenerator
 
         sb.AppendLine("    }");
 
+        sb.AppendLine();
+        sb.AppendLine("    // A transient overlay (an ad iframe, a tooltip, a toast) can sit on top of an");
+        sb.AppendLine("    // otherwise interactable element for a moment, which Selenium's real-mouse-click");
+        sb.AppendLine("    // simulation refuses to click through even though the element itself is fine. A");
+        sb.AppendLine("    // JS-dispatched click bypasses that check, so it's used only as a fallback.");
+        sb.AppendLine("    private void ClickWithFallback(IWebElement element)");
+        sb.AppendLine("    {");
+        sb.AppendLine("        try");
+        sb.AppendLine("        {");
+        sb.AppendLine("            element.Click();");
+        sb.AppendLine("        }");
+        sb.AppendLine("        catch (ElementClickInterceptedException)");
+        sb.AppendLine("        {");
+        sb.AppendLine("            ((IJavaScriptExecutor)_driver).ExecuteScript(\"arguments[0].click();\", element);");
+        sb.AppendLine("        }");
+        sb.AppendLine("    }");
+
         foreach (var element in plain)
         {
             sb.AppendLine();
@@ -248,7 +265,7 @@ public static class PageObjectCodeGenerator
                 sb.AppendLine($"    public void Click{name}()");
                 sb.AppendLine("    {");
                 sb.AppendLine($"        var element = _wait.Until(d => d.FindElement({locatorRef}));");
-                sb.AppendLine("        element.Click();");
+                sb.AppendLine("        ClickWithFallback(element);");
                 sb.AppendLine("    }");
                 sb.AppendLine();
                 sb.AppendLine($"    public void Hover{name}()");
@@ -264,7 +281,7 @@ public static class PageObjectCodeGenerator
                 sb.AppendLine($"        var element = _wait.Until(d => d.FindElement({locatorRef}));");
                 sb.AppendLine("        if (element.Selected != isChecked)");
                 sb.AppendLine("        {");
-                sb.AppendLine("            element.Click();");
+                sb.AppendLine("            ClickWithFallback(element);");
                 sb.AppendLine("        }");
                 sb.AppendLine("    }");
                 break;
@@ -285,7 +302,7 @@ public static class PageObjectCodeGenerator
                 sb.AppendLine("    {");
                 sb.AppendLine(@"        var escapedValue = value.Replace(""\\"", ""\\\\"").Replace(""'"", ""\\'"");");
                 sb.AppendLine($"        var element = _wait.Until(d => d.FindElement(By.CssSelector({radioPrefix} + escapedValue + \"']\")));");
-                sb.AppendLine("        element.Click();");
+                sb.AppendLine("        ClickWithFallback(element);");
                 sb.AppendLine("    }");
                 break;
 
@@ -349,7 +366,7 @@ public static class PageObjectCodeGenerator
                 sb.AppendLine($"    public void Click{name}({paramType} param)");
                 sb.AppendLine("    {");
                 sb.AppendLine($"        var element = _wait.Until(d => d.FindElement({locatorExpr}));");
-                sb.AppendLine("        element.Click();");
+                sb.AppendLine("        ClickWithFallback(element);");
                 sb.AppendLine("    }");
                 sb.AppendLine();
                 sb.AppendLine($"    public void Hover{name}({paramType} param)");
@@ -420,7 +437,6 @@ public static class PageObjectCodeGenerator
 
     private static string StrategyLabel(LocatorStrategy strategy) => strategy switch
     {
-        LocatorStrategy.Id => "id",
         LocatorStrategy.Name => "name",
         LocatorStrategy.CssSelector => "css",
         LocatorStrategy.XPath => "xpath",

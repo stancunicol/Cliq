@@ -55,16 +55,22 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
 
             var freshElements = BuildElements(scanOutput.Elements, settings.ElementIdentification.TestIdAttribute);
             var previous = await repository.GetPageAsync(pageId, cancellationToken);
-            var (elements, report, newElements) = ElementReconciler.Reconcile(freshElements, previous?.Elements ?? []);
+            var (elements, reconciled, newElements) = ElementReconciler.Reconcile(freshElements, previous?.Elements ?? []);
+            var report = reconciled with { IsFirstScan = previous is null };
             var dynamicSuggestions = BuildDynamicElementSuggestions(scanOutput.DynamicSuggestions);
 
+            // DynamicElements are hand-authored (or accepted from a suggestion), never produced
+            // by a scan itself, so a fresh scan has nothing to say about them one way or the
+            // other - carry the previous page's forward rather than defaulting to null, which
+            // would silently wipe out every dynamic element on the very next re-scan.
             var page = new PageDefinition(
                 PageDefinition.CurrentSchemaVersion,
                 pageId,
                 name,
                 url,
                 elements,
-                DateTimeOffset.UtcNow);
+                DateTimeOffset.UtcNow,
+                previous?.DynamicElements);
 
             // Only worth producing once there's a previous scan to diff against, and only when
             // something actually moved - a clean re-scan writes nothing, per the "minimal
@@ -285,7 +291,9 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
                 ToAction(el.Kind),
                 ToLocator(el.Strategy, el.LocatorValue, name, testIdAttribute),
                 el.AssertText,
-                DataType: ToDataType(el.Kind, el.InputType)));
+                DataType: ToDataType(el.Kind, el.InputType),
+                Multiple: el.Kind == "multiselect",
+                Checkbox: el.Kind == "check"));
         }
 
         return elements;

@@ -112,7 +112,7 @@ public sealed class WorkspaceRepositoryTests
             "login-page",
             "Login Page",
             "https://example.com/login",
-            [new PageElement("username-1", "username", "input", StepAction.Fill, new Locator(LocatorStrategy.Id, "username"))],
+            [new PageElement("username-1", "username", "input", StepAction.Fill, new Locator(LocatorStrategy.XPath, "username"))],
             DateTimeOffset.UtcNow);
         await repository.SavePageAsync(page, CancellationToken.None);
 
@@ -139,7 +139,7 @@ public sealed class WorkspaceRepositoryTests
             "login-page",
             "Login Page",
             "https://example.com/login",
-            [new PageElement("username-1", "username", "input", StepAction.Fill, new Locator(LocatorStrategy.Id, "username"))],
+            [new PageElement("username-1", "username", "input", StepAction.Fill, new Locator(LocatorStrategy.XPath, "username"))],
             DateTimeOffset.UtcNow);
         await repository.SavePageAsync(page, CancellationToken.None);
 
@@ -275,9 +275,8 @@ public sealed class WorkspaceRepositoryTests
             await repository.SavePageAsync(page, CancellationToken.None));
     }
 
-    [TestCase(LocatorStrategy.Id)]
-    [TestCase(LocatorStrategy.Name)]
-    public async Task SavePageAsync_RejectsDynamicElementWithIdOrNameStrategy(LocatorStrategy strategy)
+    [Test]
+    public async Task SavePageAsync_RejectsDynamicElementWithNameStrategy()
     {
         using var repository = new WorkspaceRepository();
         await repository.OpenAsync(_root, CancellationToken.None);
@@ -290,7 +289,7 @@ public sealed class WorkspaceRepositoryTests
             DateTimeOffset.UtcNow,
             [
                 new DynamicElement(
-                    "row-button", "row button", StepAction.Click, strategy, "row-{param}"),
+                    "row-button", "row button", StepAction.Click, LocatorStrategy.Name, "row-{param}"),
             ]);
 
         Assert.ThrowsAsync<WorkspaceValidationException>(async () =>
@@ -333,7 +332,7 @@ public sealed class WorkspaceRepositoryTests
             [
                 new PageElement(
                     "row-button-static", "row_button", "button", StepAction.Click,
-                    new Locator(LocatorStrategy.Id, "row-button")),
+                    new Locator(LocatorStrategy.XPath, "row-button")),
             ],
             DateTimeOffset.UtcNow,
             [
@@ -399,6 +398,32 @@ public sealed class WorkspaceRepositoryTests
             Assert.That(settings.TestExecution.CaptureScreenshotOnFailure, Is.False);
             Assert.That(settings.ElementIdentification.IgnoreIdPatterns, Is.Not.Empty);
         });
+    }
+
+    [Test]
+    public async Task GetSettingsAsync_SettingsJsonPredatingHighlightPauseMs_DefaultsItTo400()
+    {
+        // Reproduces a real, already-on-disk settings.json written before HighlightPauseMs
+        // existed - unlike ElementIdentificationSettings.IgnoreIdPatterns (a reference type with
+        // no C# default, deserializes as null, needs the explicit backfill in GetSettingsAsync),
+        // HighlightPauseMs has a real constructor default (`= 400`), which System.Text.Json's
+        // constructor-based deserialization applies on its own for a missing property - no
+        // backfill code needed, but worth locking in as a passing test rather than an assumption.
+        using var repository = new WorkspaceRepository();
+        await repository.OpenAsync(_root, CancellationToken.None);
+        var settingsPath = Path.Combine(_root, ".cliq", "settings.json");
+        await File.WriteAllTextAsync(settingsPath, """
+            {
+              "schemaVersion": 1,
+              "elementIdentification": { "testIdAttribute": "data-testid", "strategyOrder": ["testId", "xpath"], "ignoreIdPatterns": [] },
+              "testExecution": { "defaultStepTimeoutMs": 10000, "pageReadyTimeoutMs": 15000, "captureScreenshotOnFailure": false },
+              "scanning": { "loadTimeoutMs": 30000, "networkIdleGraceMs": 3000, "captureScreenshot": false }
+            }
+            """);
+
+        var settings = await repository.GetSettingsAsync(CancellationToken.None);
+
+        Assert.That(settings.TestExecution.HighlightPauseMs, Is.EqualTo(400));
     }
 
     [Test]

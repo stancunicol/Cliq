@@ -42,7 +42,7 @@ describe('App', () => {
   it('lets the user name a new page before scanning', async () => {
     const scanPage = vi.fn(async (url: string, name: string): Promise<PageScanResult> => ({
       page: { schemaVersion: 1, id: 'p1', name, url, elements: [], updatedAt: new Date().toISOString() },
-      reconciliation: { matchedCount: 0, newCount: 0, missingCount: 0 },
+      reconciliation: { matchedCount: 0, newCount: 0, missingCount: 0, isFirstScan: true },
     }))
     const snapshot: WorkspaceSnapshot = {
       rootPath: '/mock',
@@ -176,7 +176,12 @@ function testSettings(): CliqSettings {
   return {
     schemaVersion: 1,
     elementIdentification: { testIdAttribute: 'data-testid', strategyOrder: ['testId', 'xpath'], ignoreIdPatterns: [] },
-    testExecution: { defaultStepTimeoutMs: 10_000, pageReadyTimeoutMs: 15_000, captureScreenshotOnFailure: true },
+    testExecution: {
+      defaultStepTimeoutMs: 10_000,
+      pageReadyTimeoutMs: 15_000,
+      captureScreenshotOnFailure: true,
+      highlightPauseMs: 400,
+    },
     scanning: { loadTimeoutMs: 30_000, networkIdleGraceMs: 3_000, captureScreenshot: true },
   }
 }

@@ -45,8 +45,8 @@ export function installMockBridge() {
         return {
           page,
           reconciliation: existing
-            ? { matchedCount: page.elements.length, newCount: 0, missingCount: 0 }
-            : { matchedCount: 0, newCount: page.elements.length, missingCount: 0 },
+            ? { matchedCount: page.elements.length, newCount: 0, missingCount: 0, isFirstScan: false }
+            : { matchedCount: 0, newCount: page.elements.length, missingCount: 0, isFirstScan: true },
         }
       },
       generate: async (pageIds, testIds) => ({
@@ -223,6 +223,7 @@ function mockSettings(): CliqSettings {
       defaultStepTimeoutMs: 10_000,
       pageReadyTimeoutMs: 15_000,
       captureScreenshotOnFailure: true,
+      highlightPauseMs: 400,
     },
     scanning: {
       loadTimeoutMs: 30_000,
@@ -251,7 +252,7 @@ function mockPage(): PageDefinition {
         name: 'display name',
         tag: 'input',
         action: 'fill',
-        locator: { strategy: 'id', value: 'display-name' },
+        locator: { strategy: 'css', value: '#display-name' },
       },
       {
         id: 'counter-output',
