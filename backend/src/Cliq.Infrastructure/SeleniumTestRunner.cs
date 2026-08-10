@@ -64,7 +64,7 @@ public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRu
                 catch (Exception exception) when (exception is not OperationCanceledException)
                 {
                     var screenshot = settings.TestExecution.CaptureScreenshotOnFailure
-                        ? CaptureFailure(driver, runId, step.Id)
+                        ? CaptureFailure(driver, runId, step, pages, secrets, settings)
                         : null;
                     result = new DomainStepResult(
                         step.Id,
@@ -293,7 +293,13 @@ public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRu
             : throw new WorkspaceValidationException($"Secret '{value.Value}' is not configured.");
     }
 
-    private string? CaptureFailure(IWebDriver driver, string runId, string stepId)
+    private string? CaptureFailure(
+        IWebDriver driver,
+        string runId,
+        TestStep step,
+        IReadOnlyDictionary<string, PageDefinition> pages,
+        IReadOnlyDictionary<string, string> secrets,
+        CliqSettings settings)
     {
         var root = repository.RootPath;
         if (root is null)
@@ -302,8 +308,52 @@ public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRu
         }
 
         var directory = Path.Combine(root, ".cliq", "runs", runId);
-        var path = ScreenshotCapture.TryCapture(driver, directory, stepId);
+        var failedElement = TryFindFailedElement(driver, step, pages, secrets, settings);
+        var path = ScreenshotCapture.TryCapture(driver, directory, step.Id, failedElement);
         return path is null ? null : Path.GetFileName(path);
+    }
+
+    private static IWebElement? TryFindFailedElement(
+        IWebDriver driver,
+        TestStep step,
+        IReadOnlyDictionary<string, PageDefinition> pages,
+        IReadOnlyDictionary<string, string> secrets,
+        CliqSettings settings)
+    {
+        try
+        {
+            if (step.Action is StepAction.Navigate or StepAction.AssertUrl)
+            {
+                return null;
+            }
+
+            By locator;
+            if (step.Action == StepAction.Select && step.DynamicElementId is null)
+            {
+                var element = ResolveElement(step, pages);
+                locator = element.Locator.Strategy == DomainLocator.Name
+                    ? By.CssSelector(RadioOptionCssSelector(
+                        element.Locator.Value,
+                        ResolveValue(step.Value, secrets)))
+                    : ResolveLocator(
+                        step,
+                        pages,
+                        settings.ElementIdentification.TestIdAttribute).Locator;
+            }
+            else
+            {
+                locator = ResolveLocator(
+                    step,
+                    pages,
+                    settings.ElementIdentification.TestIdAttribute).Locator;
+            }
+
+            return driver.FindElements(locator).FirstOrDefault();
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static string CssEscape(string value) =>
