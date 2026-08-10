@@ -666,6 +666,7 @@ public sealed class WorkspaceRepositoryTests
     {
         using var repository = new WorkspaceRepository();
         using var contender = new WorkspaceRepository();
+        using var candidateContender = new WorkspaceRepository();
         var original = await repository.OpenAsync(_root, CancellationToken.None);
         var candidateRoot = Path.Combine(_root, "invalid-candidate");
         var candidateCliqDirectory = Path.Combine(candidateRoot, ".cliq");
@@ -677,12 +678,15 @@ public sealed class WorkspaceRepositoryTests
         var afterFailure = await repository.GetSnapshotAsync(CancellationToken.None);
         var contention = Assert.ThrowsAsync<WorkspaceInUseException>(async () =>
             await contender.OpenAsync(_root, CancellationToken.None));
+        var candidateFailure = Assert.ThrowsAsync<WorkspaceValidationException>(async () =>
+            await candidateContender.OpenAsync(candidateRoot, CancellationToken.None));
 
         Assert.Multiple(() =>
         {
             Assert.That(repository.RootPath, Is.EqualTo(original.RootPath));
             Assert.That(afterFailure.RootPath, Is.EqualTo(original.RootPath));
             Assert.That(contention, Is.Not.Null);
+            Assert.That(candidateFailure, Is.Not.Null);
         });
     }
 

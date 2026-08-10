@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
@@ -9,6 +10,9 @@ namespace Cliq.Infrastructure;
 
 public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposable
 {
+    private static readonly ConcurrentDictionary<string, WorkspaceLeaseOwner> ProcessWorkspaceLeases =
+        new(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         WriteIndented = true,
@@ -17,7 +21,7 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
 
     private readonly SemaphoreSlim _writeGate = new(1, 1);
     private readonly SemaphoreSlim _workspaceGate = new(1, 1);
-    private FileStream? _workspaceLease;
+    private WorkspaceLease? _workspaceLease;
     private bool _disposed;
 
     public string? RootPath { get; private set; }
@@ -625,42 +629,82 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
         }
     }
 
-    private static async Task<FileStream> AcquireWorkspaceLeaseAsync(
+    private static async Task<WorkspaceLease> AcquireWorkspaceLeaseAsync(
         string cliqDirectory,
         CancellationToken cancellationToken)
     {
-        var lockPath = Path.Combine(cliqDirectory, "workspace.lock");
-        FileStream stream;
-        try
+        var lockPath = Path.GetFullPath(Path.Combine(cliqDirectory, "workspace.lock"));
+        var owner = new WorkspaceLeaseOwner(
+            NormalizeHostKind(Environment.GetEnvironmentVariable("CLIQ_HOST_KIND")),
+            Environment.ProcessId,
+            DateTimeOffset.UtcNow);
+        if (!ProcessWorkspaceLeases.TryAdd(lockPath, owner))
         {
-            stream = new FileStream(
-                lockPath,
-                FileMode.OpenOrCreate,
-                FileAccess.ReadWrite,
-                FileShare.Read,
-                bufferSize: 4_096,
-                FileOptions.Asynchronous);
-        }
-        catch (IOException)
-        {
-            throw new WorkspaceInUseException(await ReadLeaseOwnerAsync(lockPath, cancellationToken));
+            ProcessWorkspaceLeases.TryGetValue(lockPath, out var existingOwner);
+            throw new WorkspaceInUseException(existingOwner);
         }
 
+        FileStream? stream = null;
         try
         {
-            var owner = new WorkspaceLeaseOwner(
-                NormalizeHostKind(Environment.GetEnvironmentVariable("CLIQ_HOST_KIND")),
-                Environment.ProcessId,
-                DateTimeOffset.UtcNow);
+            try
+            {
+                stream = new FileStream(
+                    lockPath,
+                    FileMode.OpenOrCreate,
+                    FileAccess.ReadWrite,
+                    FileShare.Read,
+                    bufferSize: 4_096,
+                    FileOptions.Asynchronous);
+            }
+            catch (IOException)
+            {
+                throw new WorkspaceInUseException(await ReadLeaseOwnerAsync(lockPath, cancellationToken));
+            }
+
             stream.SetLength(0);
             await JsonSerializer.SerializeAsync(stream, owner, JsonOptions, cancellationToken);
             await stream.FlushAsync(cancellationToken);
-            return stream;
+            return new WorkspaceLease(lockPath, stream);
         }
         catch
         {
-            await stream.DisposeAsync();
+            try
+            {
+                if (stream is not null)
+                {
+                    await stream.DisposeAsync();
+                }
+            }
+            finally
+            {
+                ProcessWorkspaceLeases.TryRemove(lockPath, out _);
+            }
+
             throw;
+        }
+    }
+
+    private sealed class WorkspaceLease(string lockPath, FileStream stream) : IDisposable
+    {
+        private FileStream? _stream = stream;
+
+        public void Dispose()
+        {
+            var ownedStream = Interlocked.Exchange(ref _stream, null);
+            if (ownedStream is null)
+            {
+                return;
+            }
+
+            try
+            {
+                ownedStream.Dispose();
+            }
+            finally
+            {
+                ProcessWorkspaceLeases.TryRemove(lockPath, out _);
+            }
         }
     }
 
