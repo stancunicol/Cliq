@@ -34,6 +34,18 @@ public static class IdentifierNaming
         return string.Concat(parts.Select(p => char.ToUpperInvariant(p[0]) + p[1..]));
     }
 
+    /// <summary>
+    /// The exact class name a page's <c>Name</c> generates as a Page Object -
+    /// <see cref="WorkspaceCodeGeneration"/> and the duplicate-name check in
+    /// <see cref="WorkspaceRepository.SavePageAsync"/> must always agree on
+    /// this, so it lives here once rather than in either of those two callers.
+    /// </summary>
+    public static string ToPageObjectClassName(string? name)
+    {
+        var pascalCase = ToPascalCase(Sanitize(name, "GeneratedPage"));
+        return pascalCase.EndsWith("Page", StringComparison.Ordinal) ? pascalCase : pascalCase + "Page";
+    }
+
     private static readonly Regex SafeIdentifierPattern = new("^[A-Za-z_][A-Za-z0-9_]*$", RegexOptions.Compiled);
 
     public static bool IsSafeIdentifier(string? value) =>

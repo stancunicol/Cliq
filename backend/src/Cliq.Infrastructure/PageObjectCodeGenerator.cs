@@ -435,7 +435,7 @@ public static class PageObjectCodeGenerator
         };
     }
 
-    private static string StrategyLabel(LocatorStrategy strategy) => strategy switch
+    internal static string StrategyLabel(LocatorStrategy strategy) => strategy switch
     {
         LocatorStrategy.Name => "name",
         LocatorStrategy.CssSelector => "css",
@@ -443,7 +443,7 @@ public static class PageObjectCodeGenerator
         _ => strategy.ToString(),
     };
 
-    private static string SingleLine(string value) => value.Replace("\r", "").Replace("\n", " ");
+    internal static string SingleLine(string value) => value.Replace("\r", "").Replace("\n", " ");
 
     // Must escape everything a normal (non-verbatim) C# string literal can't
     // contain literally - not just backslash/quote. A page's visible text

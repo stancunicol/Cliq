@@ -103,6 +103,73 @@ public partial class WorkbenchControl : UserControl
         }
     }
 
+    private void RemoveNotFoundElements_Click(object sender, RoutedEventArgs e)
+    {
+        _viewModel.SelectedPage?.RemoveNotFoundElements();
+    }
+
+    private void ElementsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        LocateElementButton.IsEnabled = ElementsGrid.SelectedItem is PageElementInspectorViewModel;
+    }
+
+    private void ElementsGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        LocateSelectedElement();
+    }
+
+    private void LocateElement_Click(object sender, RoutedEventArgs e)
+    {
+        LocateSelectedElement();
+    }
+
+    private void RegeneratePage_Click(object sender, RoutedEventArgs e)
+    {
+        var package = CliqPackage.Current;
+        if (package != null)
+        {
+            RunOperation(package.GenerateSelectedAsync);
+        }
+    }
+
+    private void RescanPage_Click(object sender, RoutedEventArgs e)
+    {
+        var package = CliqPackage.Current;
+        if (package != null)
+        {
+            RunOperation(package.ScanPageAsync);
+        }
+    }
+
+    private void OpenGeneratedFile_Click(object sender, RoutedEventArgs e)
+    {
+        var pageId = _viewModel.SelectedPage?.Id;
+        var package = CliqPackage.Current;
+        if (pageId is null || package is null)
+        {
+            return;
+        }
+
+        RunOperation(async () => { await package.OpenGeneratedPageObjectAsync(pageId); });
+    }
+
+    private void LocateSelectedElement()
+    {
+        var pageId = _viewModel.SelectedPage?.Id;
+        if (pageId is null || ElementsGrid.SelectedItem is not PageElementInspectorViewModel element)
+        {
+            return;
+        }
+
+        var actions = CliqPackage.Current?.Actions;
+        if (actions is null)
+        {
+            return;
+        }
+
+        RunOperation(async () => { await actions.LocateElementAsync(pageId, element.Model.Id, browser: null); });
+    }
+
     private void Pages_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_viewModel.SelectedPage != null)

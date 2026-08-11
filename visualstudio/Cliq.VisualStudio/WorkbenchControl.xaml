@@ -175,13 +175,13 @@
             <DockPanel LastChildFill="True">
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                     <Button Content="Save"
-                            ToolTip="Save the selected test (Ctrl+S)"
-                            AutomationProperties.Name="Save selected test"
+                            ToolTip="Save the selected test or page (Ctrl+S)"
+                            AutomationProperties.Name="Save selected item"
                             IsEnabled="{Binding CanSaveSelected}"
                             Click="SaveSelected_Click" />
                     <Button Content="Save All"
-                            ToolTip="Save every modified test (Ctrl+Shift+S)"
-                            AutomationProperties.Name="Save all tests"
+                            ToolTip="Save every modified test and page (Ctrl+Shift+S)"
+                            AutomationProperties.Name="Save all changes"
                             IsEnabled="{Binding CanSaveAll}"
                             Click="SaveAll_Click" />
                     <Button Content="Reload"
@@ -536,19 +536,54 @@
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
-                            <TextBlock Text="{Binding Name}" FontSize="22" FontWeight="SemiBold" />
+                            <StackPanel MaxWidth="420" HorizontalAlignment="Left">
+                                <TextBlock Text="Page name" Style="{StaticResource FieldLabel}" />
+                                <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                         FontSize="16"
+                                         AutomationProperties.Name="Page name"
+                                         ToolTip="Renaming takes effect in the generated Page Object file after the next Generate." />
+                            </StackPanel>
                             <TextBlock Grid.Row="1"
                                        Text="{Binding Url}"
                                        Margin="0,4,0,14"
                                        Foreground="{DynamicResource Cliq.MutedForeground}" />
-                            <DataGrid Grid.Row="2"
+                            <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,8">
+                                <Button Content="Remove not found elements"
+                                        IsEnabled="{Binding HasNotFoundElements}"
+                                        Click="RemoveNotFoundElements_Click"
+                                        ToolTip="Removes every element still flagged as not found on the last scan."
+                                        AutomationProperties.Name="Remove not found elements" />
+                                <Button x:Name="LocateElementButton"
+                                        Content="Locate in Browser"
+                                        IsEnabled="False"
+                                        Click="LocateElement_Click"
+                                        ToolTip="Opens a visible browser on this page and highlights the selected element. The window stays open until you close it."
+                                        AutomationProperties.Name="Locate selected element in browser" />
+                                <Button Content="Regenerate"
+                                        Click="RegeneratePage_Click"
+                                        ToolTip="Regenerates this page's Page Object file (and any tests referencing it)."
+                                        AutomationProperties.Name="Regenerate this page's artifacts" />
+                                <Button Content="Rescan"
+                                        Click="RescanPage_Click"
+                                        ToolTip="Re-scans this page's live URL with the installed browser and reconciles its elements."
+                                        AutomationProperties.Name="Rescan this page" />
+                                <Button Content="Open generated file"
+                                        Click="OpenGeneratedFile_Click"
+                                        ToolTip="Opens this page's generated Page Object .cs file, if it has been generated."
+                                        AutomationProperties.Name="Open this page's generated file" />
+                            </StackPanel>
+                            <DataGrid Grid.Row="3"
+                                      x:Name="ElementsGrid"
                                       ItemsSource="{Binding Elements}"
                                       AutoGenerateColumns="False"
                                       IsReadOnly="True"
                                       CanUserAddRows="False"
                                       AlternationCount="2"
+                                      SelectionChanged="ElementsGrid_SelectionChanged"
+                                      MouseDoubleClick="ElementsGrid_MouseDoubleClick"
                                       AutomationProperties.Name="Page elements">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="Element" Binding="{Binding Name}" Width="*" />

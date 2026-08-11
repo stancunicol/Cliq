@@ -17,7 +17,7 @@ public sealed class WorkbenchViewModel : BindableBase
     private readonly SemaphoreSlim _operationLock = new(1, 1);
     private string _searchText = string.Empty;
     private TestEditorViewModel? _selectedTest;
-    private PageInspectorViewModel? _selectedPage;
+    private PageEditorViewModel? _selectedPage;
     private bool _isBusy;
     private string? _statusMessage;
     private string? _errorMessage;
@@ -38,7 +38,7 @@ public sealed class WorkbenchViewModel : BindableBase
 
     public ObservableCollection<TestEditorViewModel> Tests { get; } = new();
 
-    public ObservableCollection<PageInspectorViewModel> Pages { get; } = new();
+    public ObservableCollection<PageEditorViewModel> Pages { get; } = new();
 
     public ObservableCollection<SecretEntryViewModel> Secrets { get; } = new();
 
@@ -84,7 +84,7 @@ public sealed class WorkbenchViewModel : BindableBase
     public IEnumerable<TestEditorViewModel> FilteredTests =>
         Tests.Where(test => MatchesSearch(test.Name));
 
-    public IEnumerable<PageInspectorViewModel> FilteredPages =>
+    public IEnumerable<PageEditorViewModel> FilteredPages =>
         Pages.Where(page =>
             MatchesSearch(page.Name) ||
             MatchesSearch(page.Url));
@@ -112,9 +112,10 @@ public sealed class WorkbenchViewModel : BindableBase
 
     public bool HasSelectedTest => SelectedTest != null;
 
-    public bool CanSaveSelected => IsNotBusy && SelectedTest?.IsDirty == true;
+    public bool CanSaveSelected =>
+        IsNotBusy && (SelectedTest?.IsDirty == true || SelectedPage?.IsDirty == true);
 
-    public PageInspectorViewModel? SelectedPage
+    public PageEditorViewModel? SelectedPage
     {
         get => _selectedPage;
         set
@@ -129,8 +130,9 @@ public sealed class WorkbenchViewModel : BindableBase
                 _selectedTest = null;
                 OnPropertyChanged(nameof(SelectedTest));
                 OnPropertyChanged(nameof(HasSelectedTest));
-                OnPropertyChanged(nameof(CanSaveSelected));
             }
+
+            OnPropertyChanged(nameof(CanSaveSelected));
         }
     }
 
@@ -146,6 +148,7 @@ public sealed class WorkbenchViewModel : BindableBase
 
     public bool IsDirty =>
         Tests.Any(test => test.IsDirty) ||
+        Pages.Any(page => page.IsDirty) ||
         Project?.IsDirty == true ||
         Settings?.IsDirty == true;
 
@@ -154,6 +157,7 @@ public sealed class WorkbenchViewModel : BindableBase
         get
         {
             var count = Tests.Count(test => test.IsDirty) +
+                        Pages.Count(page => page.IsDirty) +
                         (Project?.IsDirty == true ? 1 : 0) +
                         (Settings?.IsDirty == true ? 1 : 0);
             return count == 0
@@ -230,35 +234,56 @@ public sealed class WorkbenchViewModel : BindableBase
 
     public async Task<bool> SaveSelectedAsync(CancellationToken cancellationToken = default)
     {
-        var selected = SelectedTest;
-        if (selected == null)
+        if (SelectedTest is { } test)
         {
-            return false;
-        }
-
-        var errors = selected.Validate();
-        if (errors.Count > 0)
-        {
-            ErrorMessage = string.Join(Environment.NewLine, errors);
-            return false;
-        }
-
-        return await RunExclusiveAsync(
-            async () =>
+            var errors = test.Validate();
+            if (errors.Count > 0)
             {
-                var saved = await _store.SaveTestAsync(selected.ToModel(), cancellationToken);
-                selected.AcceptChanges(saved);
-                StatusMessage = $"Saved {saved.Name}.";
-                RaiseDirtyState();
-                return true;
-            });
+                ErrorMessage = string.Join(Environment.NewLine, errors);
+                return false;
+            }
+
+            return await RunExclusiveAsync(
+                async () =>
+                {
+                    var saved = await _store.SaveTestAsync(test.ToModel(), cancellationToken);
+                    test.AcceptChanges(saved);
+                    StatusMessage = $"Saved {saved.Name}.";
+                    RaiseDirtyState();
+                    return true;
+                });
+        }
+
+        if (SelectedPage is { } page)
+        {
+            var errors = page.Validate();
+            if (errors.Count > 0)
+            {
+                ErrorMessage = string.Join(Environment.NewLine, errors);
+                return false;
+            }
+
+            return await RunExclusiveAsync(
+                async () =>
+                {
+                    var saved = await _store.SavePageAsync(page.ToModel(), cancellationToken);
+                    page.AcceptChanges(saved);
+                    StatusMessage = $"Saved {saved.Name}. Regenerate to rename the Page Object file.";
+                    RaiseDirtyState();
+                    return true;
+                });
+        }
+
+        return false;
     }
 
     public async Task<bool> SaveAllAsync(CancellationToken cancellationToken = default)
     {
-        var dirty = Tests.Where(test => test.IsDirty).ToArray();
-        var errors = dirty
+        var dirtyTests = Tests.Where(test => test.IsDirty).ToArray();
+        var dirtyPages = Pages.Where(page => page.IsDirty).ToArray();
+        var errors = dirtyTests
             .SelectMany(test => test.Validate().Select(error => $"{test.DisplayName}: {error}"))
+            .Concat(dirtyPages.SelectMany(page => page.Validate().Select(error => $"{page.DisplayName}: {error}")))
             .Concat(Project?.IsDirty == true
                 ? Project.Validate().Select(error => $"Project: {error}")
                 : Array.Empty<string>())
@@ -284,10 +309,16 @@ public sealed class WorkbenchViewModel : BindableBase
             {
                 var projectWasDirty = Project?.IsDirty == true;
                 var settingsWereDirty = Settings?.IsDirty == true;
-                foreach (var test in dirty)
+                foreach (var test in dirtyTests)
                 {
                     var saved = await _store.SaveTestAsync(test.ToModel(), cancellationToken);
                     test.AcceptChanges(saved);
+                }
+
+                foreach (var page in dirtyPages)
+                {
+                    var saved = await _store.SavePageAsync(page.ToModel(), cancellationToken);
+                    page.AcceptChanges(saved);
                 }
 
                 if (Project?.IsDirty == true && _configurationStore != null)
@@ -306,7 +337,7 @@ public sealed class WorkbenchViewModel : BindableBase
                     Settings.AcceptChanges(savedSettings);
                 }
 
-                var savedItemCount = dirty.Length +
+                var savedItemCount = dirtyTests.Length + dirtyPages.Length +
                                      (projectWasDirty ? 1 : 0) +
                                      (settingsWereDirty ? 1 : 0);
                 StatusMessage = savedItemCount == 0
@@ -466,6 +497,11 @@ public sealed class WorkbenchViewModel : BindableBase
             Unsubscribe(test);
         }
 
+        foreach (var page in Pages)
+        {
+            Unsubscribe(page);
+        }
+
         _pageModels = snapshot.Pages.ToArray();
         UnsubscribeConfigurationEditors();
         Project = new ProjectEditorViewModel(snapshot.Project);
@@ -483,7 +519,7 @@ public sealed class WorkbenchViewModel : BindableBase
         Pages.Clear();
         foreach (var page in _pageModels)
         {
-            Pages.Add(new PageInspectorViewModel(page));
+            Pages.Add(CreatePageEditor(page));
         }
 
         Tests.Clear();
@@ -529,6 +565,27 @@ public sealed class WorkbenchViewModel : BindableBase
     {
         RaiseDirtyState();
         if (ReferenceEquals(sender, SelectedTest))
+        {
+            OnPropertyChanged(nameof(CanSaveSelected));
+        }
+    }
+
+    private PageEditorViewModel CreatePageEditor(PageDefinition page)
+    {
+        var editor = new PageEditorViewModel(page);
+        editor.DirtyChanged += OnPageDirtyChanged;
+        return editor;
+    }
+
+    private void Unsubscribe(PageEditorViewModel editor)
+    {
+        editor.DirtyChanged -= OnPageDirtyChanged;
+    }
+
+    private void OnPageDirtyChanged(object? sender, EventArgs e)
+    {
+        RaiseDirtyState();
+        if (ReferenceEquals(sender, SelectedPage))
         {
             OnPropertyChanged(nameof(CanSaveSelected));
         }

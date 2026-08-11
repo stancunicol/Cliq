@@ -51,6 +51,26 @@ public sealed class CliqShellContextTests
         Assert.That(state.Text, Is.Null);
     }
 
+    [TestCase("SubmitLocator", "    // Locator (xpath): //button[@id='submit']", true)]
+    [TestCase("SubmitLocator", "    private static readonly By SubmitLocator = By.XPath(\"//button\");", false)]
+    [TestCase("SubmitLocator", null, false)]
+    [TestCase("submit", "    // Locator (xpath): //button[@id='submit']", false)]
+    [TestCase("", "    // Locator (xpath): //button[@id='submit']", false)]
+    public void EditorLocateFromSourceIsVisibleOnlyWhenALocatorFieldNameIsSelectedWithItsCommentAbove(
+        string selection, string? lineAbove, bool visible)
+    {
+        var context = Snapshot(
+            activeDocument: Path.Combine(_project, "LoginPage.cs"),
+            selectedText: selection,
+            selectionKind: IdeSelectionKind.Editor,
+            lineAboveSelection: lineAbove);
+
+        var state = CliqShellContext.Evaluate(CliqShellCommand.LocateElementFromSource, context);
+
+        Assert.That(state.Visible, Is.EqualTo(visible));
+        Assert.That(state.Enabled, Is.EqualTo(visible));
+    }
+
     [Test]
     public void TestDocumentOffersOpenRunAndGenerateButNotRescan()
     {
@@ -78,16 +98,28 @@ public sealed class CliqShellContextTests
     }
 
     [Test]
-    public void NormalProjectFileOnlyOffersBindAndOpenAction()
+    public void NormalCSharpFileOffersBindOpenAndRegenerateActions()
     {
         var context = Snapshot(
             selectedItem: Path.Combine(_project, "CheckoutTests.cs"),
             selectionKind: IdeSelectionKind.File);
 
         AssertAvailable(CliqShellCommand.BindProjectAndOpen, context);
+        AssertAvailable(CliqShellCommand.RegenerateFile, context);
         AssertHidden(CliqShellCommand.OpenCliqDocument, context);
         AssertHidden(CliqShellCommand.RunCliqTest, context);
         AssertHidden(CliqShellCommand.RescanCliqPage, context);
+    }
+
+    [Test]
+    public void NormalNonCSharpFileOffersOnlyBindAndOpenAction()
+    {
+        var context = Snapshot(
+            selectedItem: Path.Combine(_project, "README.md"),
+            selectionKind: IdeSelectionKind.File);
+
+        AssertAvailable(CliqShellCommand.BindProjectAndOpen, context);
+        AssertHidden(CliqShellCommand.RegenerateFile, context);
     }
 
     [TestCase(IdeSelectionKind.Solution)]
@@ -126,7 +158,8 @@ public sealed class CliqShellContextTests
         string? selectedItem = null,
         string? activeDocument = null,
         string? selectedText = null,
-        IdeSelectionKind selectionKind = IdeSelectionKind.Unknown)
+        IdeSelectionKind selectionKind = IdeSelectionKind.Unknown,
+        string? lineAboveSelection = null)
     {
         return new IdeContextSnapshot(
             _root,
@@ -134,7 +167,8 @@ public sealed class CliqShellContextTests
             selectedItem,
             activeDocument,
             selectedText,
-            selectionKind);
+            selectionKind,
+            lineAboveSelection);
     }
 
     private static void AssertAvailable(CliqShellCommand command, IdeContextSnapshot context)

@@ -31,24 +31,50 @@ namespace Cliq.VisualStudio.Core.Api
     {
         public PageDefinition Page { get; set; } = null!;
         public ScanReconciliationReport Reconciliation { get; set; } = null!;
+        public LocatorDiffReport? LocatorDiff { get; set; }
+        public IReadOnlyList<DynamicElementSuggestion>? DynamicElementSuggestions { get; set; }
     }
 
     public sealed class GenerationRequest
     {
-        public GenerationRequest(IReadOnlyList<string>? pageIds = null, IReadOnlyList<string>? testIds = null)
+        public GenerationRequest(
+            IReadOnlyList<string>? pageIds = null,
+            IReadOnlyList<string>? testIds = null,
+            IReadOnlyDictionary<string, IReadOnlyList<string>>? customMethodResolutions = null)
         {
             PageIds = pageIds;
             TestIds = testIds;
+            CustomMethodResolutions = customMethodResolutions;
         }
 
         public IReadOnlyList<string>? PageIds { get; }
         public IReadOnlyList<string>? TestIds { get; }
+        public IReadOnlyDictionary<string, IReadOnlyList<string>>? CustomMethodResolutions { get; }
     }
 
     public sealed class StartRunRequest
     {
         public StartRunRequest(BrowserKind? browser = null) => Browser = browser;
         public BrowserKind? Browser { get; }
+    }
+
+    public sealed class LocateFromSourceRequest
+    {
+        public LocateFromSourceRequest(string className, string locatorComment, BrowserKind? browser = null)
+        {
+            ClassName = className;
+            LocatorComment = locatorComment;
+            Browser = browser;
+        }
+
+        public string ClassName { get; }
+        public string LocatorComment { get; }
+        public BrowserKind? Browser { get; }
+    }
+
+    public sealed class GeneratedPathResponse
+    {
+        public string Path { get; set; } = null!;
     }
 
     public sealed class WorkspaceLeaseOwner

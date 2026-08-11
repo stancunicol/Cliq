@@ -1,4 +1,4 @@
-Cliq for Visual Studio 0.1.0 Preview
+Cliq for Visual Studio 0.1.1 Preview
 
 This preview integrates Cliq UI test authoring, scanning, generation, execution,
 results, and desktop recording handoff into Visual Studio.

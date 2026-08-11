@@ -32,6 +32,10 @@ namespace Cliq.VisualStudio.Core.Api
             await (await ClientAsync(cancellationToken).ConfigureAwait(false))
                 .DeleteTestAsync(testId, cancellationToken).ConfigureAwait(false);
 
+        public async Task<PageDefinition> SavePageAsync(PageDefinition page, CancellationToken cancellationToken) =>
+            await (await ClientAsync(cancellationToken).ConfigureAwait(false))
+                .SavePageAsync(page, cancellationToken).ConfigureAwait(false);
+
         public async Task<CliqSettings> LoadSettingsAsync(CancellationToken cancellationToken) =>
             await (await ClientAsync(cancellationToken).ConfigureAwait(false))
                 .GetSettingsAsync(cancellationToken).ConfigureAwait(false);

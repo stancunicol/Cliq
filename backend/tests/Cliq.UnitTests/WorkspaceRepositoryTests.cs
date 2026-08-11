@@ -46,6 +46,25 @@ public sealed class WorkspaceRepositoryTests
     }
 
     [Test]
+    public async Task GetGeneratedPageObjectPathAsync_MatchesTheProjectsConfiguredOutputDirectoryAndClassName()
+    {
+        using var repository = new WorkspaceRepository();
+        var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
+        var page = new PageDefinition(
+            PageDefinition.CurrentSchemaVersion,
+            "login-page",
+            "Login",
+            "https://example.com/login",
+            [],
+            DateTimeOffset.UtcNow);
+
+        var path = await repository.GetGeneratedPageObjectPathAsync(page, CancellationToken.None);
+
+        var expected = Path.Combine(_root, snapshot.Project.Output.PageObjectsDirectory, "LoginPage.cs");
+        Assert.That(Path.GetFullPath(path), Is.EqualTo(Path.GetFullPath(expected)));
+    }
+
+    [Test]
     public async Task SaveTestAsync_RoundTripsTestSpecification()
     {
         using var repository = new WorkspaceRepository();
@@ -231,6 +250,39 @@ public sealed class WorkspaceRepositoryTests
 
         Assert.ThrowsAsync<WorkspaceValidationException>(async () =>
             await repository.SaveTestAsync(test, CancellationToken.None));
+    }
+
+    [Test]
+    public async Task SavePageAsync_RejectsNameCollidingWithAnotherPagesClassName()
+    {
+        using var repository = new WorkspaceRepository();
+        await repository.OpenAsync(_root, CancellationToken.None);
+        var first = new PageDefinition(
+            PageDefinition.CurrentSchemaVersion, "login-page", "Login", "https://example.com/login",
+            [], DateTimeOffset.UtcNow);
+        await repository.SavePageAsync(first, CancellationToken.None);
+        var second = new PageDefinition(
+            PageDefinition.CurrentSchemaVersion, "sign-in-page", "LOGIN", "https://example.com/signin",
+            [], DateTimeOffset.UtcNow);
+
+        var exception = Assert.ThrowsAsync<WorkspaceValidationException>(async () =>
+            await repository.SavePageAsync(second, CancellationToken.None));
+
+        Assert.That(exception!.Message, Does.Contain("LoginPage"));
+    }
+
+    [Test]
+    public async Task SavePageAsync_AllowsResavingThePageItselfUnchanged()
+    {
+        using var repository = new WorkspaceRepository();
+        await repository.OpenAsync(_root, CancellationToken.None);
+        var page = new PageDefinition(
+            PageDefinition.CurrentSchemaVersion, "login-page", "Login", "https://example.com/login",
+            [], DateTimeOffset.UtcNow);
+        await repository.SavePageAsync(page, CancellationToken.None);
+
+        Assert.DoesNotThrowAsync(async () =>
+            await repository.SavePageAsync(page with { Url = "https://example.com/login2" }, CancellationToken.None));
     }
 
     [Test]
@@ -688,6 +740,59 @@ public sealed class WorkspaceRepositoryTests
             Assert.That(contention, Is.Not.Null);
             Assert.That(candidateFailure, Is.Not.Null);
         });
+    }
+
+    [Test]
+    public async Task SavePendingCustomMethodAsync_RoundTripsAndUpsertsBySamePageAndSignature()
+    {
+        using var repository = new WorkspaceRepository();
+        await repository.OpenAsync(_root, CancellationToken.None);
+        var entry = new PendingCustomMethodEntry(
+            "entry-1", "login", "LoginPage", "public void OldHelper()", "public void OldHelper() { }",
+            HasSyntaxError: false, DateTimeOffset.UtcNow);
+
+        await repository.SavePendingCustomMethodAsync(entry, CancellationToken.None);
+        var afterFirstSave = await repository.ListPendingCustomMethodsAsync(CancellationToken.None);
+
+        var updated = entry with { SourceText = "public void OldHelper() { DoMore(); }" };
+        await repository.SavePendingCustomMethodAsync(updated, CancellationToken.None);
+        var afterUpsert = await repository.ListPendingCustomMethodsAsync(CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(afterFirstSave, Has.Count.EqualTo(1));
+            Assert.That(afterFirstSave[0].SourceText, Is.EqualTo(entry.SourceText));
+            Assert.That(afterUpsert, Has.Count.EqualTo(1), "same PageId+Signature should replace, not duplicate");
+            Assert.That(afterUpsert[0].SourceText, Is.EqualTo(updated.SourceText));
+        });
+    }
+
+    [Test]
+    public async Task DeletePendingCustomMethodAsync_RemovesOnlyTheMatchingEntry()
+    {
+        using var repository = new WorkspaceRepository();
+        await repository.OpenAsync(_root, CancellationToken.None);
+        var first = new PendingCustomMethodEntry(
+            "entry-1", "login", "LoginPage", "public void A()", "public void A() { }", false, DateTimeOffset.UtcNow);
+        var second = new PendingCustomMethodEntry(
+            "entry-2", "login", "LoginPage", "public void B()", "public void B() { }", false, DateTimeOffset.UtcNow);
+        await repository.SavePendingCustomMethodAsync(first, CancellationToken.None);
+        await repository.SavePendingCustomMethodAsync(second, CancellationToken.None);
+
+        await repository.DeletePendingCustomMethodAsync(first.Id, CancellationToken.None);
+        var remaining = await repository.ListPendingCustomMethodsAsync(CancellationToken.None);
+
+        Assert.That(remaining, Has.Count.EqualTo(1));
+        Assert.That(remaining[0].Id, Is.EqualTo(second.Id));
+    }
+
+    [Test]
+    public async Task ListPendingCustomMethodsAsync_NoFileYet_ReturnsEmpty()
+    {
+        using var repository = new WorkspaceRepository();
+        await repository.OpenAsync(_root, CancellationToken.None);
+
+        Assert.That(await repository.ListPendingCustomMethodsAsync(CancellationToken.None), Is.Empty);
     }
 
     [Test]

@@ -18,7 +18,8 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
         IReadOnlyList<PageDefinition> pages,
         IReadOnlyList<TestCase> tests,
         string workspaceRoot,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? customMethodResolutions = null)
     {
         if (!string.Equals(
                 Path.GetFullPath(workspaceRoot),
@@ -38,6 +39,7 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
 
         var artifacts = new List<GeneratedArtifact>();
         var warnings = new List<CustomMethodRecoveryWarning>();
+        var pendingMerges = new List<PendingCustomMethodMerge>();
 
         var attributePath = Path.Combine(pageObjectDirectory, "CliqCustomMethodAttribute.cs");
         await WriteAtomicTextAsync(
@@ -57,17 +59,31 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
         foreach (var page in pages)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var className = EnsurePageSuffix(IdentifierNaming.ToPascalCase(
-                IdentifierNaming.Sanitize(page.Name, "GeneratedPage")));
+            var className = IdentifierNaming.ToPageObjectClassName(page.Name);
             pageClassNames[page.Id] = className;
 
-            if (generationState.TryGetValue(page.Id, out var previousClassName)
-                && !string.Equals(previousClassName, className, StringComparison.Ordinal))
+            var wasRenamed = generationState.TryGetValue(page.Id, out var previousClassName)
+                && !string.Equals(previousClassName, className, StringComparison.Ordinal);
+            var renameResolved = true;
+            if (wasRenamed)
             {
-                await HandleRenamedPageObjectAsync(pageObjectDirectory, previousClassName, warnings, cancellationToken);
+                renameResolved = await HandleRenamedPageObjectAsync(
+                    pageObjectDirectory,
+                    page.Id,
+                    previousClassName!,
+                    customMethodResolutions,
+                    warnings,
+                    pendingMerges,
+                    cancellationToken);
             }
 
-            generationState[page.Id] = className;
+            // Deliberately NOT advanced while a rename conflict is still unresolved, so the next
+            // call re-detects it (and re-offers the old file's custom methods) instead of the
+            // orphaned file silently falling out of view after the first, unresolved detection.
+            if (!wasRenamed || renameResolved)
+            {
+                generationState[page.Id] = className;
+            }
 
             var descriptors = page.Elements
                 .Select(element => ToDescriptor(element, settings.ElementIdentification.TestIdAttribute))
@@ -79,16 +95,49 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
             var existingSource = File.Exists(generatedPath)
                 ? await File.ReadAllTextAsync(generatedPath, cancellationToken)
                 : null;
-            var customMethods = existingSource is null ? [] : CustomMethodExtractor.Extract(existingSource);
-            if (existingSource is not null)
+
+            IReadOnlyList<string> customMethods;
+            if (customMethodResolutions is not null &&
+                customMethodResolutions.TryGetValue(page.Id, out var resolvedMethods))
             {
-                var expectedCount = CustomMethodExtractor.CountMarkerOccurrences(existingSource);
-                if (customMethods.Count < expectedCount)
+                // The user already decided what carries over via the VS extension's merge UI -
+                // this covers both a same-name mismatch and a rename (HandleRenamedPageObjectAsync
+                // above already deferred/cleaned up the old file in that case).
+                customMethods = resolvedMethods;
+            }
+            else
+            {
+                // A method CustomMethodExtractor.Extract "recovers" is only trustworthy once (a)
+                // the whole file's braces are still balanced - otherwise the depth-walk can latch
+                // onto the wrong closing brace (e.g. the class's own) and report a clean,
+                // matching-count "recovery" for a span that isn't actually that method - and (b)
+                // the recovered text itself parses. Checking both here (not just when building a
+                // PendingCustomMethodMerge) is what turns either failure into a caught mismatch
+                // instead of silently re-emitting a misattributed/broken method as if it were fine.
+                var fileIsBalanced = existingSource is null || CustomMethodExtractor.IsBalanced(existingSource);
+                var recovered = existingSource is null || !fileIsBalanced
+                    ? []
+                    : CustomMethodExtractor.Extract(existingSource);
+                var validated = recovered
+                    .Where(method => CustomMethodSyntaxChecker.FindSyntaxErrors(method).Count == 0)
+                    .ToList();
+                customMethods = validated;
+                if (existingSource is not null)
                 {
-                    var backupPath = await BackupBeforeOverwriteAsync(
-                        className, existingSource, cancellationToken);
-                    warnings.Add(new CustomMethodRecoveryWarning(
-                        className, expectedCount, customMethods.Count, backupPath));
+                    var expectedCount = CustomMethodExtractor.CountMarkerOccurrences(existingSource);
+                    if (validated.Count < expectedCount)
+                    {
+                        var backupPath = await BackupBeforeOverwriteAsync(
+                            className, existingSource, cancellationToken);
+                        warnings.Add(new CustomMethodRecoveryWarning(
+                            className, expectedCount, validated.Count, backupPath));
+                        var pending = await BuildPendingMergeAsync(
+                            page.Id, className, existingSource, cancellationToken);
+                        if (pending is not null)
+                        {
+                            pendingMerges.Add(pending);
+                        }
+                    }
                 }
             }
 
@@ -117,7 +166,7 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
 
         await SaveGenerationStateAsync(generationState, cancellationToken);
 
-        return new WorkspaceGenerationResult(artifacts, warnings);
+        return new WorkspaceGenerationResult(artifacts, warnings, pendingMerges);
     }
 
     /// <summary>
@@ -128,16 +177,24 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
     /// deleted (nothing to lose); otherwise it's left exactly where it is and reported as a
     /// warning rather than guessed at.
     /// </summary>
-    private static async Task HandleRenamedPageObjectAsync(
+    /// <summary>
+    /// Returns whether the rename conflict is now fully dealt with (the old file no longer
+    /// exists) - false means it was left in place, unresolved, so the caller must keep pointing
+    /// <c>generationState</c> at the old name until a future call resolves it.
+    /// </summary>
+    private async Task<bool> HandleRenamedPageObjectAsync(
         string pageObjectDirectory,
+        string pageId,
         string previousClassName,
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? customMethodResolutions,
         List<CustomMethodRecoveryWarning> warnings,
+        List<PendingCustomMethodMerge> pendingMerges,
         CancellationToken cancellationToken)
     {
         var oldPath = Path.Combine(pageObjectDirectory, $"{previousClassName}.cs");
         if (!File.Exists(oldPath))
         {
-            return;
+            return true;
         }
 
         var oldSource = await File.ReadAllTextAsync(oldPath, cancellationToken);
@@ -145,10 +202,139 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
         if (customMethods.Count == 0)
         {
             File.Delete(oldPath);
-            return;
+            return true;
+        }
+
+        if (customMethodResolutions is not null &&
+            customMethodResolutions.TryGetValue(pageId, out var resolvedMethods))
+        {
+            // Resolved via the merge UI: whatever wasn't chosen to carry over goes to the waiting
+            // list, and the stale renamed-away file can finally go - nothing of value is left in it.
+            var candidates = BuildCandidates(CustomMethodExtractor.ExtractAll(oldSource));
+            await DeferUnresolvedAsync(pageId, previousClassName, candidates, resolvedMethods, cancellationToken);
+            File.Delete(oldPath);
+            return true;
         }
 
         warnings.Add(new CustomMethodRecoveryWarning(previousClassName, customMethods.Count, 0, oldPath));
+        var pending = await BuildPendingMergeAsync(pageId, previousClassName, oldSource, cancellationToken);
+        if (pending is not null)
+        {
+            pendingMerges.Add(pending);
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Builds the candidate list the VS extension's merge UI shows for one page's conflict -
+    /// everything <see cref="CustomMethodExtractor.ExtractAll"/> found in the given source, merged
+    /// with anything already deferred for the same page in the global waiting list (a fresh
+    /// candidate wins over a stale deferred duplicate with the same signature). Returns null when
+    /// there's nothing to show.
+    /// </summary>
+    private async Task<PendingCustomMethodMerge?> BuildPendingMergeAsync(
+        string pageId,
+        string pageObjectName,
+        string sourceText,
+        CancellationToken cancellationToken)
+    {
+        var freshCandidates = BuildCandidates(CustomMethodExtractor.ExtractAll(sourceText));
+        var waitingListCandidates = (await repository.ListPendingCustomMethodsAsync(cancellationToken))
+            .Where(entry => string.Equals(entry.PageId, pageId, StringComparison.Ordinal))
+            .Select(entry => new CustomMethodCandidate(
+                entry.Signature,
+                entry.SourceText,
+                entry.HasSyntaxError,
+                entry.HasSyntaxError
+                    ? ["Previously deferred with a syntax error."]
+                    : Array.Empty<string>()));
+
+        var merged = freshCandidates
+            .Concat(waitingListCandidates)
+            .GroupBy(candidate => candidate.Signature, StringComparer.Ordinal)
+            .Select(group => group.First())
+            .ToList();
+
+        return merged.Count == 0 ? null : new PendingCustomMethodMerge(pageId, pageObjectName, merged);
+    }
+
+    private static IReadOnlyList<CustomMethodCandidate> BuildCandidates(IReadOnlyList<ExtractedSpan> spans)
+    {
+        var candidates = new List<CustomMethodCandidate>();
+        foreach (var span in spans)
+        {
+            IReadOnlyList<string> syntaxErrors = span.ClosedCleanly
+                ? CustomMethodSyntaxChecker.FindSyntaxErrors(span.SourceText)
+                : ["The custom method's body could not be parsed (unbalanced braces or unsupported syntax)."];
+            candidates.Add(new CustomMethodCandidate(
+                ExtractSignature(span.SourceText), span.SourceText, syntaxErrors.Count > 0, syntaxErrors));
+        }
+
+        return candidates;
+    }
+
+    private static string ExtractSignature(string sourceText)
+    {
+        foreach (var line in sourceText.Split('\n'))
+        {
+            var trimmed = line.Trim('\r', ' ', '\t');
+            if (trimmed.Length == 0 ||
+                trimmed.StartsWith("///", StringComparison.Ordinal) ||
+                (trimmed.StartsWith('[') && trimmed.EndsWith(']')))
+            {
+                continue;
+            }
+
+            return trimmed.TrimEnd('{').TrimEnd();
+        }
+
+        return sourceText.Split('\n')[0].Trim();
+    }
+
+    /// <summary>
+    /// Persists every candidate the user didn't choose to carry over into the global waiting list
+    /// (preserving its existing entry Id if it was already deferred there, so a VS extension
+    /// caller's cached reference doesn't go stale), and clears out any waiting-list entry for one
+    /// that WAS carried over, since it's resolved now and shouldn't reappear.
+    /// </summary>
+    private async Task DeferUnresolvedAsync(
+        string pageId,
+        string pageObjectName,
+        IReadOnlyList<CustomMethodCandidate> candidates,
+        IReadOnlyList<string> resolvedMethods,
+        CancellationToken cancellationToken)
+    {
+        var resolvedSet = new HashSet<string>(resolvedMethods, StringComparer.Ordinal);
+        var existingWaitingList = await repository.ListPendingCustomMethodsAsync(cancellationToken);
+
+        foreach (var candidate in candidates)
+        {
+            var existing = existingWaitingList.FirstOrDefault(entry =>
+                string.Equals(entry.PageId, pageId, StringComparison.Ordinal) &&
+                string.Equals(entry.Signature, candidate.Signature, StringComparison.Ordinal));
+
+            if (resolvedSet.Contains(candidate.SourceText))
+            {
+                if (existing is not null)
+                {
+                    await repository.DeletePendingCustomMethodAsync(existing.Id, cancellationToken);
+                }
+
+                continue;
+            }
+
+            await repository.SavePendingCustomMethodAsync(
+                new PendingCustomMethodEntry(
+                    existing?.Id ?? Guid.NewGuid().ToString("N"),
+                    pageId,
+                    pageObjectName,
+                    candidate.Signature,
+                    candidate.SourceText,
+                    candidate.HasSyntaxError,
+                    DateTimeOffset.UtcNow),
+                cancellationToken);
+        }
     }
 
     /// <summary>
@@ -197,7 +383,7 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
         return path;
     }
 
-    private static ElementDescriptor ToDescriptor(PageElement element, string testIdAttribute) =>
+    internal static ElementDescriptor ToDescriptor(PageElement element, string testIdAttribute) =>
         new(
             element.Tag,
             element.Action switch
@@ -528,7 +714,6 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
 
     private static string Literal(string value) => PageObjectCodeGenerator.ToCSharpStringLiteral(value);
     private static string Variable(string className) => char.ToLowerInvariant(className[0]) + className[1..];
-    private static string EnsurePageSuffix(string value) => value.EndsWith("Page", StringComparison.Ordinal) ? value : value + "Page";
     private static string CssAttributeEscape(string value) => value.Replace("\\", "\\\\").Replace("\"", "\\\"");
 
     private static async Task WriteAtomicTextAsync(

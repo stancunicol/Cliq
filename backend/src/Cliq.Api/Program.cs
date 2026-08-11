@@ -159,6 +159,21 @@ api.MapDelete("/pages/{id}", async (
     return Results.NoContent();
 });
 
+api.MapGet("/pages/{id}/generated-path", async (
+    string id,
+    IWorkspaceRepository repository,
+    CancellationToken cancellationToken) =>
+{
+    var page = await repository.GetPageAsync(id, cancellationToken);
+    if (page is null)
+    {
+        return Results.NotFound();
+    }
+
+    var path = await repository.GetGeneratedPageObjectPathAsync(page, cancellationToken);
+    return Results.Ok(new GeneratedPathResponse(path));
+});
+
 api.MapPost("/pages/scan", async (
     ScanPageRequest request,
     IPageDiscovery discovery,
@@ -175,6 +190,38 @@ api.MapPost("/pages/scan", async (
     var saved = await repository.SavePageAsync(result.Page, cancellationToken);
     return Results.Ok(new ScanPageResponse(
         saved, result.Reconciliation, result.LocatorDiff, result.DynamicElementSuggestions, result.ScreenshotPath));
+});
+
+api.MapPost("/pages/{id}/elements/{elementId}/locate", async (
+    string id,
+    string elementId,
+    StartRunRequest request,
+    IWorkspaceRepository repository,
+    ITestRunner testRunner,
+    CancellationToken cancellationToken) =>
+{
+    var page = await repository.GetPageAsync(id, cancellationToken);
+    if (page is null)
+    {
+        return Results.NotFound();
+    }
+
+    var snapshot = await repository.GetSnapshotAsync(cancellationToken);
+    await testRunner.LocateElementAsync(
+        page, elementId, request.Browser ?? snapshot.Project.DefaultBrowser, cancellationToken);
+    return Results.NoContent();
+});
+
+api.MapPost("/pages/locate-from-source", async (
+    LocateFromSourceRequest request,
+    IWorkspaceRepository repository,
+    ITestRunner testRunner,
+    CancellationToken cancellationToken) =>
+{
+    var snapshot = await repository.GetSnapshotAsync(cancellationToken);
+    await testRunner.LocateElementFromSourceAsync(
+        request.ClassName, request.LocatorComment, request.Browser ?? snapshot.Project.DefaultBrowser, cancellationToken);
+    return Results.NoContent();
 });
 
 api.MapGet("/pages/discovery-screenshots/{fileName}", (
@@ -273,7 +320,22 @@ api.MapPost("/generation", async (
         pages,
         tests,
         snapshot.RootPath,
-        cancellationToken));
+        cancellationToken,
+        request.CustomMethodResolutions));
+});
+
+api.MapGet("/pending-custom-methods", async (
+    IWorkspaceRepository repository,
+    CancellationToken cancellationToken) =>
+    Results.Ok(await repository.ListPendingCustomMethodsAsync(cancellationToken)));
+
+api.MapDelete("/pending-custom-methods/{id}", async (
+    string id,
+    IWorkspaceRepository repository,
+    CancellationToken cancellationToken) =>
+{
+    await repository.DeletePendingCustomMethodAsync(id, cancellationToken);
+    return Results.NoContent();
 });
 
 api.MapPost("/tests/{testId}/runs", async (

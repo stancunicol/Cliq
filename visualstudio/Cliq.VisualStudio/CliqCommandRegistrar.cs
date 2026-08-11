@@ -38,7 +38,10 @@ internal sealed class CliqCommandRegistrar
             [CommandIds.RunCliqTest] = CliqShellCommand.RunCliqTest,
             [CommandIds.GenerateCliqDocument] = CliqShellCommand.GenerateCliqDocument,
             [CommandIds.RescanCliqPage] = CliqShellCommand.RescanCliqPage,
-            [CommandIds.ScanSelectedUrl] = CliqShellCommand.ScanSelectedUrl
+            [CommandIds.ScanSelectedUrl] = CliqShellCommand.ScanSelectedUrl,
+            [CommandIds.OpenMerge] = CliqShellCommand.OpenMerge,
+            [CommandIds.RegenerateFile] = CliqShellCommand.RegenerateFile,
+            [CommandIds.LocateElementFromSource] = CliqShellCommand.LocateElementFromSource
         };
 
     private readonly AsyncPackage _package;
@@ -90,6 +93,14 @@ internal sealed class CliqCommandRegistrar
         if (!string.IsNullOrWhiteSpace(state.Text))
         {
             menuCommand.Text = state.Text;
+        }
+
+        if (command == CliqShellCommand.OpenMerge)
+        {
+            var pendingCount = CliqPackage.Current?.Merge?.PendingCount ?? 0;
+            menuCommand.Text = pendingCount > 0
+                ? $"Pending Merges ({pendingCount})..."
+                : "Pending Merges...";
         }
     }
 

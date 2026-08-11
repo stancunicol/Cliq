@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 
 namespace Cliq.VisualStudio.Core.Shell;
 
@@ -20,7 +21,10 @@ public enum CliqShellCommand
     RunCliqTest,
     GenerateCliqDocument,
     RescanCliqPage,
-    ScanSelectedUrl
+    ScanSelectedUrl,
+    OpenMerge,
+    RegenerateFile,
+    LocateElementFromSource
 }
 
 public readonly struct CliqCommandState
@@ -63,6 +67,8 @@ public static class CliqShellContext
             !isCliqDocument &&
             context.SelectedItemPath is not null;
         var hasUrl = CliqDocumentClassifier.TryParseHttpSelection(context.SelectedText, out _);
+        var isCSharpFile = context.SelectedItemPath is not null &&
+            string.Equals(Path.GetExtension(context.SelectedItemPath), ".cs", StringComparison.OrdinalIgnoreCase);
 
         switch (command)
         {
@@ -85,6 +91,7 @@ public static class CliqShellContext
             case CliqShellCommand.Refresh:
                 return hasWorkspaceScope ? CliqCommandState.Available() : CliqCommandState.Disabled();
             case CliqShellCommand.Settings:
+            case CliqShellCommand.OpenMerge:
                 return CliqCommandState.Available();
             case CliqShellCommand.BindWorkspace:
             case CliqShellCommand.OpenScopedWorkbench:
@@ -96,6 +103,13 @@ public static class CliqShellContext
                 return isNormalFile && context.SelectedProjectDirectory is not null
                     ? CliqCommandState.Available()
                     : CliqCommandState.Hidden;
+            case CliqShellCommand.RegenerateFile:
+                // Scoped to .cs files rather than every normal file (unlike BindProjectAndOpen
+                // above) - a right-click "Regenerate" only makes sense on the generated Page
+                // Object/test files themselves, not an arbitrary project file.
+                return isNormalFile && isCSharpFile && context.SelectedProjectDirectory is not null
+                    ? CliqCommandState.Available()
+                    : CliqCommandState.Hidden;
             case CliqShellCommand.OpenCliqDocument:
             case CliqShellCommand.GenerateCliqDocument:
                 return isCliqDocument ? CliqCommandState.Available() : CliqCommandState.Hidden;
@@ -105,6 +119,10 @@ public static class CliqShellContext
                 return isPage ? CliqCommandState.Available() : CliqCommandState.Hidden;
             case CliqShellCommand.ScanSelectedUrl:
                 return hasUrl
+                    ? CliqCommandState.Available()
+                    : CliqCommandState.Hidden;
+            case CliqShellCommand.LocateElementFromSource:
+                return CliqDocumentClassifier.ResolveLocatorFieldComment(context.SelectedText, context.LineAboveSelection) is not null
                     ? CliqCommandState.Available()
                     : CliqCommandState.Hidden;
             default:

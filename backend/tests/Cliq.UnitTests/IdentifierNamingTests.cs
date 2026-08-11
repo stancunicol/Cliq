@@ -28,4 +28,13 @@ public class IdentifierNamingTests
     {
         Assert.That(IdentifierNaming.ToPascalCase(snakeCase), Is.EqualTo(expected));
     }
+
+    [TestCase("Login", "LoginPage")]
+    [TestCase("LOGIN", "LoginPage")]
+    [TestCase("Checkout Page", "CheckoutPage")]
+    [TestCase(null, "GeneratedPage")]
+    public void ToPageObjectClassName_AppendsPageSuffixExactlyOnce(string? name, string expected)
+    {
+        Assert.That(IdentifierNaming.ToPageObjectClassName(name), Is.EqualTo(expected));
+    }
 }

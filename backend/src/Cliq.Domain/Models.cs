@@ -297,6 +297,46 @@ public sealed record CustomMethodRecoveryWarning(
     int RecoveredCount,
     string Path);
 
+/// <summary>
+/// One extracted (or best-effort-recovered) custom method offered to the user in the VS
+/// extension's merge UI, alongside <see cref="CustomMethodRecoveryWarning"/>'s passive
+/// backup+warning signal aimed at the Electron frontend. <see cref="SourceText"/> is always the
+/// full method block (attribute, doc comments, signature, body) regardless of
+/// <see cref="HasSyntaxError"/> - a broken method still needs to be shown, just flagged.
+/// </summary>
+public sealed record CustomMethodCandidate(
+    string Signature,
+    string SourceText,
+    bool HasSyntaxError,
+    IReadOnlyList<string> SyntaxErrors);
+
+/// <summary>
+/// Raised alongside (not instead of) a <see cref="CustomMethodRecoveryWarning"/> for the same
+/// page, whenever that page's old file has custom methods that need a human decision: either a
+/// rename (which today carries nothing over automatically) or a same-name regeneration where
+/// recovery came up short. <see cref="Candidates"/> includes both freshly-detected methods and
+/// any already-deferred ones from the global waiting list for this same page.
+/// </summary>
+public sealed record PendingCustomMethodMerge(
+    string PageId,
+    string PageObjectName,
+    IReadOnlyList<CustomMethodCandidate> Candidates);
+
+/// <summary>
+/// A custom method the user chose to defer rather than decide on immediately - persisted in the
+/// global (cross-page) waiting list at <c>.cliq/pending-custom-methods.json</c> until the user
+/// acts on it again (include it in a future generate, or explicitly discard it).
+/// </summary>
+public sealed record PendingCustomMethodEntry(
+    string Id,
+    string PageId,
+    string PageObjectName,
+    string Signature,
+    string SourceText,
+    bool HasSyntaxError,
+    DateTimeOffset DeferredAt);
+
 public sealed record GenerationResult(
     IReadOnlyList<GeneratedArtifact> Artifacts,
-    IReadOnlyList<CustomMethodRecoveryWarning> Warnings);
+    IReadOnlyList<CustomMethodRecoveryWarning> Warnings,
+    IReadOnlyList<PendingCustomMethodMerge> PendingMerges);

@@ -233,13 +233,78 @@ public sealed class WorkbenchAuthoringTests
     public void PageInspectorShowsLocatorAndMissingStatus()
     {
         var page = CreateSnapshot().Pages[0];
-        var inspector = new PageInspectorViewModel(page);
+        var inspector = new PageEditorViewModel(page);
 
         Assert.Multiple(() =>
         {
             Assert.That(inspector.Elements[0].Locator, Is.EqualTo("TestId: email"));
             Assert.That(inspector.Elements[1].Status, Is.EqualTo("Not found on last scan"));
             Assert.That(inspector.Elements[1].NotFound, Is.True);
+        });
+    }
+
+    [Test]
+    public void RemoveNotFoundElements_RemovesFlaggedRowsAndMarksDirty()
+    {
+        var page = CreateSnapshot().Pages[0];
+        var inspector = new PageEditorViewModel(page);
+
+        Assert.That(inspector.HasNotFoundElements, Is.True);
+        inspector.RemoveNotFoundElements();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(inspector.Elements, Has.Count.EqualTo(1));
+            Assert.That(inspector.Elements.Any(element => element.NotFound), Is.False);
+            Assert.That(inspector.HasNotFoundElements, Is.False);
+            Assert.That(inspector.IsDirty, Is.True);
+            Assert.That(inspector.ToModel().Elements, Has.Count.EqualTo(1));
+        });
+    }
+
+    [Test]
+    public void RemoveNotFoundElements_NoStaleElements_IsANoOp()
+    {
+        var original = CreateSnapshot().Pages[0];
+        var page = original with { Elements = new[] { original.Elements[0] } };
+        var inspector = new PageEditorViewModel(page);
+
+        inspector.RemoveNotFoundElements();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(inspector.Elements, Has.Count.EqualTo(1));
+            Assert.That(inspector.IsDirty, Is.False);
+        });
+    }
+
+    [Test]
+    public async Task RenamingSelectedPageTracksDirtyStateAndSaves()
+    {
+        var store = new RecordingWorkbenchStore(CreateSnapshot());
+        var viewModel = new WorkbenchViewModel(store);
+        await viewModel.InitializeAsync();
+
+        viewModel.SelectedPage = viewModel.Pages[0];
+        Assert.That(viewModel.CanSaveSelected, Is.False);
+
+        viewModel.SelectedPage.Name = "Renamed checkout page";
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.SelectedPage.IsDirty, Is.True);
+            Assert.That(viewModel.IsDirty, Is.True);
+            Assert.That(viewModel.CanSaveSelected, Is.True);
+        });
+
+        var saved = await viewModel.SaveSelectedAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(saved, Is.True);
+            Assert.That(store.SavedPages, Has.Count.EqualTo(1));
+            Assert.That(store.SavedPages[0].Name, Is.EqualTo("Renamed checkout page"));
+            Assert.That(viewModel.SelectedPage.IsDirty, Is.False);
+            Assert.That(viewModel.IsDirty, Is.False);
         });
     }
 
@@ -323,6 +388,8 @@ public sealed class WorkbenchAuthoringTests
 
         public List<string> DeletedTestIds { get; } = new();
 
+        public List<PageDefinition> SavedPages { get; } = new();
+
         public Task<WorkspaceSnapshot> LoadAsync(CancellationToken cancellationToken)
         {
             LoadCalls++;
@@ -339,6 +406,12 @@ public sealed class WorkbenchAuthoringTests
         {
             DeletedTestIds.Add(testId);
             return Task.CompletedTask;
+        }
+
+        public Task<PageDefinition> SavePageAsync(PageDefinition page, CancellationToken cancellationToken)
+        {
+            SavedPages.Add(page);
+            return Task.FromResult(page);
         }
     }
 
