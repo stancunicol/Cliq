@@ -27,7 +27,7 @@ namespace Cliq.VisualStudio;
 [InstalledProductRegistration(
     "Cliq for Visual Studio",
     "Integrates Cliq UI test automation into Visual Studio.",
-    "0.1.13")]
+    "0.1.15")]
 [ProvideMenuResource("Menus.ctmenu", 1)]
 [ProvideToolWindow(typeof(CliqWorkbenchToolWindow))]
 [ProvideToolWindow(typeof(CliqRunResultsToolWindow))]
@@ -559,7 +559,6 @@ public sealed class CliqPackage : AsyncPackage, ICliqShellCommandTarget
                     }
                     break;
                 case CliqShellCommand.GenerateScopedAll:
-                case CliqShellCommand.RegenerateFile:
                     if (await BindContextWorkspaceAsync(context))
                     {
                         await GenerateAllAsync();

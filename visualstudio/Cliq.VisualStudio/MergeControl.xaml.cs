@@ -29,7 +29,7 @@ public partial class MergeControl : UserControl
         VSColorTheme.ThemeChanged -= OnThemeChanged;
         VSColorTheme.ThemeChanged += OnThemeChanged;
         ApplyTheme();
-        RunOperation(() => _viewModel.RefreshWaitingListAsync());
+        RunOperation(() => _viewModel.RefreshWaitingListSafeAsync());
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
@@ -43,7 +43,7 @@ public partial class MergeControl : UserControl
         RunOperation(() => _viewModel.ResolveAsync());
 
     private void RefreshWaitingList_Click(object sender, RoutedEventArgs e) =>
-        RunOperation(() => _viewModel.RefreshWaitingListAsync());
+        RunOperation(() => _viewModel.RefreshWaitingListSafeAsync());
 
     private void IncludeNow_Click(object sender, RoutedEventArgs e)
     {

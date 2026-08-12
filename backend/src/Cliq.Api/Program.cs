@@ -297,31 +297,15 @@ api.MapPost("/generation", async (
     CancellationToken cancellationToken) =>
 {
     var snapshot = await repository.GetSnapshotAsync(cancellationToken);
-    var testIds = request.TestIds?.ToHashSet(StringComparer.Ordinal);
-    var tests = testIds is null
-        ? snapshot.Tests
-        : snapshot.Tests.Where(test => testIds.Contains(test.Id)).ToList();
-    var pageIds = request.PageIds?.ToHashSet(StringComparer.Ordinal);
-    if (pageIds is null && testIds is not null)
-    {
-        pageIds = tests
-            .SelectMany(test => test.Steps)
-            .Select(step => step.PageId)
-            .Where(pageId => !string.IsNullOrWhiteSpace(pageId))
-            .Cast<string>()
-            .ToHashSet(StringComparer.Ordinal);
-    }
-
-    var pages = pageIds is null
-        ? snapshot.Pages
-        : snapshot.Pages.Where(page => pageIds.Contains(page.Id)).ToList();
+    var (pages, tests) = GenerationRequestPlanner.Plan(request, snapshot);
     return Results.Ok(await generation.GenerateAsync(
         snapshot.Project,
         pages,
         tests,
         snapshot.RootPath,
         cancellationToken,
-        request.CustomMethodResolutions));
+        request.CustomMethodResolutions,
+        request.CustomMethodDiscards));
 });
 
 api.MapGet("/pending-custom-methods", async (

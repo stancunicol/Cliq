@@ -62,6 +62,53 @@ public sealed class MergeViewModelTests
     }
 
     [Test]
+    public void CustomMethodCandidateViewModel_SettingIsDiscardTrue_UpdatesDecisionAndOtherFlags()
+    {
+        var candidate = new CustomMethodCandidateViewModel(
+            new CustomMethodCandidate("sig", "public void X() { }", false, []));
+
+        candidate.IsDiscard = true;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(candidate.Decision, Is.EqualTo(CustomMethodDecision.Discard));
+            Assert.That(candidate.IsCarryOver, Is.False);
+            Assert.That(candidate.IsDefer, Is.False);
+            Assert.That(candidate.IsDiscard, Is.True);
+        });
+    }
+
+    [Test]
+    public async Task ResolveAsync_DiscardedCandidate_IsNeitherCarriedOverNorSentAsAResolution()
+    {
+        var store = new RecordingActionStore();
+        var viewModel = new MergeViewModel(store);
+        var merge = new PendingCustomMethodMerge(
+            "login",
+            "LoginPage",
+            [
+                new CustomMethodCandidate("public void Keep()", "public void Keep() { }", false, []),
+                new CustomMethodCandidate("public void DropMe()", "public void DropMe() { }", false, []),
+            ]);
+        viewModel.LoadPendingMerges([merge]);
+        viewModel.PendingPages.Single().Candidates.Single(c => c.Signature == "public void DropMe()").Decision =
+            CustomMethodDecision.Discard;
+
+        var resolved = await viewModel.ResolveAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(resolved, Is.True);
+            Assert.That(store.LastGenerationRequest, Is.Not.Null);
+            Assert.That(store.LastGenerationRequest!.CustomMethodDiscards, Is.Not.Null);
+            var resolutions = store.LastGenerationRequest.CustomMethodResolutions!;
+            var discards = store.LastGenerationRequest.CustomMethodDiscards!;
+            Assert.That(resolutions["login"], Is.EqualTo(new[] { "public void Keep() { }" }));
+            Assert.That(discards["login"], Is.EqualTo(new[] { "public void DropMe() { }" }));
+        });
+    }
+
+    [Test]
     public async Task DiscardAsync_RemovesEntryFromWaitingListAndCallsStore()
     {
         var entry = new PendingCustomMethodEntry(

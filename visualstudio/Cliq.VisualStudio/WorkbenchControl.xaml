@@ -564,7 +564,7 @@
                                         AutomationProperties.Name="Locate selected element in browser" />
                                 <Button Content="Regenerate"
                                         Click="RegeneratePage_Click"
-                                        ToolTip="Regenerates this page's Page Object file (and any tests referencing it)."
+                                        ToolTip="Regenerates this page's Page Object file only. Use Generate All to also refresh tests that reference it."
                                         AutomationProperties.Name="Regenerate this page's artifacts" />
                                 <Button Content="Rescan"
                                         Click="RescanPage_Click"

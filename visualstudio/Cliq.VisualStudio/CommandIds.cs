@@ -24,6 +24,5 @@ internal static class CommandIds
     public const int GenerateCliqDocument = 0x0206;
     public const int RescanCliqPage = 0x0207;
     public const int ScanSelectedUrl = 0x0208;
-    public const int RegenerateFile = 0x0209;
     public const int LocateElementFromSource = 0x020A;
 }

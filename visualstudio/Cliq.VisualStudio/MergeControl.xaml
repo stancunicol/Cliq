@@ -154,6 +154,11 @@
                                                                              IsChecked="{Binding IsCarryOver}" />
                                                                 <RadioButton Content="Defer to the waiting list"
                                                                              IsChecked="{Binding IsDefer}" />
+                                                                <RadioButton Content="Discard permanently"
+                                                                             IsChecked="{Binding IsDiscard}"
+                                                                             Foreground="{DynamicResource Cliq.Merge.Error}"
+                                                                             ToolTip="Drops this method entirely - it will not be carried into the new file and will not appear in the waiting list. This cannot be undone."
+                                                                             AutomationProperties.Name="Discard permanently - cannot be undone" />
                                                             </StackPanel>
                                                         </StackPanel>
                                                     </Expander>

@@ -98,14 +98,13 @@ public sealed class CliqShellContextTests
     }
 
     [Test]
-    public void NormalCSharpFileOffersBindOpenAndRegenerateActions()
+    public void NormalCSharpFileOffersBindAndOpenAction()
     {
         var context = Snapshot(
             selectedItem: Path.Combine(_project, "CheckoutTests.cs"),
             selectionKind: IdeSelectionKind.File);
 
         AssertAvailable(CliqShellCommand.BindProjectAndOpen, context);
-        AssertAvailable(CliqShellCommand.RegenerateFile, context);
         AssertHidden(CliqShellCommand.OpenCliqDocument, context);
         AssertHidden(CliqShellCommand.RunCliqTest, context);
         AssertHidden(CliqShellCommand.RescanCliqPage, context);
@@ -119,7 +118,6 @@ public sealed class CliqShellContextTests
             selectionKind: IdeSelectionKind.File);
 
         AssertAvailable(CliqShellCommand.BindProjectAndOpen, context);
-        AssertHidden(CliqShellCommand.RegenerateFile, context);
     }
 
     [TestCase(IdeSelectionKind.Solution)]

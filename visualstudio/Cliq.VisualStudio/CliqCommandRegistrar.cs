@@ -40,7 +40,6 @@ internal sealed class CliqCommandRegistrar
             [CommandIds.RescanCliqPage] = CliqShellCommand.RescanCliqPage,
             [CommandIds.ScanSelectedUrl] = CliqShellCommand.ScanSelectedUrl,
             [CommandIds.OpenMerge] = CliqShellCommand.OpenMerge,
-            [CommandIds.RegenerateFile] = CliqShellCommand.RegenerateFile,
             [CommandIds.LocateElementFromSource] = CliqShellCommand.LocateElementFromSource
         };
 

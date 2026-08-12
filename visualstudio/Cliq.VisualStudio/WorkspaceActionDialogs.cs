@@ -191,7 +191,8 @@ internal sealed class GenerationResultDialog : CliqDialogWindow
                 Text = string.Join(
                     Environment.NewLine,
                     result.Warnings.Select(item =>
-                        $"{item.PageObjectName}: recovered {item.RecoveredCount} of {item.ExpectedCount} custom methods. See {item.Path}")),
+                        $"{item.PageObjectName}: {item.RecoveredCount} of {item.ExpectedCount} custom methods need your decision - " +
+                        $"this file was left untouched, not regenerated. Resolve via Pending Merges. ({item.Path})")),
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 0, 0, 10),
             };

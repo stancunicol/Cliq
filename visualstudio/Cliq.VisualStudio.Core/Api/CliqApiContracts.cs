@@ -40,16 +40,19 @@ namespace Cliq.VisualStudio.Core.Api
         public GenerationRequest(
             IReadOnlyList<string>? pageIds = null,
             IReadOnlyList<string>? testIds = null,
-            IReadOnlyDictionary<string, IReadOnlyList<string>>? customMethodResolutions = null)
+            IReadOnlyDictionary<string, IReadOnlyList<string>>? customMethodResolutions = null,
+            IReadOnlyDictionary<string, IReadOnlyList<string>>? customMethodDiscards = null)
         {
             PageIds = pageIds;
             TestIds = testIds;
             CustomMethodResolutions = customMethodResolutions;
+            CustomMethodDiscards = customMethodDiscards;
         }
 
         public IReadOnlyList<string>? PageIds { get; }
         public IReadOnlyList<string>? TestIds { get; }
         public IReadOnlyDictionary<string, IReadOnlyList<string>>? CustomMethodResolutions { get; }
+        public IReadOnlyDictionary<string, IReadOnlyList<string>>? CustomMethodDiscards { get; }
     }
 
     public sealed class StartRunRequest

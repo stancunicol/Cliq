@@ -155,13 +155,6 @@
         <Icon guid="ImageCatalogGuid" id="Refresh" />
         <Strings><ButtonText>Rescan Cliq Page...</ButtonText></Strings>
       </Button>
-      <Button guid="guidCliqCommandSet" id="RegenerateFile" priority="0x0600" type="Button">
-        <Parent guid="guidCliqCommandSet" id="CliqItemContextGroup" />
-        <CommandFlag>DefaultInvisible</CommandFlag>
-        <CommandFlag>DynamicVisibility</CommandFlag>
-        <Icon guid="ImageCatalogGuid" id="GenerateAllFromTemplate" />
-        <Strings><ButtonText>Regenerate Cliq Artifacts</ButtonText></Strings>
-      </Button>
       <Button guid="guidCliqCommandSet" id="ScanSelectedUrl" priority="0x0100" type="Button">
         <Parent guid="guidCliqCommandSet" id="CliqEditorContextGroup" />
         <CommandFlag>DefaultInvisible</CommandFlag>
@@ -267,7 +260,6 @@
       <IDSymbol name="GenerateCliqDocument" value="0x0206" />
       <IDSymbol name="RescanCliqPage" value="0x0207" />
       <IDSymbol name="ScanSelectedUrl" value="0x0208" />
-      <IDSymbol name="RegenerateFile" value="0x0209" />
       <IDSymbol name="LocateElementFromSource" value="0x020A" />
     </GuidSymbol>
   </Symbols>

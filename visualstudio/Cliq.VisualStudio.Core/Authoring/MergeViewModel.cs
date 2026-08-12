@@ -14,6 +14,7 @@ public enum CustomMethodDecision
 {
     CarryOver,
     Defer,
+    Discard,
 }
 
 public sealed class CustomMethodCandidateViewModel : BindableBase
@@ -56,20 +57,53 @@ public sealed class CustomMethodCandidateViewModel : BindableBase
             {
                 OnPropertyChanged(nameof(IsCarryOver));
                 OnPropertyChanged(nameof(IsDefer));
+                OnPropertyChanged(nameof(IsDiscard));
             }
         }
     }
 
+    // Each setter only acts on becoming true - WPF's RadioButton grouping already drives mutual
+    // exclusivity visually, and with three options relying on "becoming false" to decide which of
+    // the other two to fall back to would depend on the order WPF happens to raise the outgoing
+    // and incoming IsChecked changes in, which isn't something to lean on.
     public bool IsCarryOver
     {
         get => Decision == CustomMethodDecision.CarryOver;
-        set => Decision = value ? CustomMethodDecision.CarryOver : CustomMethodDecision.Defer;
+        set
+        {
+            if (value)
+            {
+                Decision = CustomMethodDecision.CarryOver;
+            }
+        }
     }
 
     public bool IsDefer
     {
         get => Decision == CustomMethodDecision.Defer;
-        set => Decision = value ? CustomMethodDecision.Defer : CustomMethodDecision.CarryOver;
+        set
+        {
+            if (value)
+            {
+                Decision = CustomMethodDecision.Defer;
+            }
+        }
+    }
+
+    // Permanently drops the method: unlike Defer, it never lands in the global waiting list at
+    // all (or is removed from it if it was already there from a prior conflict) - see
+    // WorkspaceCodeGeneration.DeferUnresolvedAsync's discardedSet handling. Never a default
+    // decision (see the constructor) - only ever reached by an explicit user choice.
+    public bool IsDiscard
+    {
+        get => Decision == CustomMethodDecision.Discard;
+        set
+        {
+            if (value)
+            {
+                Decision = CustomMethodDecision.Discard;
+            }
+        }
     }
 }
 
@@ -178,6 +212,25 @@ public sealed class MergeViewModel : BindableBase
     }
 
     /// <summary>
+    /// Same as <see cref="RefreshWaitingListAsync"/>, but routed through <see cref="RunAsync"/> so
+    /// a standalone caller (the tool window's "Loaded" handler and its "Refresh" button - see
+    /// <c>MergeControl</c>) surfaces a failure via <see cref="ErrorMessage"/> instead of it only
+    /// reaching <c>FileAndForget</c>'s logging. <see cref="ResolveAsync"/> keeps calling the plain
+    /// <see cref="RefreshWaitingListAsync"/> directly since it already runs inside its own
+    /// <see cref="RunAsync"/> call - wrapping it again here would flip <see cref="IsBusy"/> back to
+    /// false partway through that still-running operation.
+    /// </summary>
+    public Task<bool> RefreshWaitingListSafeAsync(CancellationToken cancellationToken = default) =>
+        RunAsync(
+            "Refreshing waiting list...",
+            async token =>
+            {
+                await RefreshWaitingListAsync(token);
+                return true;
+            },
+            cancellationToken);
+
+    /// <summary>
     /// Builds a carry-over decision map from every currently-loaded pending page and re-generates
     /// exactly those pages - <c>WorkspaceCodeGeneration</c> uses it to inject the chosen methods
     /// and defer the rest, so a follow-up <see cref="RefreshWaitingListAsync"/> picks up whatever
@@ -191,10 +244,15 @@ public sealed class MergeViewModel : BindableBase
         }
 
         var resolutions = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
+        var discards = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
         foreach (var page in PendingPages)
         {
             resolutions[page.PageId] = page.Candidates
                 .Where(candidate => candidate.Decision == CustomMethodDecision.CarryOver)
+                .Select(candidate => candidate.SourceText)
+                .ToArray();
+            discards[page.PageId] = page.Candidates
+                .Where(candidate => candidate.Decision == CustomMethodDecision.Discard)
                 .Select(candidate => candidate.SourceText)
                 .ToArray();
         }
@@ -204,12 +262,18 @@ public sealed class MergeViewModel : BindableBase
             async token =>
             {
                 await _store.GenerateAsync(
-                    new GenerationRequest(pageIds: resolutions.Keys.ToArray(), customMethodResolutions: resolutions),
+                    new GenerationRequest(
+                        pageIds: resolutions.Keys.ToArray(),
+                        customMethodResolutions: resolutions,
+                        customMethodDiscards: discards),
                     token);
                 PendingPages.Clear();
                 OnPropertyChanged(nameof(HasPendingPages));
                 await RefreshWaitingListAsync(token);
-                StatusMessage = "Resolved. Deferred methods are in the waiting list.";
+                var discardedCount = discards.Values.Sum(sourceTexts => sourceTexts.Count);
+                StatusMessage = discardedCount > 0
+                    ? $"Resolved. Deferred methods are in the waiting list; {discardedCount} discarded permanently."
+                    : "Resolved. Deferred methods are in the waiting list.";
                 return true;
             },
             cancellationToken);

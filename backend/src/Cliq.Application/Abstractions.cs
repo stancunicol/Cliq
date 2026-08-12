@@ -52,7 +52,11 @@ public interface ICodeGeneration
         IReadOnlyList<TestCase> tests,
         string workspaceRoot,
         CancellationToken cancellationToken,
-        IReadOnlyDictionary<string, IReadOnlyList<string>>? customMethodResolutions = null);
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? customMethodResolutions = null,
+        // Per page, the custom methods the user chose to permanently discard rather than carry
+        // over or defer to the waiting list. Anything neither resolved nor discarded still
+        // defaults to deferred.
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? customMethodDiscards = null);
 }
 
 public interface ITestRunner
