@@ -9,6 +9,7 @@ internal static class ApiErrors
     {
         var status = exception switch
         {
+            ScanReviewConflictException => StatusCodes.Status409Conflict,
             WorkspaceInUseException => StatusCodes.Status409Conflict,
             WorkspaceNotOpenException => StatusCodes.Status409Conflict,
             WorkspaceValidationException or ArgumentException => StatusCodes.Status400BadRequest,
@@ -34,6 +35,16 @@ internal static class ApiErrors
             if (workspaceInUse.Owner is not null)
             {
                 problem.Extensions["owner"] = workspaceInUse.Owner;
+            }
+        }
+
+        else if (exception is ScanReviewConflictException reviewConflict)
+        {
+            problem.Title = "Scan review conflict";
+            problem.Extensions["code"] = reviewConflict.Code;
+            if (reviewConflict.References.Count > 0)
+            {
+                problem.Extensions["references"] = reviewConflict.References;
             }
         }
 

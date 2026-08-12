@@ -58,6 +58,17 @@ returned alongside the scan result. This replaces self-healing: at test-run time
 locator stops resolving, the step simply fails with the Selenium timeout, and the next scan's diff
 report is how a stale locator gets surfaced for a human to fix.
 
+The staged scan-review API provides a non-destructive alternative for future clients. A changed
+scan captures the active page as a baseline, the reconciled scan as a proposal, and one `wait`
+decision for each new or missing element. The active page is not written until all decisions are
+resolved and the review is applied. Accepting a new element adds it; denying it omits it. Accepting
+a missing element removes it, while denying the removal retains the exact baseline element. An
+apply is rejected if the page changed after the review was created or if an accepted removal is
+still referenced by a saved test. Reviews are serialized per workspace and persisted atomically at
+`.cliq/runs/scan-reviews/<reviewId>.json`; applied, discarded, and superseded records remain as
+ignored local audit history. The existing `/api/v1/pages/scan` route retains its immediate-save
+behavior for compatibility with the current desktop and Visual Studio clients.
+
 Test steps reference page and element IDs rather than duplicating selectors; saving a test
 validates that every element-touching step's page/element reference actually exists, so a broken
 reference is caught at save time rather than discovered mid-run. Generation emits one Page Object

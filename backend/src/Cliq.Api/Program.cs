@@ -22,6 +22,7 @@ builder.Services.AddSingleton<WorkspaceRepository>();
 builder.Services.AddSingleton<IWorkspaceRepository>(services => services.GetRequiredService<WorkspaceRepository>());
 builder.Services.AddSingleton<ISecretStore, WorkspaceSecretStore>();
 builder.Services.AddSingleton<IPageDiscovery, PuppeteerPageDiscovery>();
+builder.Services.AddSingleton<IScanReviewService, ScanReviewService>();
 builder.Services.AddSingleton<ICodeGeneration, WorkspaceCodeGeneration>();
 builder.Services.AddSingleton<ITestRunner, SeleniumTestRunner>();
 builder.Services.AddSingleton<RunCoordinator>();
@@ -176,6 +177,57 @@ api.MapPost("/pages/scan", async (
     return Results.Ok(new ScanPageResponse(
         saved, result.Reconciliation, result.LocatorDiff, result.DynamicElementSuggestions, result.ScreenshotPath));
 });
+
+api.MapPost("/pages/scan-reviews", async (
+    ScanPageRequest request,
+    IScanReviewService reviews,
+    IWorkspaceRepository repository,
+    CancellationToken cancellationToken) =>
+{
+    var snapshot = await repository.GetSnapshotAsync(cancellationToken);
+    return Results.Ok(await reviews.ScanAsync(
+        request.Url,
+        request.Name,
+        request.Browser ?? snapshot.Project.DefaultBrowser,
+        request.Headless,
+        cancellationToken));
+});
+
+api.MapGet("/scan-reviews", async (
+    string? pageId,
+    ScanReviewStatus? status,
+    IScanReviewService reviews,
+    CancellationToken cancellationToken) =>
+    Results.Ok(await reviews.ListAsync(pageId, status, cancellationToken)));
+
+api.MapGet("/scan-reviews/{reviewId}", async (
+    string reviewId,
+    IScanReviewService reviews,
+    CancellationToken cancellationToken) =>
+    Results.Ok(await reviews.GetAsync(reviewId, cancellationToken)));
+
+api.MapPut("/scan-reviews/{reviewId}/decisions", async (
+    string reviewId,
+    UpdateScanReviewDecisionsRequest request,
+    IScanReviewService reviews,
+    CancellationToken cancellationToken) =>
+    Results.Ok(await reviews.UpdateDecisionsAsync(
+        reviewId,
+        (request.Decisions ?? []).Select(decision =>
+            new ScanReviewDecisionUpdate(decision.ItemId, decision.Decision)).ToList(),
+        cancellationToken)));
+
+api.MapPost("/scan-reviews/{reviewId}/apply", async (
+    string reviewId,
+    IScanReviewService reviews,
+    CancellationToken cancellationToken) =>
+    Results.Ok(await reviews.ApplyAsync(reviewId, cancellationToken)));
+
+api.MapPost("/scan-reviews/{reviewId}/discard", async (
+    string reviewId,
+    IScanReviewService reviews,
+    CancellationToken cancellationToken) =>
+    Results.Ok(await reviews.DiscardAsync(reviewId, cancellationToken)));
 
 api.MapGet("/pages/discovery-screenshots/{fileName}", (
     string fileName,

@@ -34,6 +34,29 @@ public interface IPageDiscovery
         CancellationToken cancellationToken);
 }
 
+public interface IScanReviewService
+{
+    Task<StagedPageScanResult> ScanAsync(
+        string url,
+        string name,
+        BrowserKind browser,
+        bool headless,
+        CancellationToken cancellationToken);
+    Task<IReadOnlyList<ScanReview>> ListAsync(
+        string? pageId,
+        ScanReviewStatus? status,
+        CancellationToken cancellationToken);
+    Task<ScanReview> GetAsync(string reviewId, CancellationToken cancellationToken);
+    Task<ScanReview> UpdateDecisionsAsync(
+        string reviewId,
+        IReadOnlyList<ScanReviewDecisionUpdate> updates,
+        CancellationToken cancellationToken);
+    Task<ScanReviewApplyResult> ApplyAsync(string reviewId, CancellationToken cancellationToken);
+    Task<ScanReview> DiscardAsync(string reviewId, CancellationToken cancellationToken);
+}
+
+public sealed record ScanReviewDecisionUpdate(string ItemId, ScanReviewDecision Decision);
+
 public interface ICodeGeneration
 {
     Task<GenerationResult> GenerateAsync(
@@ -80,3 +103,12 @@ public sealed class WorkspaceInUseException(WorkspaceLeaseOwner? owner)
 }
 
 public sealed class WorkspaceValidationException(string message) : InvalidOperationException(message);
+
+public sealed class ScanReviewConflictException(
+    string code,
+    string message,
+    IReadOnlyList<ScanReviewReference>? references = null) : InvalidOperationException(message)
+{
+    public string Code { get; } = code;
+    public IReadOnlyList<ScanReviewReference> References { get; } = references ?? [];
+}
