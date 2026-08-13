@@ -169,6 +169,59 @@ public sealed record PageScanResult(
     // directly. Only present when scanning.captureScreenshot is enabled.
     string? ScreenshotPath = null);
 
+public enum ScanReviewDecision
+{
+    Wait,
+    Accept,
+    Deny,
+}
+
+public enum ScanReviewChangeKind
+{
+    New,
+    Missing,
+}
+
+public enum ScanReviewStatus
+{
+    Pending,
+    Applied,
+    Discarded,
+    Superseded,
+}
+
+public sealed record ScanReviewItem(
+    string Id,
+    ScanReviewChangeKind Kind,
+    PageElement Element,
+    ScanReviewDecision Decision = ScanReviewDecision.Wait);
+
+public sealed record ScanReview(
+    int SchemaVersion,
+    string Id,
+    string PageId,
+    ScanReviewStatus Status,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt,
+    DateTimeOffset? CompletedAt,
+    PageDefinition BaselinePage,
+    PageDefinition ProposedPage,
+    IReadOnlyList<ScanReviewItem> Items)
+{
+    public const int CurrentSchemaVersion = 1;
+}
+
+public sealed record StagedPageScanResult(
+    PageDefinition ActivePage,
+    ScanReconciliationReport Reconciliation,
+    ScanReview? Review = null,
+    IReadOnlyList<DynamicElementSuggestion>? DynamicElementSuggestions = null,
+    string? ScreenshotPath = null);
+
+public sealed record ScanReviewReference(string TestId, string StepId);
+
+public sealed record ScanReviewApplyResult(ScanReview Review, PageDefinition Page);
+
 /// <summary>
 /// A user-authored locator for a repeating element (e.g. a table row) that a one-time scan can't
 /// discover, because there isn't a single fixed instance - the count and content are

@@ -126,6 +126,7 @@ Opening a folder creates a `.cliq/` directory:
   tests/
     <test-id>.json
   runs/                         # ignored by Git
+    scan-reviews/               # staged rescan decisions and audit history
   secrets.local.json            # ignored by Git
 ```
 
@@ -167,6 +168,12 @@ fields directly instead of duplicating the selector.
 
 Test steps reference stable page and element IDs instead of copying selectors, produced by
 scanning a page into a `PageDefinition`.
+
+The API also exposes an opt-in staged rescan workflow under `/api/v1/pages/scan-reviews` and
+`/api/v1/scan-reviews`. Unlike the legacy scan route used by the current clients, a changed staged
+scan leaves the active page untouched until every new or missing element is accepted or denied and
+the review is applied. Pending reviews may be discarded, and terminal reviews remain under
+`.cliq/runs/scan-reviews/` as local audit history.
 
 ## Prerequisites
 

@@ -10,6 +10,8 @@ public sealed record ScanPageResponse(
     LocatorDiffReport? LocatorDiff = null,
     IReadOnlyList<DynamicElementSuggestion>? DynamicElementSuggestions = null,
     string? ScreenshotPath = null);
+public sealed record ScanReviewDecisionRequest(string ItemId, ScanReviewDecision Decision);
+public sealed record UpdateScanReviewDecisionsRequest(IReadOnlyList<ScanReviewDecisionRequest> Decisions);
 public sealed record GenerationRequest(
     IReadOnlyList<string>? PageIds = null,
     IReadOnlyList<string>? TestIds = null,
