@@ -6,6 +6,7 @@
     <Project Path="src/Cliq.Infrastructure/Cliq.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Cliq.IntegrationTests/Cliq.IntegrationTests.csproj" />
     <Project Path="tests/Cliq.UnitTests/Cliq.UnitTests.csproj" />
   </Folder>
 </Solution>
