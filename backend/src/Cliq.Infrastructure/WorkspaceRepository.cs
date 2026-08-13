@@ -261,9 +261,30 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
         EnsureOpen();
         ValidateVersion(page.SchemaVersion, PageDefinition.CurrentSchemaVersion, "page");
         ValidateDynamicElements(page);
+        await ValidateUniqueClassNameAsync(page, cancellationToken);
         var updated = page with { UpdatedAt = DateTimeOffset.UtcNow };
         await WriteAtomicAsync(EntityPath(PagesDirectory, page.Id), updated, cancellationToken);
         return updated;
+    }
+
+    // Two pages whose names sanitize to the same class name (e.g. "Login" and "log in" both ->
+    // LoginPage) would otherwise silently overwrite each other's generated file on the next
+    // Generate - WorkspaceCodeGeneration addresses pages by class name only (see its
+    // pageClassNames dictionary), with no way to tell them apart once collided.
+    private async Task ValidateUniqueClassNameAsync(PageDefinition page, CancellationToken cancellationToken)
+    {
+        var className = GenerationIdentifierNaming.ToPageObjectClassName(page.Name);
+        var others = await ListPagesAsync(cancellationToken);
+        var collision = others.FirstOrDefault(other =>
+            !string.Equals(other.Id, page.Id, StringComparison.Ordinal) &&
+            string.Equals(
+                GenerationIdentifierNaming.ToPageObjectClassName(other.Name), className, StringComparison.Ordinal));
+        if (collision is not null)
+        {
+            throw new WorkspaceValidationException(
+                $"Page name '{page.Name}' generates the same class name ('{className}') as page " +
+                $"'{collision.Name}'. Choose a different name.");
+        }
     }
 
     // Only these four actions have a generated factory method for a dynamic element - see
@@ -431,6 +452,44 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
         return WriteAtomicAsync(Path.Combine(runDirectory, "run.json"), run, cancellationToken);
     }
 
+    public async Task<IReadOnlyList<PendingCustomMethodEntry>> ListPendingCustomMethodsAsync(CancellationToken cancellationToken)
+    {
+        EnsureOpen();
+        return await ReadOptionalAsync<List<PendingCustomMethodEntry>>(PendingCustomMethodsPath, cancellationToken)
+            ?? [];
+    }
+
+    // Upserts by (PageId, Signature) rather than Id, so re-deferring the same method (e.g. it's
+    // offered again in a later conflict for the same page) replaces its entry instead of
+    // duplicating it - Id only exists to give the VS extension a stable key for a discard action.
+    public async Task SavePendingCustomMethodAsync(PendingCustomMethodEntry entry, CancellationToken cancellationToken)
+    {
+        EnsureOpen();
+        var entries = (await ListPendingCustomMethodsAsync(cancellationToken)).ToList();
+        var existingIndex = entries.FindIndex(item =>
+            string.Equals(item.PageId, entry.PageId, StringComparison.Ordinal) &&
+            string.Equals(item.Signature, entry.Signature, StringComparison.Ordinal));
+        if (existingIndex >= 0)
+        {
+            entries[existingIndex] = entry;
+        }
+        else
+        {
+            entries.Add(entry);
+        }
+
+        await WriteAtomicAsync(PendingCustomMethodsPath, entries, cancellationToken);
+    }
+
+    public async Task DeletePendingCustomMethodAsync(string id, CancellationToken cancellationToken)
+    {
+        EnsureOpen();
+        var entries = (await ListPendingCustomMethodsAsync(cancellationToken))
+            .Where(item => !string.Equals(item.Id, id, StringComparison.Ordinal))
+            .ToList();
+        await WriteAtomicAsync(PendingCustomMethodsPath, entries, cancellationToken);
+    }
+
     public string? GetScreenshotPath(string runId, string fileName)
     {
         EnsureOpen();
@@ -480,6 +539,14 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
         return candidate;
     }
 
+    public async Task<string> GetGeneratedPageObjectPathAsync(PageDefinition page, CancellationToken cancellationToken)
+    {
+        var snapshot = await GetSnapshotAsync(cancellationToken);
+        var directory = GetContainedPath(snapshot.Project.Output.PageObjectsDirectory);
+        var className = GenerationIdentifierNaming.ToPageObjectClassName(page.Name);
+        return Path.Combine(directory, $"{className}.cs");
+    }
+
     public void Dispose()
     {
         if (_disposed)
@@ -501,6 +568,7 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
     private string PagesDirectory => Path.Combine(CliqDirectory, "pages");
     private string TestsDirectory => Path.Combine(CliqDirectory, "tests");
     private string RunsDirectory => Path.Combine(CliqDirectory, "runs");
+    private string PendingCustomMethodsPath => Path.Combine(CliqDirectory, "pending-custom-methods.json");
 
     private string RequireRoot() => RootPath ?? throw new WorkspaceNotOpenException();
     private void EnsureOpen() => _ = RequireRoot();

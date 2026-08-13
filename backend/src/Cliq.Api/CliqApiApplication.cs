@@ -185,6 +185,21 @@ internal static class CliqApiApplication
             return Results.NoContent();
         });
 
+        api.MapGet("/pages/{id}/generated-path", async (
+            string id,
+            IWorkspaceRepository repository,
+            CancellationToken cancellationToken) =>
+        {
+            var page = await repository.GetPageAsync(id, cancellationToken);
+            if (page is null)
+            {
+                return Results.NotFound();
+            }
+
+            var path = await repository.GetGeneratedPageObjectPathAsync(page, cancellationToken);
+            return Results.Ok(new GeneratedPathResponse(path));
+        });
+
         api.MapPost("/pages/scan", async (
             ScanPageRequest request,
             IPageDiscovery discovery,
@@ -205,6 +220,44 @@ internal static class CliqApiApplication
                 result.LocatorDiff,
                 result.DynamicElementSuggestions,
                 result.ScreenshotPath));
+        });
+
+        api.MapPost("/pages/{id}/elements/{elementId}/locate", async (
+            string id,
+            string elementId,
+            StartRunRequest request,
+            IWorkspaceRepository repository,
+            ITestRunner testRunner,
+            CancellationToken cancellationToken) =>
+        {
+            var page = await repository.GetPageAsync(id, cancellationToken);
+            if (page is null)
+            {
+                return Results.NotFound();
+            }
+
+            var snapshot = await repository.GetSnapshotAsync(cancellationToken);
+            await testRunner.LocateElementAsync(
+                page,
+                elementId,
+                request.Browser ?? snapshot.Project.DefaultBrowser,
+                cancellationToken);
+            return Results.NoContent();
+        });
+
+        api.MapPost("/pages/locate-from-source", async (
+            LocateFromSourceRequest request,
+            IWorkspaceRepository repository,
+            ITestRunner testRunner,
+            CancellationToken cancellationToken) =>
+        {
+            var snapshot = await repository.GetSnapshotAsync(cancellationToken);
+            await testRunner.LocateElementFromSourceAsync(
+                request.ClassName,
+                request.LocatorComment,
+                request.Browser ?? snapshot.Project.DefaultBrowser,
+                cancellationToken);
+            return Results.NoContent();
         });
 
         api.MapGet("/pages/discovery-screenshots/{fileName}", (
@@ -280,30 +333,29 @@ internal static class CliqApiApplication
             CancellationToken cancellationToken) =>
         {
             var snapshot = await repository.GetSnapshotAsync(cancellationToken);
-            var testIds = request.TestIds?.ToHashSet(StringComparer.Ordinal);
-            var tests = testIds is null
-                ? snapshot.Tests
-                : snapshot.Tests.Where(test => testIds.Contains(test.Id)).ToList();
-            var pageIds = request.PageIds?.ToHashSet(StringComparer.Ordinal);
-            if (pageIds is null && testIds is not null)
-            {
-                pageIds = tests
-                    .SelectMany(test => test.Steps)
-                    .Select(step => step.PageId)
-                    .Where(pageId => !string.IsNullOrWhiteSpace(pageId))
-                    .Cast<string>()
-                    .ToHashSet(StringComparer.Ordinal);
-            }
-
-            var pages = pageIds is null
-                ? snapshot.Pages
-                : snapshot.Pages.Where(page => pageIds.Contains(page.Id)).ToList();
+            var (pages, tests) = GenerationRequestPlanner.Plan(request, snapshot);
             return Results.Ok(await generation.GenerateAsync(
                 snapshot.Project,
                 pages,
                 tests,
                 snapshot.RootPath,
-                cancellationToken));
+                cancellationToken,
+                request.CustomMethodResolutions,
+                request.CustomMethodDiscards));
+        });
+
+        api.MapGet("/pending-custom-methods", async (
+            IWorkspaceRepository repository,
+            CancellationToken cancellationToken) =>
+            Results.Ok(await repository.ListPendingCustomMethodsAsync(cancellationToken)));
+
+        api.MapDelete("/pending-custom-methods/{id}", async (
+            string id,
+            IWorkspaceRepository repository,
+            CancellationToken cancellationToken) =>
+        {
+            await repository.DeletePendingCustomMethodAsync(id, cancellationToken);
+            return Results.NoContent();
         });
 
         api.MapPost("/tests/{testId}/runs", async (

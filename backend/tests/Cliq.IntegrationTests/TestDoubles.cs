@@ -53,6 +53,26 @@ internal sealed class ControllableTestRunner : ITestRunner
             [step]);
     }
 
+    public Task LocateElementAsync(
+        PageDefinition page,
+        string elementId,
+        BrowserKind browser,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.CompletedTask;
+    }
+
+    public Task LocateElementFromSourceAsync(
+        string className,
+        string locatorComment,
+        BrowserKind browser,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.CompletedTask;
+    }
+
     internal sealed record Invocation(
         string RunId,
         TestCase Test,

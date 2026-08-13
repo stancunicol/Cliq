@@ -231,6 +231,11 @@ public sealed class WorkspaceConfigurationViewModelTests
             return Task.CompletedTask;
         }
 
+        public Task<PageDefinition> SavePageAsync(PageDefinition page, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(page);
+        }
+
         public Task<CliqSettings> LoadSettingsAsync(CancellationToken cancellationToken)
         {
             return Task.FromResult(CreateSettings());

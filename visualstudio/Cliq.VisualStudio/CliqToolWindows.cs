@@ -33,6 +33,8 @@ internal sealed class DisconnectedWorkbenchStore : IWorkbenchStore, IWorkspaceCo
 {
     private readonly Dictionary<string, TestCase> _tests =
         new Dictionary<string, TestCase>(StringComparer.Ordinal);
+    private readonly Dictionary<string, PageDefinition> _pages =
+        new Dictionary<string, PageDefinition>(StringComparer.Ordinal);
     private readonly HashSet<string> _secretKeys =
         new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     private ProjectManifest? _project;
@@ -52,8 +54,14 @@ internal sealed class DisconnectedWorkbenchStore : IWorkbenchStore, IWorkspaceCo
             new WorkspaceSnapshot(
                 string.Empty,
                 project,
-                Array.Empty<PageDefinition>(),
+                new List<PageDefinition>(_pages.Values),
                 new List<TestCase>(_tests.Values)));
+    }
+
+    public Task<PageDefinition> SavePageAsync(PageDefinition page, CancellationToken cancellationToken)
+    {
+        _pages[page.Id] = page;
+        return Task.FromResult(page);
     }
 
     public Task<TestCase> SaveTestAsync(TestCase test, CancellationToken cancellationToken)
@@ -169,6 +177,22 @@ public sealed class CliqRunResultsToolWindow : ToolWindowPane
                 CliqExtensionConstants.RunResultsTitle,
                 "Open the Cliq menu after the package initializes to start a run.")
             : new RunResultsControl(viewModel);
+    }
+}
+
+[Guid("860C836C-2B7B-424B-A89B-74A815CB7F15")]
+public sealed class CliqMergeToolWindow : ToolWindowPane
+{
+    public CliqMergeToolWindow()
+        : base(null)
+    {
+        Caption = CliqExtensionConstants.MergeTitle;
+        var viewModel = CliqPackage.Current?.Merge;
+        Content = viewModel is null
+            ? new CliqPlaceholderControl(
+                CliqExtensionConstants.MergeTitle,
+                "Open the Cliq menu after the package initializes to review pending merges.")
+            : new MergeControl(viewModel);
     }
 }
 

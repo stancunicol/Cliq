@@ -22,7 +22,8 @@ public sealed class IdeContextSnapshot
         string? selectedItemPath,
         string? activeDocumentPath,
         string? selectedText,
-        IdeSelectionKind selectionKind = IdeSelectionKind.Unknown)
+        IdeSelectionKind selectionKind = IdeSelectionKind.Unknown,
+        string? lineAboveSelection = null)
     {
         SolutionDirectory = NormalizeDirectory(solutionDirectory);
         SelectedProjectDirectory = NormalizeDirectory(selectedProjectDirectory);
@@ -30,6 +31,7 @@ public sealed class IdeContextSnapshot
         ActiveDocumentPath = NormalizePath(activeDocumentPath);
         SelectedText = selectedText;
         SelectionKind = selectionKind;
+        LineAboveSelection = lineAboveSelection;
     }
 
     public string? SolutionDirectory { get; }
@@ -38,6 +40,15 @@ public sealed class IdeContextSnapshot
     public string? ActiveDocumentPath { get; }
     public string? SelectedText { get; }
     public IdeSelectionKind SelectionKind { get; }
+
+    /// <summary>
+    /// Text of the editor line immediately above the current selection/caret - lets
+    /// <see cref="CliqDocumentClassifier.ResolveLocatorFieldComment"/> recover the
+    /// <c>// Locator (...): ...</c> comment for a locator field when the user double-clicks the
+    /// field's name (e.g. <c>SubmitLocator</c>), since the generator always emits that comment on
+    /// the line directly above the field it documents.
+    /// </summary>
+    public string? LineAboveSelection { get; }
 
     public CliqDocumentKind SelectedDocumentKind =>
         CliqDocumentClassifier.Classify(SelectedItemPath ?? ActiveDocumentPath);

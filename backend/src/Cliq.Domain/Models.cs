@@ -278,17 +278,16 @@ public sealed record GeneratedArtifact(
 
 /// <summary>
 /// Flags a Page Object file that still has hand-written <c>[CliqCustomMethod]</c> content
-/// generation could not safely fold into the current output - the file itself is left in place
-/// (never deleted, sometimes also copied to a timestamped backup) rather than the difference
-/// being silently dropped. Two situations raise this:
+/// generation could not safely fold into the current output - the file itself is left in place,
+/// completely untouched, rather than being silently overwritten or the difference being dropped.
+/// Two situations raise this, and in both <see cref="Path"/> is that same still-live file's own
+/// location (never deleted, never copied elsewhere) - re-detected and re-raised on every repeat
+/// generate call until the user actually resolves it via the VS extension's merge UI:
 /// <list type="bullet">
-/// <item>Same-name regeneration recovers fewer marked methods than the previous file's marker
-/// count suggests it should have (see <c>CustomMethodExtractor.CountMarkerOccurrences</c>) - in
-/// this case <see cref="Path"/> is a timestamped copy under
-/// <c>.cliq/runs/custom-method-backups</c>.</item>
+/// <item>Same-name regeneration recovers fewer marked methods than the file's marker count
+/// suggests it should have (see <c>CustomMethodExtractor.CountMarkerOccurrences</c>).</item>
 /// <item>A page was renamed, so its Page Object now generates under a new class name - the old
-/// file is deleted automatically if it has no marked methods, otherwise <see cref="Path"/> is
-/// that old file's own, untouched location.</item>
+/// file is deleted automatically if it has no marked methods, otherwise it's left in place.</item>
 /// </list>
 /// </summary>
 public sealed record CustomMethodRecoveryWarning(
@@ -297,6 +296,46 @@ public sealed record CustomMethodRecoveryWarning(
     int RecoveredCount,
     string Path);
 
+/// <summary>
+/// One extracted (or best-effort-recovered) custom method offered to the user in the VS
+/// extension's merge UI, alongside <see cref="CustomMethodRecoveryWarning"/>'s passive warning
+/// signal aimed at the Electron frontend. <see cref="SourceText"/> is always the
+/// full method block (attribute, doc comments, signature, body) regardless of
+/// <see cref="HasSyntaxError"/> - a broken method still needs to be shown, just flagged.
+/// </summary>
+public sealed record CustomMethodCandidate(
+    string Signature,
+    string SourceText,
+    bool HasSyntaxError,
+    IReadOnlyList<string> SyntaxErrors);
+
+/// <summary>
+/// Raised alongside (not instead of) a <see cref="CustomMethodRecoveryWarning"/> for the same
+/// page, whenever that page's old file has custom methods that need a human decision: either a
+/// rename (which today carries nothing over automatically) or a same-name regeneration where
+/// recovery came up short. <see cref="Candidates"/> includes both freshly-detected methods and
+/// any already-deferred ones from the global waiting list for this same page.
+/// </summary>
+public sealed record PendingCustomMethodMerge(
+    string PageId,
+    string PageObjectName,
+    IReadOnlyList<CustomMethodCandidate> Candidates);
+
+/// <summary>
+/// A custom method the user chose to defer rather than decide on immediately - persisted in the
+/// global (cross-page) waiting list at <c>.cliq/pending-custom-methods.json</c> until the user
+/// acts on it again (include it in a future generate, or explicitly discard it).
+/// </summary>
+public sealed record PendingCustomMethodEntry(
+    string Id,
+    string PageId,
+    string PageObjectName,
+    string Signature,
+    string SourceText,
+    bool HasSyntaxError,
+    DateTimeOffset DeferredAt);
+
 public sealed record GenerationResult(
     IReadOnlyList<GeneratedArtifact> Artifacts,
-    IReadOnlyList<CustomMethodRecoveryWarning> Warnings);
+    IReadOnlyList<CustomMethodRecoveryWarning> Warnings,
+    IReadOnlyList<PendingCustomMethodMerge> PendingMerges);

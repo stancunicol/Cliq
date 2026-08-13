@@ -39,7 +39,31 @@ public static class ScreenshotCapture
         IWebDriver driver,
         IWebElement? failedElement)
     {
-        if (failedElement is null || driver is not IJavaScriptExecutor scriptExecutor)
+        if (failedElement is null)
+        {
+            return null;
+        }
+
+        return AddHighlight(driver, failedElement, "FAILED", "#ff1744");
+    }
+
+    /// <summary>
+    /// Scrolls <paramref name="element"/> into view and draws a bordered overlay box (plus a
+    /// small text badge) around its current <c>getBoundingClientRect()</c> - the same visual
+    /// language <see cref="TryAddFailureHighlight"/> uses for a failed step, just with the
+    /// label/color pulled out so a caller that isn't reporting a failure (e.g. "locate this
+    /// element for inspection") isn't stuck with a red "FAILED" badge. Unlike the
+    /// failure path, callers of this overload are expected to leave the overlay in place rather
+    /// than pairing it with <see cref="TryRemoveFailureHighlight"/> - there is no "temporary"
+    /// framing here, the whole point is that it stays visible.
+    /// </summary>
+    public static IWebElement? AddHighlight(
+        IWebDriver driver,
+        IWebElement element,
+        string label,
+        string colorHex)
+    {
+        if (driver is not IJavaScriptExecutor scriptExecutor)
         {
             return null;
         }
@@ -48,27 +72,29 @@ public static class ScreenshotCapture
         {
             const string script = """
                 const target = arguments[0];
+                const color = arguments[1];
+                const label = arguments[2];
                 target.scrollIntoView({ block: 'center', inline: 'center' });
 
                 const rect = target.getBoundingClientRect();
                 const overlay = document.createElement('div');
-                overlay.setAttribute('data-cliq-failure-highlight', 'true');
+                overlay.setAttribute('data-cliq-highlight', 'true');
                 Object.assign(overlay.style, {
-                    position: 'fixed',
-                    left: `${Math.max(0, rect.left - 4)}px`,
-                    top: `${Math.max(0, rect.top - 4)}px`,
+                    position: 'absolute',
+                    left: `${Math.max(0, rect.left + window.scrollX - 4)}px`,
+                    top: `${Math.max(0, rect.top + window.scrollY - 4)}px`,
                     width: `${Math.max(12, rect.width + 8)}px`,
                     height: `${Math.max(12, rect.height + 8)}px`,
-                    border: '4px solid #ff1744',
-                    background: 'rgba(255, 23, 68, 0.18)',
-                    boxShadow: '0 0 0 3px rgba(255, 255, 255, 0.95), 0 0 16px rgba(255, 23, 68, 0.9)',
+                    border: `4px solid ${color}`,
+                    background: `${color}2e`,
+                    boxShadow: `0 0 0 3px rgba(255, 255, 255, 0.95), 0 0 16px ${color}e6`,
                     boxSizing: 'border-box',
                     pointerEvents: 'none',
                     zIndex: '2147483647'
                 });
 
                 const badge = document.createElement('div');
-                badge.textContent = 'FAILED';
+                badge.textContent = label;
                 Object.assign(badge.style, {
                     position: 'absolute',
                     left: '-4px',
@@ -76,7 +102,7 @@ public static class ScreenshotCapture
                     marginBottom: '6px',
                     padding: '3px 7px',
                     borderRadius: '3px',
-                    background: '#ff1744',
+                    background: color,
                     color: '#ffffff',
                     font: 'bold 12px/1.4 sans-serif',
                     letterSpacing: '0.08em',
@@ -87,7 +113,7 @@ public static class ScreenshotCapture
                 return overlay;
                 """;
 
-            return scriptExecutor.ExecuteScript(script, failedElement) as IWebElement;
+            return scriptExecutor.ExecuteScript(script, element, colorHex, label) as IWebElement;
         }
         catch
         {

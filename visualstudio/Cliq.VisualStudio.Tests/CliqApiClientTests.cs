@@ -171,6 +171,78 @@ public sealed class CliqApiClientTests
     }
 
     [Test]
+    public async Task LocateElement_PostsToElementRouteWithBrowserBody()
+    {
+        HttpRequestMessage? captured = null;
+        string? body = null;
+        var handler = new StubHttpHandler(async request =>
+        {
+            captured = request;
+            body = await request.Content!.ReadAsStringAsync();
+            return new HttpResponseMessage(HttpStatusCode.NoContent);
+        });
+        var client = CreateClient(handler);
+
+        await client.LocateElementAsync(
+            "login-page", "submit-button", new StartRunRequest(BrowserKind.Edge), CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(captured!.Method, Is.EqualTo(HttpMethod.Post));
+            Assert.That(
+                captured.RequestUri!.AbsolutePath,
+                Is.EqualTo("/api/v1/pages/login-page/elements/submit-button/locate"));
+            Assert.That(body, Does.Contain("\"browser\":\"edge\""));
+        });
+    }
+
+    [Test]
+    public async Task LocateElementFromSource_PostsToLocateFromSourceRouteWithClassNameAndCommentBody()
+    {
+        HttpRequestMessage? captured = null;
+        string? body = null;
+        var handler = new StubHttpHandler(async request =>
+        {
+            captured = request;
+            body = await request.Content!.ReadAsStringAsync();
+            return new HttpResponseMessage(HttpStatusCode.NoContent);
+        });
+        var client = CreateClient(handler);
+
+        await client.LocateElementFromSourceAsync(
+            new LocateFromSourceRequest("LoginPage", "// Locator (xpath): //button[@id='submit']", BrowserKind.Edge),
+            CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(captured!.Method, Is.EqualTo(HttpMethod.Post));
+            Assert.That(captured.RequestUri!.AbsolutePath, Is.EqualTo("/api/v1/pages/locate-from-source"));
+            Assert.That(body, Does.Contain("\"className\":\"LoginPage\""));
+            Assert.That(body, Does.Contain("\"browser\":\"edge\""));
+        });
+    }
+
+    [Test]
+    public async Task GetGeneratedPageObjectPath_GetsFromGeneratedPathRouteAndDeserializesPath()
+    {
+        Uri? requestedUri = null;
+        var handler = new StubHttpHandler(request =>
+        {
+            requestedUri = request.RequestUri;
+            return Task.FromResult(Json(HttpStatusCode.OK, "{\"path\":\"C:\\\\workspace\\\\Generated\\\\PageObjects\\\\LoginPage.cs\"}"));
+        });
+        var client = CreateClient(handler);
+
+        var response = await client.GetGeneratedPageObjectPathAsync("login-page", CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(requestedUri!.AbsolutePath, Is.EqualTo("/api/v1/pages/login-page/generated-path"));
+            Assert.That(response.Path, Is.EqualTo(@"C:\workspace\Generated\PageObjects\LoginPage.cs"));
+        });
+    }
+
+    [Test]
     public async Task Screenshot_ReturnsBytesAndEscapesPathSegments()
     {
         Uri? uri = null;
@@ -263,6 +335,27 @@ public sealed class CliqApiClientTests
             Is.InstanceOf<OperationCanceledException>());
     }
 
+    [Test]
+    public async Task ScanPage_DeserializesLocatorDiffAndDynamicElementSuggestions()
+    {
+        var handler = new StubHttpHandler(_ => Task.FromResult(Json(HttpStatusCode.OK, ScanResponseJson)));
+        var client = CreateClient(handler);
+
+        var response = await client.ScanPageAsync(
+            new ScanPageRequest("https://example.com/orders", "Orders"), CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(response.LocatorDiff, Is.Not.Null);
+            Assert.That(response.LocatorDiff!.New, Has.Count.EqualTo(1));
+            Assert.That(response.LocatorDiff.New[0].Locator.Strategy, Is.EqualTo(LocatorStrategy.Css));
+            Assert.That(response.LocatorDiff.Missing, Is.Empty);
+            Assert.That(response.DynamicElementSuggestions, Is.Not.Null);
+            Assert.That(response.DynamicElementSuggestions!, Has.Count.EqualTo(1));
+            Assert.That(response.DynamicElementSuggestions![0].SampleCount, Is.EqualTo(5));
+        });
+    }
+
     private static CliqApiClient CreateClient(HttpMessageHandler handler, string token = "token") =>
         new(new HttpClient(handler), new Uri("http://127.0.0.1:43123/"), token);
 
@@ -292,6 +385,29 @@ public sealed class CliqApiClientTests
             "testsNamespace":"Generated.Tests"
           },
           "updatedAt":"2026-01-01T00:00:00Z"
+        }
+        """;
+
+    private const string ScanResponseJson = """
+        {
+          "page":{
+            "schemaVersion":1,
+            "id":"orders",
+            "name":"Orders",
+            "url":"https://example.com/orders",
+            "elements":[],
+            "updatedAt":"2026-01-01T00:00:00Z"
+          },
+          "reconciliation":{"matchedCount":1,"newCount":1,"missingCount":0},
+          "locatorDiff":{
+            "pageId":"orders",
+            "scannedAt":"2026-01-01T00:00:00Z",
+            "new":[{"elementId":"e1","name":"Submit","tag":"button","locator":{"strategy":"css","value":"#submit"}}],
+            "missing":[]
+          },
+          "dynamicElementSuggestions":[
+            {"name":"rowAction","action":"click","strategy":"css","locatorTemplate":"#row-{0}","sampleCount":5}
+          ]
         }
         """;
 

@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel.Design;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -25,10 +27,11 @@ namespace Cliq.VisualStudio;
 [InstalledProductRegistration(
     "Cliq for Visual Studio",
     "Integrates Cliq UI test automation into Visual Studio.",
-    "0.1.0")]
+    "0.1.15")]
 [ProvideMenuResource("Menus.ctmenu", 1)]
 [ProvideToolWindow(typeof(CliqWorkbenchToolWindow))]
 [ProvideToolWindow(typeof(CliqRunResultsToolWindow))]
+[ProvideToolWindow(typeof(CliqMergeToolWindow))]
 [ProvideOptionPage(typeof(CliqOptionsPage), "Cliq", "General", 110, 111, true)]
 [Guid(PackageGuidString)]
 public sealed class CliqPackage : AsyncPackage, ICliqShellCommandTarget
@@ -49,6 +52,8 @@ public sealed class CliqPackage : AsyncPackage, ICliqShellCommandTarget
 
     internal RunResultsViewModel? RunResults { get; private set; }
 
+    internal MergeViewModel? Merge { get; private set; }
+
     protected override async Task InitializeAsync(
         CancellationToken cancellationToken,
         IProgress<ServiceProgressData> progress)
@@ -62,7 +67,9 @@ public sealed class CliqPackage : AsyncPackage, ICliqShellCommandTarget
         _session = new VisualStudioCliqSession(this, _context, _runtime);
         var store = new ApiWorkbenchStore(_session);
         Workbench = new WorkbenchViewModel(store, new MessageBoxWorkbenchPrompt(), store);
-        _actions = new WorkspaceActionsViewModel(new ApiWorkspaceActionStore(_session));
+        var actionStore = new ApiWorkspaceActionStore(_session);
+        _actions = new WorkspaceActionsViewModel(actionStore);
+        Merge = new MergeViewModel(actionStore);
         RunResults = new RunResultsViewModel(
             new ApiRunStore(_session, SynchronizationContext.Current));
         _context.ContextChanged += OnContextChanged;
@@ -218,12 +225,39 @@ public sealed class CliqPackage : AsyncPackage, ICliqShellCommandTarget
         await Workbench.InitializeAsync(DisposalToken);
         await OpenWorkbenchAsync();
         await JoinableTaskFactory.SwitchToMainThreadAsync(DisposalToken);
-        var report = response.Reconciliation;
-        MessageBox.Show(
-            $"Scan complete.\n\nMatched: {report.MatchedCount}\nNew: {report.NewCount}\nMissing: {report.MissingCount}",
-            "Cliq",
-            MessageBoxButton.OK,
-            MessageBoxImage.Information);
+        var resultDialog = new ScanResultDialog(response)
+        {
+            Owner = Application.Current?.MainWindow,
+        };
+        resultDialog.ShowDialog();
+    }
+
+    private async Task LocateElementFromSourceAsync(IdeContextSnapshot context)
+    {
+        if (_actions is null)
+        {
+            return;
+        }
+
+        await JoinableTaskFactory.SwitchToMainThreadAsync(DisposalToken);
+        var documentPath = context.ActiveDocumentPath ?? context.SelectedItemPath;
+        var locatorComment = CliqDocumentClassifier.ResolveLocatorFieldComment(context.SelectedText, context.LineAboveSelection);
+        if (documentPath is null || locatorComment is null)
+        {
+            return;
+        }
+
+        var className = Path.GetFileNameWithoutExtension(documentPath);
+        var succeeded = false;
+        await RunProgressAsync(
+            "Locating element...",
+            async cancellationToken =>
+                succeeded = await _actions.LocateElementFromSourceAsync(
+                    className, locatorComment, browser: null, cancellationToken));
+        if (!succeeded)
+        {
+            ShowActionError();
+        }
     }
 
     internal async Task GenerateSelectedAsync()
@@ -346,6 +380,26 @@ public sealed class CliqPackage : AsyncPackage, ICliqShellCommandTarget
         };
         dialog.OpenRequested += OpenGeneratedFile;
         dialog.ShowDialog();
+
+        if (result.PendingMerges.Count > 0)
+        {
+            await OpenMergeAsync(result.PendingMerges);
+        }
+    }
+
+    internal async Task OpenMergeAsync(IReadOnlyList<PendingCustomMethodMerge>? pendingMerges = null)
+    {
+        if (Merge is null)
+        {
+            return;
+        }
+
+        if (pendingMerges is not null)
+        {
+            Merge.LoadPendingMerges(pendingMerges);
+        }
+
+        await ShowToolWindowAsync(typeof(CliqMergeToolWindow), 0, create: true, DisposalToken);
     }
 
     private async Task<bool> PrepareForPersistedActionAsync(string operation)
@@ -423,6 +477,43 @@ public sealed class CliqPackage : AsyncPackage, ICliqShellCommandTarget
         dte?.ItemOperations.OpenFile(path, Constants.vsViewKindCode);
     }
 
+    internal async Task OpenGeneratedPageObjectAsync(string pageId)
+    {
+        if (_session is null)
+        {
+            return;
+        }
+
+        string path;
+        try
+        {
+            var client = await _session.GetClientAsync(DisposalToken);
+            path = (await client.GetGeneratedPageObjectPathAsync(pageId, DisposalToken)).Path;
+        }
+        catch (OperationCanceledException) when (DisposalToken.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception exception)
+        {
+            _logger?.Write($"Failed to resolve the generated file path: {exception}");
+            return;
+        }
+
+        await JoinableTaskFactory.SwitchToMainThreadAsync(DisposalToken);
+        if (!System.IO.File.Exists(path))
+        {
+            MessageBox.Show(
+                "This page hasn't been generated yet. Use Regenerate first.",
+                "Cliq",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        OpenGeneratedFile(path);
+    }
+
     async Task ICliqShellCommandTarget.ExecuteAsync(
         CliqShellCommand command,
         IdeContextSnapshot context,
@@ -437,6 +528,9 @@ public sealed class CliqPackage : AsyncPackage, ICliqShellCommandTarget
                     break;
                 case CliqShellCommand.Settings:
                     await OpenWorkbenchAsync(WorkbenchSection.Settings);
+                    break;
+                case CliqShellCommand.OpenMerge:
+                    await OpenMergeAsync();
                     break;
                 case CliqShellCommand.ScanPage:
                 case CliqShellCommand.ScanSelectedUrl:
@@ -479,6 +573,9 @@ public sealed class CliqPackage : AsyncPackage, ICliqShellCommandTarget
                     break;
                 case CliqShellCommand.RecordInDesktop:
                     await RecordInDesktopAsync();
+                    break;
+                case CliqShellCommand.LocateElementFromSource:
+                    await LocateElementFromSourceAsync(context);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(command), command, null);

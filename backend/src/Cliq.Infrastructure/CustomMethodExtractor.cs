@@ -10,6 +10,8 @@ namespace Cliq.Infrastructure.Generation;
 /// inside one of those can't desynchronize the depth count. It does not understand C# 11 raw
 /// string literals ("""...""") - a custom method using one won't be extracted correctly.
 /// </summary>
+internal readonly record struct ExtractedSpan(string SourceText, bool ClosedCleanly);
+
 internal static class CustomMethodExtractor
 {
     private const string Marker = "[" + PageObjectCodeGenerator.CustomMethodAttributeName + "]";
@@ -40,9 +42,91 @@ internal static class CustomMethodExtractor
         }
     }
 
-    public static IReadOnlyList<string> Extract(string source)
+    /// <summary>
+    /// Whether every <c>{</c> in <paramref name="source"/> is matched by a <c>}</c> (comments and
+    /// string/char literals excluded from the count, same skip rules as the rest of this class).
+    /// A single brace the user deleted or added anywhere in the file - not necessarily inside a
+    /// custom method's own body - can make <see cref="Extract"/>'s per-method depth-walk latch onto
+    /// the wrong closing brace (most commonly the class's own) and report a clean, matching-count
+    /// "recovery" for a method that isn't actually intact. Callers should treat every extracted
+    /// method as untrustworthy when this returns false, regardless of what <see cref="Extract"/>'s
+    /// count says, rather than silently re-emitting a misattributed span as if it were fine.
+    /// </summary>
+    public static bool IsBalanced(string source)
     {
-        var blocks = new List<string>();
+        var depth = 0;
+        var i = 0;
+        while (i < source.Length)
+        {
+            var c = source[i];
+
+            if (c == '/' && Peek(source, i + 1) == '/')
+            {
+                var newline = source.IndexOf('\n', i);
+                if (newline < 0)
+                {
+                    break;
+                }
+
+                i = newline;
+                continue;
+            }
+
+            if (c == '/' && Peek(source, i + 1) == '*')
+            {
+                var close = source.IndexOf("*/", i + 2, StringComparison.Ordinal);
+                if (close < 0)
+                {
+                    break;
+                }
+
+                i = close + 2;
+                continue;
+            }
+
+            if (c is '"' or '\'')
+            {
+                i = SkipLiteral(source, i);
+                continue;
+            }
+
+            if (c == '{')
+            {
+                depth++;
+            }
+            else if (c == '}')
+            {
+                depth--;
+                if (depth < 0)
+                {
+                    return false;
+                }
+            }
+
+            i++;
+        }
+
+        return depth == 0;
+    }
+
+    public static IReadOnlyList<string> Extract(string source) =>
+        ExtractAll(source)
+            .Where(span => span.ClosedCleanly)
+            .Select(span => span.SourceText)
+            .ToList();
+
+    /// <summary>
+    /// Like <see cref="Extract"/> but also surfaces markers whose method body couldn't be closed
+    /// cleanly, instead of silently skipping them - the merge UI needs something concrete to show
+    /// the user for a broken custom method, not just a missing count. A malformed span's
+    /// <see cref="ExtractedSpan.SourceText"/> is a best-effort slice from the marker's line up to
+    /// the next marker (or end of file), which may include unrelated trailing code if the actual
+    /// damage runs past that point - there's no reliable way to know where a malformed block
+    /// "should" have ended.
+    /// </summary>
+    public static IReadOnlyList<ExtractedSpan> ExtractAll(string source)
+    {
+        var spans = new List<ExtractedSpan>();
         var searchFrom = 0;
         while (true)
         {
@@ -65,17 +149,21 @@ internal static class CustomMethodExtractor
             var end = FindMethodEnd(source, markerIndex + Marker.Length);
             if (end < 0)
             {
-                // Malformed (e.g. attribute with no method after it, or an unclosed brace) -
-                // skip past this occurrence rather than emit a truncated, non-compiling block.
-                searchFrom = markerIndex + Marker.Length;
+                var nextMarker = source.IndexOf(Marker, markerIndex + Marker.Length, StringComparison.Ordinal);
+                var fallbackEnd = nextMarker < 0 ? source.Length : nextMarker;
+                var raw = source[blockStart..fallbackEnd].TrimEnd('\r', '\n', ' ');
+                spans.Add(new ExtractedSpan(raw, ClosedCleanly: false));
+                searchFrom = fallbackEnd;
                 continue;
             }
 
-            blocks.Add(source[blockStart..(end + 1)].TrimEnd('\r', '\n', ' '));
+            spans.Add(new ExtractedSpan(
+                source[blockStart..(end + 1)].TrimEnd('\r', '\n', ' '),
+                ClosedCleanly: true));
             searchFrom = end + 1;
         }
 
-        return blocks;
+        return spans;
     }
 
     // Walks back past the marker's own line to also capture any XML doc comment (///) or other

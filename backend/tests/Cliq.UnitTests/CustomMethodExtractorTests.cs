@@ -240,4 +240,123 @@ public sealed class CustomMethodExtractorTests
         Assert.That(reExtracted, Has.Count.EqualTo(1));
         Assert.That(reExtracted[0], Is.EqualTo(customMethod));
     }
+
+    [Test]
+    public void ExtractAll_UnclosedMethodAtEndOfFile_ReturnsBestEffortSpanInsteadOfNothing()
+    {
+        const string source = """
+            public sealed class LoginPage
+            {
+                [CliqCustomMethod]
+                public void Broken()
+                {
+                    DoSomething();
+            """;
+
+        var spans = CustomMethodExtractor.ExtractAll(source);
+
+        Assert.That(spans, Has.Count.EqualTo(1));
+        Assert.That(spans[0].ClosedCleanly, Is.False);
+        Assert.That(spans[0].SourceText, Does.Contain("[CliqCustomMethod]"));
+        Assert.That(spans[0].SourceText, Does.Contain("Broken"));
+        Assert.That(CustomMethodExtractor.Extract(source), Is.Empty);
+    }
+
+    [Test]
+    public void ExtractAll_UnterminatedStringLiteral_ReturnsBestEffortSpanInsteadOfNothing()
+    {
+        // An unterminated string/comment is the one failure FindMethodEnd can never recover from
+        // by "accidentally" balancing back out later (unlike a bare missing '}', which later,
+        // unrelated braces further down the file can inadvertently close) - see the doc comment on
+        // ExtractAll for why a plain missing brace isn't used to exercise this path instead.
+        const string source = """
+            public sealed class LoginPage
+            {
+                [CliqCustomMethod]
+                public void Broken()
+                {
+                    var s = "unterminated;
+                }
+            }
+            """;
+
+        var spans = CustomMethodExtractor.ExtractAll(source);
+
+        Assert.That(spans, Has.Count.EqualTo(1));
+        Assert.That(spans[0].ClosedCleanly, Is.False);
+        Assert.That(spans[0].SourceText, Does.Contain("Broken"));
+        Assert.That(CustomMethodExtractor.Extract(source), Is.Empty);
+    }
+
+    [Test]
+    public void IsBalanced_EqualBraceCounts_ReturnsTrue()
+    {
+        const string source = """
+            public sealed class LoginPage
+            {
+                [CliqCustomMethod]
+                public void Clean()
+                {
+                    DoSomething();
+                }
+            }
+            """;
+
+        Assert.That(CustomMethodExtractor.IsBalanced(source), Is.True);
+    }
+
+    [Test]
+    public void IsBalanced_MissingClosingBrace_ReturnsFalse()
+    {
+        const string source = """
+            public sealed class LoginPage
+            {
+                [CliqCustomMethod]
+                public void Broken()
+                {
+                    DoSomething();
+            }
+            """;
+
+        Assert.That(CustomMethodExtractor.IsBalanced(source), Is.False);
+    }
+
+    [Test]
+    public void IsBalanced_StrayBraceInsideStringOrComment_IsIgnored()
+    {
+        const string source = """
+            public sealed class LoginPage
+            {
+                // a stray brace in a comment: {
+                [CliqCustomMethod]
+                public void Clean()
+                {
+                    var template = "{ not real json }";
+                }
+            }
+            """;
+
+        Assert.That(CustomMethodExtractor.IsBalanced(source), Is.True);
+    }
+
+    [Test]
+    public void ExtractAll_AllCleanMethods_MatchesExtractExactly()
+    {
+        const string source = """
+            public sealed class LoginPage
+            {
+                [CliqCustomMethod]
+                public void First()
+                {
+                    DoSomething();
+                }
+            }
+            """;
+
+        var spans = CustomMethodExtractor.ExtractAll(source);
+
+        Assert.That(spans, Has.Count.EqualTo(1));
+        Assert.That(spans[0].ClosedCleanly, Is.True);
+        Assert.That(spans[0].SourceText, Is.EqualTo(CustomMethodExtractor.Extract(source)[0]));
+    }
 }
