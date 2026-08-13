@@ -91,7 +91,7 @@ jobs:
         shell: powershell
         run: .\visualstudio\build\Build-Vsix.ps1 -Target Build -Configuration Release
       - name: Upload preview VSIX
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: Cliq-VisualStudio-preview
           path: visualstudio/Cliq.VisualStudio/bin/Release/**/*.vsix
