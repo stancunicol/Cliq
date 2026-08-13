@@ -45,6 +45,37 @@ jobs:
       - run: dotnet test Cliq.slnx --configuration Release --no-build
       - run: dotnet format Cliq.slnx --verify-no-changes --no-restore
 
+  browser-integration:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/tools/puppeteer-scanner/package-lock.json
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+          cache: true
+          cache-dependency-path: backend/**/packages.lock.json
+      - name: Install browser test dependencies
+        run: |
+          npm ci --prefix tools/puppeteer-scanner
+          sudo apt-get update
+          sudo apt-get install --yes xvfb
+      - run: dotnet restore Cliq.slnx --locked-mode
+      - run: dotnet build tests/Cliq.IntegrationTests/Cliq.IntegrationTests.csproj --configuration Release --no-restore
+      - name: Run the Chrome integration pipeline
+        env:
+          CLIQ_RUN_BROWSER_TESTS: 'true'
+        run: xvfb-run --auto-servernum dotnet test tests/Cliq.IntegrationTests/Cliq.IntegrationTests.csproj --configuration Release --no-build --filter "TestCategory=Browser"
+
   visual-studio-extension:
     runs-on: windows-latest
     steps:
