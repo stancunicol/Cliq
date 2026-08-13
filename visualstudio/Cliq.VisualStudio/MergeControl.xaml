@@ -151,7 +151,10 @@
                                                                      AutomationProperties.Name="{Binding Signature}" />
                                                             <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                                                                 <RadioButton Content="Carry over into the new file"
-                                                                             IsChecked="{Binding IsCarryOver}" />
+                                                                             IsChecked="{Binding IsCarryOver}"
+                                                                             IsEnabled="{Binding CanCarryOver}"
+                                                                             Visibility="{Binding CanCarryOver, Converter={StaticResource BoolToVisibility}}"
+                                                                             ToolTip="This method's boundaries could not be trusted while extracting it, so its text can't be carried over as-is. Fix it in the generated file and regenerate instead." />
                                                                 <RadioButton Content="Defer to the waiting list"
                                                                              IsChecked="{Binding IsDefer}" />
                                                                 <RadioButton Content="Discard permanently"
@@ -212,7 +215,10 @@
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <StackPanel Orientation="Horizontal">
-                                            <Button Content="Include now" Click="IncludeNow_Click" />
+                                            <Button Content="Include now"
+                                                    Click="IncludeNow_Click"
+                                                    IsEnabled="{Binding CanInclude}"
+                                                    ToolTip="This method still has a syntax error - fix it in the generated file and regenerate instead of including this stored snapshot." />
                                             <Button Content="Discard" Click="Discard_Click" />
                                         </StackPanel>
                                     </DataTemplate>

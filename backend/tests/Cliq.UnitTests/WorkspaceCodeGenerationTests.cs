@@ -413,6 +413,13 @@ public sealed class WorkspaceCodeGenerationTests
             Assert.That(second.Artifacts.Any(artifact => artifact.Kind == "pageObject"), Is.False);
             Assert.That(second.PendingMerges, Has.Count.EqualTo(1));
             Assert.That(second.PendingMerges[0].Candidates[0].SourceText, Does.Contain("WaitForSpinnerToClear"));
+            // The borrowed brace makes this span parse as a syntactically valid method on its own,
+            // so only the file-wide IsBalanced check (not CustomMethodSyntaxChecker) can catch it -
+            // without it, the merge UI would default this candidate to Carry Over instead of Defer.
+            Assert.That(
+                second.PendingMerges[0].Candidates[0].HasSyntaxError,
+                Is.True,
+                "a candidate recovered from an unbalanced file must never be trusted as clean, even if it parses in isolation");
         });
     }
 

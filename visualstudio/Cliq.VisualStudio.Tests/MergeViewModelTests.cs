@@ -79,6 +79,26 @@ public sealed class MergeViewModelTests
     }
 
     [Test]
+    public void CustomMethodCandidateViewModel_SettingIsCarryOverTrueOnASyntaxErrorCandidate_IsRefused()
+    {
+        // Regression: a candidate the extractor couldn't cleanly recover can have a SourceText
+        // that isn't really this method's own text (e.g. it borrowed the enclosing class's own
+        // closing brace) - carrying it over would re-inject that corrupted text, so this must stay
+        // impossible from the view model itself, not just from a disabled control in the UI.
+        var candidate = new CustomMethodCandidateViewModel(
+            new CustomMethodCandidate("sig", "public void Broken() {", true, ["unexpected token"]));
+
+        candidate.IsCarryOver = true;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(candidate.Decision, Is.EqualTo(CustomMethodDecision.Defer));
+            Assert.That(candidate.IsCarryOver, Is.False);
+            Assert.That(candidate.CanCarryOver, Is.False);
+        });
+    }
+
+    [Test]
     public async Task ResolveAsync_DiscardedCandidate_IsNeitherCarriedOverNorSentAsAResolution()
     {
         var store = new RecordingActionStore();
@@ -144,6 +164,29 @@ public sealed class MergeViewModelTests
             Assert.That(viewModel.WaitingList, Is.Empty);
             Assert.That(store.LastGenerationRequest!.PageIds, Is.EqualTo(new[] { "login" }));
             Assert.That(store.LastGenerationRequest.CustomMethodResolutions!["login"], Is.EqualTo(new[] { "public void Old() { }" }));
+        });
+    }
+
+    [Test]
+    public async Task IncludeNowAsync_SyntaxErrorEntry_IsRefusedAndLeftInTheWaitingList()
+    {
+        // Regression: entry.Model.SourceText is a snapshot from whenever the entry was deferred -
+        // even if the user fixed the method in the actual file afterward, including it here would
+        // still re-inject that old, corrupted snapshot rather than a fresh extraction.
+        var entry = new PendingCustomMethodEntry(
+            "entry-1", "login", "LoginPage", "public void Broken()", "public void Broken() {", true, DateTimeOffset.UtcNow);
+        var store = new RecordingActionStore { PendingEntries = [entry] };
+        var viewModel = new MergeViewModel(store);
+        await viewModel.RefreshWaitingListAsync();
+
+        var included = await viewModel.IncludeNowAsync(viewModel.WaitingList.Single());
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(included, Is.False);
+            Assert.That(viewModel.WaitingList, Has.Count.EqualTo(1), "a refused inclusion must not remove the entry");
+            Assert.That(store.LastGenerationRequest, Is.Null);
+            Assert.That(viewModel.ErrorMessage, Does.Contain("Broken"));
         });
     }
 

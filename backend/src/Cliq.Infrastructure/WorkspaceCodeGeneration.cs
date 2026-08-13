@@ -299,7 +299,9 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
         string sourceText,
         CancellationToken cancellationToken)
     {
-        var freshCandidates = BuildCandidates(CustomMethodExtractor.ExtractAll(sourceText));
+        var freshCandidates = BuildCandidates(
+            CustomMethodExtractor.ExtractAll(sourceText),
+            CustomMethodExtractor.IsBalanced(sourceText));
         var waitingListCandidates = (await repository.ListPendingCustomMethodsAsync(cancellationToken))
             .Where(entry => string.Equals(entry.PageId, pageId, StringComparison.Ordinal))
             .Select(entry => new CustomMethodCandidate(
@@ -332,14 +334,32 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
         return merged.Count == 0 ? null : new PendingCustomMethodMerge(pageId, pageObjectName, merged);
     }
 
-    private static IReadOnlyList<CustomMethodCandidate> BuildCandidates(IReadOnlyList<ExtractedSpan> spans)
+    // fileIsBalanced covers the whole page object file, not just this one span - a missing brace
+    // anywhere else in the file can make FindMethodEnd's depth-walk latch onto the wrong closing
+    // brace (most commonly the class's own) for a span it otherwise reports as ClosedCleanly, so
+    // a syntactically-valid-looking recovery still can't be trusted when the file as a whole is
+    // unbalanced. See CustomMethodExtractor.IsBalanced.
+    private static IReadOnlyList<CustomMethodCandidate> BuildCandidates(
+        IReadOnlyList<ExtractedSpan> spans,
+        bool fileIsBalanced)
     {
         var candidates = new List<CustomMethodCandidate>();
         foreach (var span in spans)
         {
-            IReadOnlyList<string> syntaxErrors = span.ClosedCleanly
-                ? CustomMethodSyntaxChecker.FindSyntaxErrors(span.SourceText)
-                : ["The custom method's body could not be parsed (unbalanced braces or unsupported syntax)."];
+            IReadOnlyList<string> syntaxErrors;
+            if (!span.ClosedCleanly)
+            {
+                syntaxErrors = ["The custom method's body could not be parsed (unbalanced braces or unsupported syntax)."];
+            }
+            else if (!fileIsBalanced)
+            {
+                syntaxErrors = ["The page object file has unbalanced braces elsewhere, so this method's extracted boundaries can't be trusted."];
+            }
+            else
+            {
+                syntaxErrors = CustomMethodSyntaxChecker.FindSyntaxErrors(span.SourceText);
+            }
+
             candidates.Add(new CustomMethodCandidate(
                 ExtractSignature(span.SourceText), span.SourceText, syntaxErrors.Count > 0, syntaxErrors));
         }

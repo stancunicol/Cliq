@@ -42,6 +42,11 @@ public sealed class CustomMethodCandidateViewModel : BindableBase
 
     public string SyntaxErrorSummary => string.Join(Environment.NewLine, Model.SyntaxErrors);
 
+    // Gates the "Carry over" radio in the UI (see MergeControl.xaml) - kept in sync with the
+    // IsCarryOver setter's own refusal below so the two can never disagree about whether this
+    // candidate is eligible.
+    public bool CanCarryOver => !HasSyntaxError;
+
     public bool IsExpanded
     {
         get => _isExpanded;
@@ -71,7 +76,12 @@ public sealed class CustomMethodCandidateViewModel : BindableBase
         get => Decision == CustomMethodDecision.CarryOver;
         set
         {
-            if (value)
+            // A candidate the extractor couldn't cleanly recover has a SourceText that may not
+            // even be this method's own text (see CustomMethodExtractor.IsBalanced) - carrying it
+            // over verbatim, from here or from ResolveAsync, would re-inject that corrupted text
+            // no matter how the user reaches this setter. The only way out is to fix the source
+            // file itself and let the next regeneration re-extract it cleanly from scratch.
+            if (value && !HasSyntaxError)
             {
                 Decision = CustomMethodDecision.CarryOver;
             }
@@ -138,6 +148,12 @@ public sealed class WaitingListEntryViewModel
     public string Signature => Model.Signature;
 
     public bool HasSyntaxError => Model.HasSyntaxError;
+
+    // Gates the "Include now" button in the UI (see MergeControl.xaml) - a deferred entry's
+    // SourceText is a snapshot from whenever it was deferred, not a fresh read of the file, so
+    // including it can never pick up a fix the user made to the file afterward. Kept in sync with
+    // IncludeNowAsync's own refusal below.
+    public bool CanInclude => !HasSyntaxError;
 
     public DateTimeOffset DeferredAt => Model.DeferredAt;
 }
@@ -295,8 +311,21 @@ public sealed class MergeViewModel : BindableBase
     /// Regenerates just this one entry's page with it carried over immediately, without needing a
     /// fresh conflict to reopen the "Resolve conflicts" tab for it.
     /// </summary>
-    public async Task<bool> IncludeNowAsync(WaitingListEntryViewModel entry, CancellationToken cancellationToken = default) =>
-        await RunAsync(
+    public async Task<bool> IncludeNowAsync(WaitingListEntryViewModel entry, CancellationToken cancellationToken = default)
+    {
+        if (entry.HasSyntaxError)
+        {
+            // entry.Model.SourceText is a snapshot from whenever this was deferred - even if the
+            // user has since fixed the method in the actual file, including it here would still
+            // re-inject that old, corrupted snapshot. Refused here too (not just via CanInclude's
+            // IsEnabled binding) so this can't be forced through the click handler regardless of
+            // what the UI currently disables.
+            ErrorMessage = $"'{entry.Signature}' still has a syntax error and can't be included as-is. " +
+                "Fix it in the generated file, regenerate, and it will be re-extracted cleanly.";
+            return false;
+        }
+
+        return await RunAsync(
             "Including...",
             async token =>
             {
@@ -312,6 +341,7 @@ public sealed class MergeViewModel : BindableBase
                 return true;
             },
             cancellationToken);
+    }
 
     private async Task<bool> RunAsync(
         string status,
