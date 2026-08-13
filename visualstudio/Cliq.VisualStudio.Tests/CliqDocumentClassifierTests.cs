@@ -23,4 +23,23 @@ public sealed class CliqDocumentClassifierTests
     {
         Assert.That(CliqDocumentClassifier.TryParseHttpSelection(selection, out _), Is.EqualTo(expected));
     }
+
+    [Test]
+    public void ResolveLocatorFieldComment_FieldNameWithCommentAbove_ReturnsThatComment()
+    {
+        var comment = CliqDocumentClassifier.ResolveLocatorFieldComment(
+            "SubmitLocator", "    // Locator (xpath): //button[@id='submit']");
+
+        Assert.That(comment, Is.EqualTo("    // Locator (xpath): //button[@id='submit']"));
+    }
+
+    [TestCase("SubmitLocator", null, TestName = "NoLineAbove")]
+    [TestCase("SubmitLocator", "    private static readonly By SubmitLocator = By.XPath(\"//button\");", TestName = "LineAboveIsNotAComment")]
+    [TestCase("submit", "    // Locator (xpath): //button[@id='submit']", TestName = "SelectionDoesNotEndInLocator")]
+    [TestCase("", "    // Locator (xpath): //button[@id='submit']", TestName = "EmptySelection")]
+    [TestCase(null, "    // Locator (xpath): //button[@id='submit']", TestName = "NullSelection")]
+    public void ResolveLocatorFieldComment_UnrecognizedShape_ReturnsNull(string? selectedText, string? lineAbove)
+    {
+        Assert.That(CliqDocumentClassifier.ResolveLocatorFieldComment(selectedText, lineAbove), Is.Null);
+    }
 }

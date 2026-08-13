@@ -36,3 +36,10 @@ visualstudio/artifacts/
 **/.pytest_cache/
 **/__pycache__/
 **/*.pyc
+
+# The backend repo itself is sometimes pointed at as an ad-hoc local test
+# workspace (e.g. while manually exercising the VS extension) - unlike a
+# real consumer project's .cliq/ folder, this one is never meant to be
+# tracked.
+/backend/.cliq/
+/backend/Generated/

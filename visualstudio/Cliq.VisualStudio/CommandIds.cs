@@ -14,6 +14,7 @@ internal static class CommandIds
     public const int RecordInDesktop = 0x0105;
     public const int Refresh = 0x0106;
     public const int Settings = 0x0107;
+    public const int OpenMerge = 0x0108;
     public const int BindWorkspace = 0x0200;
     public const int OpenScopedWorkbench = 0x0201;
     public const int GenerateScopedAll = 0x0202;
@@ -23,4 +24,5 @@ internal static class CommandIds
     public const int GenerateCliqDocument = 0x0206;
     public const int RescanCliqPage = 0x0207;
     public const int ScanSelectedUrl = 0x0208;
+    public const int LocateElementFromSource = 0x020A;
 }

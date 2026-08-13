@@ -135,7 +135,6 @@ public sealed class RunCoordinator(
         {
             await repository.SaveRunAsync(state.Run, CancellationToken.None);
             state.Events.Writer.TryComplete();
-            state.Cancellation.Dispose();
             _runGate.Release();
         }
     }

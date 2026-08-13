@@ -237,7 +237,28 @@ dotnet test Cliq.slnx --configuration Release --no-build
 dotnet format Cliq.slnx --verify-no-changes --no-restore
 ```
 
-CI runs the frontend and backend checks independently (see `.github/workflows/ci.yml`).
+The standard backend command includes fast authenticated API and persistence integration tests. The
+real-browser pipeline is opt-in because it opens Chrome and also compiles and runs a generated NUnit
+project. Install the scanner dependencies once, then enable it explicitly:
+
+```powershell
+cd backend/tools/puppeteer-scanner
+npm ci
+cd ../..
+$env:CLIQ_RUN_BROWSER_TESTS = 'true'
+dotnet test tests/Cliq.IntegrationTests/Cliq.IntegrationTests.csproj --filter "TestCategory=Browser"
+```
+
+On Linux, run the last command under a virtual display:
+
+```bash
+CLIQ_RUN_BROWSER_TESTS=true xvfb-run --auto-servernum \
+  dotnet test tests/Cliq.IntegrationTests/Cliq.IntegrationTests.csproj --filter "TestCategory=Browser"
+```
+
+Without `CLIQ_RUN_BROWSER_TESTS=true`, the Chrome test is reported as skipped. CI runs the fast
+frontend and backend checks on pull requests and runs the Chrome pipeline separately on pushes to
+`main` (see `.github/workflows/ci.yml`).
 
 ## Security model
 

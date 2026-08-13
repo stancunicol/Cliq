@@ -18,6 +18,21 @@ namespace Cliq.VisualStudio.Core.Actions
         Task<GenerationResult> GenerateAsync(
             GenerationRequest request,
             CancellationToken cancellationToken);
+
+        Task<IReadOnlyList<PendingCustomMethodEntry>> GetPendingCustomMethodsAsync(
+            CancellationToken cancellationToken);
+
+        Task DeletePendingCustomMethodAsync(string id, CancellationToken cancellationToken);
+
+        Task LocateElementAsync(
+            string pageId,
+            string elementId,
+            StartRunRequest request,
+            CancellationToken cancellationToken);
+
+        Task LocateElementFromSourceAsync(
+            LocateFromSourceRequest request,
+            CancellationToken cancellationToken);
     }
 
     public sealed class ApiWorkspaceActionStore : IWorkspaceActionStore
@@ -38,6 +53,29 @@ namespace Cliq.VisualStudio.Core.Actions
             CancellationToken cancellationToken) =>
             await (await _session.GetClientAsync(cancellationToken).ConfigureAwait(false))
                 .GenerateAsync(request, cancellationToken).ConfigureAwait(false);
+
+        public async Task<IReadOnlyList<PendingCustomMethodEntry>> GetPendingCustomMethodsAsync(
+            CancellationToken cancellationToken) =>
+            await (await _session.GetClientAsync(cancellationToken).ConfigureAwait(false))
+                .GetPendingCustomMethodsAsync(cancellationToken).ConfigureAwait(false);
+
+        public async Task DeletePendingCustomMethodAsync(string id, CancellationToken cancellationToken) =>
+            await (await _session.GetClientAsync(cancellationToken).ConfigureAwait(false))
+                .DeletePendingCustomMethodAsync(id, cancellationToken).ConfigureAwait(false);
+
+        public async Task LocateElementAsync(
+            string pageId,
+            string elementId,
+            StartRunRequest request,
+            CancellationToken cancellationToken) =>
+            await (await _session.GetClientAsync(cancellationToken).ConfigureAwait(false))
+                .LocateElementAsync(pageId, elementId, request, cancellationToken).ConfigureAwait(false);
+
+        public async Task LocateElementFromSourceAsync(
+            LocateFromSourceRequest request,
+            CancellationToken cancellationToken) =>
+            await (await _session.GetClientAsync(cancellationToken).ConfigureAwait(false))
+                .LocateElementFromSourceAsync(request, cancellationToken).ConfigureAwait(false);
     }
 
     public sealed class WorkspaceActionsViewModel : BindableBase, IDisposable
@@ -134,6 +172,47 @@ namespace Cliq.VisualStudio.Core.Actions
             return GenerateAsync(request, cancellationToken);
         }
 
+        /// <summary>
+        /// Opens a visible browser on the element's page and highlights it - unlike every other
+        /// action here, the backend deliberately leaves that browser window open afterward, so
+        /// there's nothing further to read back beyond whether the request itself succeeded.
+        /// </summary>
+        public Task<bool> LocateElementAsync(
+            string pageId,
+            string elementId,
+            BrowserKind? browser,
+            CancellationToken cancellationToken = default) =>
+            RunAsync(
+                "Locating element...",
+                async token =>
+                {
+                    await _store.LocateElementAsync(
+                        pageId, elementId, new StartRunRequest(browser), token).ConfigureAwait(false);
+                    StatusMessage = "Opened a browser window with the element highlighted.";
+                },
+                cancellationToken);
+
+        /// <summary>
+        /// Same as <see cref="LocateElementAsync"/>, but resolves the page/element server-side
+        /// from a generated Page Object's class name and a <c>// Locator (...): ...</c> comment
+        /// selected in its source file - the entry point for "Locate in Browser" triggered from
+        /// the .cs editor instead of the Workbench grid.
+        /// </summary>
+        public Task<bool> LocateElementFromSourceAsync(
+            string className,
+            string locatorComment,
+            BrowserKind? browser,
+            CancellationToken cancellationToken = default) =>
+            RunAsync(
+                "Locating element...",
+                async token =>
+                {
+                    await _store.LocateElementFromSourceAsync(
+                        new LocateFromSourceRequest(className, locatorComment, browser), token).ConfigureAwait(false);
+                    StatusMessage = "Opened a browser window with the element highlighted.";
+                },
+                cancellationToken);
+
         public void Cancel() => _operation?.Cancel();
 
         public void Dispose()
@@ -197,6 +276,44 @@ namespace Cliq.VisualStudio.Core.Actions
             {
                 ErrorMessage = exception.Message;
                 return null;
+            }
+            finally
+            {
+                IsBusy = false;
+                _operation.Dispose();
+                _operation = null;
+            }
+        }
+
+        private async Task<bool> RunAsync(
+            string status,
+            Func<CancellationToken, Task> operation,
+            CancellationToken cancellationToken)
+        {
+            ThrowIfDisposed();
+            if (IsBusy)
+            {
+                throw new InvalidOperationException("Another Cliq action is already running.");
+            }
+
+            _operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            IsBusy = true;
+            ErrorMessage = null;
+            StatusMessage = status;
+            try
+            {
+                await operation(_operation.Token).ConfigureAwait(false);
+                return true;
+            }
+            catch (OperationCanceledException) when (_operation.IsCancellationRequested)
+            {
+                StatusMessage = "Operation cancelled.";
+                return false;
+            }
+            catch (Exception exception)
+            {
+                ErrorMessage = exception.Message;
+                return false;
             }
             finally
             {

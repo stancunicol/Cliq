@@ -91,10 +91,50 @@ public sealed class WorkspaceActionsViewModelTests
         });
     }
 
+    [Test]
+    public async Task LocateElementAsync_SendsPageAndElementIdsAndReportsSuccess()
+    {
+        var store = new RecordingStore();
+        using var viewModel = new WorkspaceActionsViewModel(store);
+
+        var result = await viewModel.LocateElementAsync("login-page", "submit-button", BrowserKind.Edge);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result, Is.True);
+            Assert.That(store.LocateCall, Is.Not.Null);
+            Assert.That(store.LocateCall!.Value.PageId, Is.EqualTo("login-page"));
+            Assert.That(store.LocateCall.Value.ElementId, Is.EqualTo("submit-button"));
+            Assert.That(store.LocateCall.Value.Request.Browser, Is.EqualTo(BrowserKind.Edge));
+            Assert.That(viewModel.StatusMessage, Does.Contain("highlighted"));
+        });
+    }
+
+    [Test]
+    public async Task LocateElementFromSourceAsync_SendsClassNameAndLocatorCommentAndReportsSuccess()
+    {
+        var store = new RecordingStore();
+        using var viewModel = new WorkspaceActionsViewModel(store);
+
+        var result = await viewModel.LocateElementFromSourceAsync(
+            "LoginPage", "// Locator (xpath): //button[@id='submit']", BrowserKind.Edge);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result, Is.True);
+            Assert.That(store.LocateFromSourceRequest, Is.Not.Null);
+            Assert.That(store.LocateFromSourceRequest!.ClassName, Is.EqualTo("LoginPage"));
+            Assert.That(store.LocateFromSourceRequest.LocatorComment, Is.EqualTo("// Locator (xpath): //button[@id='submit']"));
+            Assert.That(store.LocateFromSourceRequest.Browser, Is.EqualTo(BrowserKind.Edge));
+            Assert.That(viewModel.StatusMessage, Does.Contain("highlighted"));
+        });
+    }
+
     private sealed class RecordingStore : IWorkspaceActionStore
     {
         public ScanPageRequest? ScanRequest { get; private set; }
         public GenerationRequest? GenerationRequest { get; private set; }
+        public (string PageId, string ElementId, StartRunRequest Request)? LocateCall { get; private set; }
 
         public Task<ScanPageResponse> ScanAsync(
             ScanPageRequest request,
@@ -130,7 +170,35 @@ public sealed class WorkspaceActionsViewModelTests
                             @"C:\workspace\Generated\Tests\CheckoutTests.cs",
                             true),
                     },
-                    Array.Empty<CustomMethodRecoveryWarning>()));
+                    Array.Empty<CustomMethodRecoveryWarning>(),
+                    Array.Empty<PendingCustomMethodMerge>()));
+        }
+
+        public Task<IReadOnlyList<PendingCustomMethodEntry>> GetPendingCustomMethodsAsync(
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<PendingCustomMethodEntry>>(Array.Empty<PendingCustomMethodEntry>());
+
+        public Task DeletePendingCustomMethodAsync(string id, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
+        public Task LocateElementAsync(
+            string pageId,
+            string elementId,
+            StartRunRequest request,
+            CancellationToken cancellationToken)
+        {
+            LocateCall = (pageId, elementId, request);
+            return Task.CompletedTask;
+        }
+
+        public LocateFromSourceRequest? LocateFromSourceRequest { get; private set; }
+
+        public Task LocateElementFromSourceAsync(
+            LocateFromSourceRequest request,
+            CancellationToken cancellationToken)
+        {
+            LocateFromSourceRequest = request;
+            return Task.CompletedTask;
         }
     }
 }

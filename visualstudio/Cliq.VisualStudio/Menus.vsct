@@ -92,6 +92,12 @@
         <Icon guid="ImageCatalogGuid" id="Settings" />
         <Strings><ButtonText>Se&amp;ttings</ButtonText></Strings>
       </Button>
+      <Button guid="guidCliqCommandSet" id="OpenMerge" priority="0x0900" type="Button">
+        <Parent guid="guidCliqCommandSet" id="CliqMainGroup" />
+        <CommandFlag>IconAndText</CommandFlag>
+        <Icon guid="ImageCatalogGuid" id="Merge" />
+        <Strings><ButtonText>&amp;Pending Merges...</ButtonText></Strings>
+      </Button>
 
       <Button guid="guidCliqCommandSet" id="BindWorkspace" priority="0x0100" type="Button">
         <Parent guid="guidCliqCommandSet" id="CliqSolutionContextGroup" />
@@ -156,6 +162,13 @@
         <Icon guid="ImageCatalogGuid" id="Web" />
         <Strings><ButtonText>Scan URL in Cliq...</ButtonText></Strings>
       </Button>
+      <Button guid="guidCliqCommandSet" id="LocateElementFromSource" priority="0x0200" type="Button">
+        <Parent guid="guidCliqCommandSet" id="CliqEditorContextGroup" />
+        <CommandFlag>DefaultInvisible</CommandFlag>
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <Icon guid="ImageCatalogGuid" id="Search" />
+        <Strings><ButtonText>Locate in Browser</ButtonText></Strings>
+      </Button>
     </Buttons>
   </Commands>
 
@@ -184,6 +197,9 @@
       <CommandPlacement guid="guidCliqCommandSet" id="Settings" priority="0x0800">
         <Parent guid="guidCliqCommandSet" id="CliqToolbarGroup" />
       </CommandPlacement>
+      <CommandPlacement guid="guidCliqCommandSet" id="OpenMerge" priority="0x0900">
+        <Parent guid="guidCliqCommandSet" id="CliqToolbarGroup" />
+      </CommandPlacement>
       <CommandPlacement guid="guidCliqCommandSet" id="BindWorkspace" priority="0x0100">
         <Parent guid="guidCliqCommandSet" id="CliqProjectContextGroup" />
       </CommandPlacement>
@@ -196,12 +212,23 @@
   </CommandPlacements>
 
   <KeyBindings>
+    <!-- Single (non-chord) Ctrl+Shift+Alt+<letter> bindings, not a Ctrl+Alt+C-prefixed chord -
+         Ctrl+Alt+C alone is already VS's own Debug.CallStack shortcut, which made every chord
+         built on that prefix ambiguous (VS couldn't tell whether to wait for a second key or fire
+         Debug.CallStack immediately). Three modifiers plus a letter is a combination essentially
+         nothing else defaults to. -->
     <KeyBinding guid="guidCliqCommandSet" id="OpenWorkbench"
-                editor="guidVSStd97" key1="C" mod1="CONTROL ALT"
-                key2="W" mod2="CONTROL ALT" />
+                editor="guidVSStd97" key1="W" mod1="CONTROL SHIFT ALT" />
     <KeyBinding guid="guidCliqCommandSet" id="RunSelectedTest"
-                editor="guidVSStd97" key1="C" mod1="CONTROL ALT"
-                key2="R" mod2="CONTROL ALT" />
+                editor="guidVSStd97" key1="R" mod1="CONTROL SHIFT ALT" />
+    <KeyBinding guid="guidCliqCommandSet" id="ScanPage"
+                editor="guidVSStd97" key1="S" mod1="CONTROL SHIFT ALT" />
+    <KeyBinding guid="guidCliqCommandSet" id="GenerateSelected"
+                editor="guidVSStd97" key1="G" mod1="CONTROL SHIFT ALT" />
+    <KeyBinding guid="guidCliqCommandSet" id="GenerateAll"
+                editor="guidVSStd97" key1="A" mod1="CONTROL SHIFT ALT" />
+    <KeyBinding guid="guidCliqCommandSet" id="OpenMerge"
+                editor="guidVSStd97" key1="M" mod1="CONTROL SHIFT ALT" />
   </KeyBindings>
 
   <Symbols>
@@ -223,6 +250,7 @@
       <IDSymbol name="RecordInDesktop" value="0x0105" />
       <IDSymbol name="Refresh" value="0x0106" />
       <IDSymbol name="Settings" value="0x0107" />
+      <IDSymbol name="OpenMerge" value="0x0108" />
       <IDSymbol name="BindWorkspace" value="0x0200" />
       <IDSymbol name="OpenScopedWorkbench" value="0x0201" />
       <IDSymbol name="GenerateScopedAll" value="0x0202" />
@@ -232,6 +260,7 @@
       <IDSymbol name="GenerateCliqDocument" value="0x0206" />
       <IDSymbol name="RescanCliqPage" value="0x0207" />
       <IDSymbol name="ScanSelectedUrl" value="0x0208" />
+      <IDSymbol name="LocateElementFromSource" value="0x020A" />
     </GuidSymbol>
   </Symbols>
 </CommandTable>

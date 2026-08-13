@@ -83,6 +83,7 @@ internal sealed class VisualStudioContextService : IVsSolutionEvents, IDisposabl
 
         var activeDocumentPath = GetActiveDocumentPath();
         var selectedText = GetSelectedText();
+        var lineAboveSelection = GetLineAboveSelection();
         if (selectionKind == IdeSelectionKind.Unknown && activeDocumentPath is not null)
         {
             selectionKind = IdeSelectionKind.Editor;
@@ -98,7 +99,8 @@ internal sealed class VisualStudioContextService : IVsSolutionEvents, IDisposabl
             selectedItemPath,
             activeDocumentPath,
             selectedText,
-            selectionKind);
+            selectionKind,
+            lineAboveSelection);
     }
 
     public string? GetOverride(IdeContextSnapshot context)
@@ -231,6 +233,26 @@ internal sealed class VisualStudioContextService : IVsSolutionEvents, IDisposabl
         try
         {
             return (_dte?.ActiveDocument?.Selection as TextSelection)?.Text;
+        }
+        catch (COMException)
+        {
+            return null;
+        }
+    }
+
+    private string? GetLineAboveSelection()
+    {
+        ThreadHelper.ThrowIfNotOnUIThread();
+        try
+        {
+            var activePoint = (_dte?.ActiveDocument?.Selection as TextSelection)?.ActivePoint;
+            if (activePoint is null || activePoint.Line <= 1)
+            {
+                return null;
+            }
+
+            var editPoint = activePoint.CreateEditPoint();
+            return editPoint.GetLines(activePoint.Line - 1, activePoint.Line);
         }
         catch (COMException)
         {

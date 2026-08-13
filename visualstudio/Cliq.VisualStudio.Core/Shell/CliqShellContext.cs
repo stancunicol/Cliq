@@ -20,7 +20,9 @@ public enum CliqShellCommand
     RunCliqTest,
     GenerateCliqDocument,
     RescanCliqPage,
-    ScanSelectedUrl
+    ScanSelectedUrl,
+    OpenMerge,
+    LocateElementFromSource
 }
 
 public readonly struct CliqCommandState
@@ -85,6 +87,7 @@ public static class CliqShellContext
             case CliqShellCommand.Refresh:
                 return hasWorkspaceScope ? CliqCommandState.Available() : CliqCommandState.Disabled();
             case CliqShellCommand.Settings:
+            case CliqShellCommand.OpenMerge:
                 return CliqCommandState.Available();
             case CliqShellCommand.BindWorkspace:
             case CliqShellCommand.OpenScopedWorkbench:
@@ -105,6 +108,10 @@ public static class CliqShellContext
                 return isPage ? CliqCommandState.Available() : CliqCommandState.Hidden;
             case CliqShellCommand.ScanSelectedUrl:
                 return hasUrl
+                    ? CliqCommandState.Available()
+                    : CliqCommandState.Hidden;
+            case CliqShellCommand.LocateElementFromSource:
+                return CliqDocumentClassifier.ResolveLocatorFieldComment(context.SelectedText, context.LineAboveSelection) is not null
                     ? CliqCommandState.Available()
                     : CliqCommandState.Hidden;
             default:

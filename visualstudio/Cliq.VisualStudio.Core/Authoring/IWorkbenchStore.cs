@@ -12,6 +12,8 @@ public interface IWorkbenchStore
     Task<TestCase> SaveTestAsync(TestCase test, CancellationToken cancellationToken);
 
     Task DeleteTestAsync(string testId, CancellationToken cancellationToken);
+
+    Task<PageDefinition> SavePageAsync(PageDefinition page, CancellationToken cancellationToken);
 }
 
 public interface IWorkspaceConfigurationStore

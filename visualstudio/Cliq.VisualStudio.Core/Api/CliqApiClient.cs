@@ -68,8 +68,32 @@ namespace Cliq.VisualStudio.Core.Api
         public Task DeletePageAsync(string id, CancellationToken cancellationToken) =>
             SendNoContentAsync(HttpMethod.Delete, $"api/v1/pages/{Escape(id)}", null, cancellationToken);
 
+        public Task<GeneratedPathResponse> GetGeneratedPageObjectPathAsync(string pageId, CancellationToken cancellationToken) =>
+            SendJsonAsync<GeneratedPathResponse>(
+                HttpMethod.Get, $"api/v1/pages/{Escape(pageId)}/generated-path", null, cancellationToken);
+
         public Task<ScanPageResponse> ScanPageAsync(ScanPageRequest request, CancellationToken cancellationToken) =>
             SendJsonAsync<ScanPageResponse>(HttpMethod.Post, "api/v1/pages/scan", request, cancellationToken);
+
+        public Task LocateElementAsync(
+            string pageId,
+            string elementId,
+            StartRunRequest request,
+            CancellationToken cancellationToken) =>
+            SendNoContentAsync(
+                HttpMethod.Post,
+                $"api/v1/pages/{Escape(pageId)}/elements/{Escape(elementId)}/locate",
+                request,
+                cancellationToken);
+
+        public Task LocateElementFromSourceAsync(
+            LocateFromSourceRequest request,
+            CancellationToken cancellationToken) =>
+            SendNoContentAsync(
+                HttpMethod.Post,
+                "api/v1/pages/locate-from-source",
+                request,
+                cancellationToken);
 
         public Task<IReadOnlyList<TestCase>> ListTestsAsync(CancellationToken cancellationToken) =>
             SendJsonAsync<IReadOnlyList<TestCase>>(HttpMethod.Get, "api/v1/tests", null, cancellationToken);
@@ -114,6 +138,15 @@ namespace Cliq.VisualStudio.Core.Api
                 "api/v1/generation",
                 request,
                 cancellationToken);
+
+        public Task<IReadOnlyList<PendingCustomMethodEntry>> GetPendingCustomMethodsAsync(
+            CancellationToken cancellationToken) =>
+            SendJsonAsync<IReadOnlyList<PendingCustomMethodEntry>>(
+                HttpMethod.Get, "api/v1/pending-custom-methods", null, cancellationToken);
+
+        public Task DeletePendingCustomMethodAsync(string id, CancellationToken cancellationToken) =>
+            SendNoContentAsync(
+                HttpMethod.Delete, $"api/v1/pending-custom-methods/{Escape(id)}", null, cancellationToken);
 
         public Task<TestRun> StartRunAsync(
             string testId,
