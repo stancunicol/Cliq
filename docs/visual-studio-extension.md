@@ -84,7 +84,7 @@ If the experimental instance needs to be reset, close it and run the Visual Stud
 - Solution and open-folder workspaces bind correctly, including an explicit project/folder override.
 - Cliq Workbench opens, follows light/dark themes, supports keyboard navigation and DPI scaling, and prompts for dirty edits.
 - Tests, pages, settings, and masked secrets can be edited and explicitly saved.
-- Page scan uses installed Edge or Chrome and supports progress and cancellation.
+- Page scan uses installed Edge or Chrome, supports progress and cancellation, and runs the interactive staged scan review workflow when page differences are detected.
 - Selected and full generation refreshes files and can open or reveal artifacts without editing legacy project files.
 - A visible run streams steps and timings, shows failures and screenshots, and cancels cleanly.
 - Recording hands the exclusive workspace lease to Cliq Desktop and Visual Studio reacquires it after Desktop exits.

@@ -75,6 +75,57 @@ namespace Cliq.VisualStudio.Core.Api
         public Task<ScanPageResponse> ScanPageAsync(ScanPageRequest request, CancellationToken cancellationToken) =>
             SendJsonAsync<ScanPageResponse>(HttpMethod.Post, "api/v1/pages/scan", request, cancellationToken);
 
+        public Task<StagedPageScanResult> ScanPageReviewAsync(ScanPageRequest request, CancellationToken cancellationToken) =>
+            SendJsonAsync<StagedPageScanResult>(HttpMethod.Post, "api/v1/pages/scan-reviews", request, cancellationToken);
+
+        public Task<IReadOnlyList<ScanReview>> ListScanReviewsAsync(
+            string? pageId = null,
+            ScanReviewStatus? status = null,
+            CancellationToken cancellationToken = default)
+        {
+            var query = new List<string>();
+            if (!string.IsNullOrEmpty(pageId))
+            {
+                query.Add($"pageId={Escape(pageId!)}");
+            }
+
+            if (status.HasValue)
+            {
+                query.Add($"status={Escape(status.Value.ToString().ToLowerInvariant())}");
+            }
+
+            var path = query.Count > 0 ? $"api/v1/scan-reviews?{string.Join("&", query)}" : "api/v1/scan-reviews";
+            return SendJsonAsync<IReadOnlyList<ScanReview>>(HttpMethod.Get, path, null, cancellationToken);
+        }
+
+        public Task<ScanReview> GetScanReviewAsync(string reviewId, CancellationToken cancellationToken) =>
+            SendJsonAsync<ScanReview>(HttpMethod.Get, $"api/v1/scan-reviews/{Escape(reviewId)}", null, cancellationToken);
+
+        public Task<ScanReview> UpdateScanReviewDecisionsAsync(
+            string reviewId,
+            UpdateScanReviewDecisionsRequest request,
+            CancellationToken cancellationToken) =>
+            SendJsonAsync<ScanReview>(
+                HttpMethod.Put,
+                $"api/v1/scan-reviews/{Escape(reviewId)}/decisions",
+                request,
+                cancellationToken);
+
+        public Task<ScanReviewApplyResult> ApplyScanReviewAsync(string reviewId, CancellationToken cancellationToken) =>
+            SendJsonAsync<ScanReviewApplyResult>(
+                HttpMethod.Post,
+                $"api/v1/scan-reviews/{Escape(reviewId)}/apply",
+                null,
+                cancellationToken);
+
+        public Task<ScanReview> DiscardScanReviewAsync(string reviewId, CancellationToken cancellationToken) =>
+            SendJsonAsync<ScanReview>(
+                HttpMethod.Post,
+                $"api/v1/scan-reviews/{Escape(reviewId)}/discard",
+                null,
+                cancellationToken);
+
+
         public Task LocateElementAsync(
             string pageId,
             string elementId,
@@ -374,6 +425,18 @@ namespace Cliq.VisualStudio.Core.Api
                 throw new WorkspaceInUseApiException(response.StatusCode, problem);
             }
 
+            if (problem.Code != null && problem.Code.StartsWith("scan_review_", StringComparison.Ordinal))
+            {
+                IReadOnlyList<ScanReviewReference>? references = null;
+                if (problem.Extensions.TryGetValue("references", out var referencesElement) &&
+                    referencesElement.ValueKind == JsonValueKind.Array)
+                {
+                    references = referencesElement.Deserialize<IReadOnlyList<ScanReviewReference>>(CliqJson.Options);
+                }
+
+                throw new ScanReviewConflictApiException(response.StatusCode, problem, references);
+            }
+
             throw new CliqApiException(response.StatusCode, problem);
         }
 
@@ -416,6 +479,10 @@ namespace Cliq.VisualStudio.Core.Api
                                 break;
                             default:
                                 problem.Extensions[property.Name] = property.Value.Clone();
+                                if (string.Equals(property.Name, "code", StringComparison.OrdinalIgnoreCase) && problem.Code == null)
+                                {
+                                    problem.Code = property.Value.GetString();
+                                }
                                 break;
                         }
                     }

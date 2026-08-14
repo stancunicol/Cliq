@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Net;
 
 namespace Cliq.VisualStudio.Core.Api
@@ -25,4 +26,21 @@ namespace Cliq.VisualStudio.Core.Api
 
         public WorkspaceLeaseOwner? Owner => Problem.Owner;
     }
+
+    public sealed class ScanReviewConflictApiException : CliqApiException
+    {
+        public ScanReviewConflictApiException(
+            HttpStatusCode statusCode,
+            CliqProblemDetails problem,
+            IReadOnlyList<Cliq.Domain.ScanReviewReference>? references = null)
+            : base(statusCode, problem)
+        {
+            Code = problem.Code ?? string.Empty;
+            References = references ?? Array.Empty<Cliq.Domain.ScanReviewReference>();
+        }
+
+        public string Code { get; }
+        public IReadOnlyList<Cliq.Domain.ScanReviewReference> References { get; }
+    }
 }
+

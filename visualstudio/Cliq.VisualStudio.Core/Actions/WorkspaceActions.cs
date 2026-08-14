@@ -15,6 +15,32 @@ namespace Cliq.VisualStudio.Core.Actions
             ScanPageRequest request,
             CancellationToken cancellationToken);
 
+        Task<StagedPageScanResult> ScanPageReviewAsync(
+            ScanPageRequest request,
+            CancellationToken cancellationToken);
+
+        Task<IReadOnlyList<ScanReview>> ListScanReviewsAsync(
+            string? pageId,
+            ScanReviewStatus? status,
+            CancellationToken cancellationToken);
+
+        Task<ScanReview> GetScanReviewAsync(
+            string reviewId,
+            CancellationToken cancellationToken);
+
+        Task<ScanReview> UpdateScanReviewDecisionsAsync(
+            string reviewId,
+            IReadOnlyList<ScanReviewDecisionRequest> decisions,
+            CancellationToken cancellationToken);
+
+        Task<ScanReviewApplyResult> ApplyScanReviewAsync(
+            string reviewId,
+            CancellationToken cancellationToken);
+
+        Task<ScanReview> DiscardScanReviewAsync(
+            string reviewId,
+            CancellationToken cancellationToken);
+
         Task<GenerationResult> GenerateAsync(
             GenerationRequest request,
             CancellationToken cancellationToken);
@@ -47,6 +73,47 @@ namespace Cliq.VisualStudio.Core.Actions
             CancellationToken cancellationToken) =>
             await (await _session.GetClientAsync(cancellationToken).ConfigureAwait(false))
                 .ScanPageAsync(request, cancellationToken).ConfigureAwait(false);
+
+        public async Task<StagedPageScanResult> ScanPageReviewAsync(
+            ScanPageRequest request,
+            CancellationToken cancellationToken) =>
+            await (await _session.GetClientAsync(cancellationToken).ConfigureAwait(false))
+                .ScanPageReviewAsync(request, cancellationToken).ConfigureAwait(false);
+
+        public async Task<IReadOnlyList<ScanReview>> ListScanReviewsAsync(
+            string? pageId,
+            ScanReviewStatus? status,
+            CancellationToken cancellationToken) =>
+            await (await _session.GetClientAsync(cancellationToken).ConfigureAwait(false))
+                .ListScanReviewsAsync(pageId, status, cancellationToken).ConfigureAwait(false);
+
+        public async Task<ScanReview> GetScanReviewAsync(
+            string reviewId,
+            CancellationToken cancellationToken) =>
+            await (await _session.GetClientAsync(cancellationToken).ConfigureAwait(false))
+                .GetScanReviewAsync(reviewId, cancellationToken).ConfigureAwait(false);
+
+        public async Task<ScanReview> UpdateScanReviewDecisionsAsync(
+            string reviewId,
+            IReadOnlyList<ScanReviewDecisionRequest> decisions,
+            CancellationToken cancellationToken) =>
+            await (await _session.GetClientAsync(cancellationToken).ConfigureAwait(false))
+                .UpdateScanReviewDecisionsAsync(
+                    reviewId,
+                    new UpdateScanReviewDecisionsRequest(decisions),
+                    cancellationToken).ConfigureAwait(false);
+
+        public async Task<ScanReviewApplyResult> ApplyScanReviewAsync(
+            string reviewId,
+            CancellationToken cancellationToken) =>
+            await (await _session.GetClientAsync(cancellationToken).ConfigureAwait(false))
+                .ApplyScanReviewAsync(reviewId, cancellationToken).ConfigureAwait(false);
+
+        public async Task<ScanReview> DiscardScanReviewAsync(
+            string reviewId,
+            CancellationToken cancellationToken) =>
+            await (await _session.GetClientAsync(cancellationToken).ConfigureAwait(false))
+                .DiscardScanReviewAsync(reviewId, cancellationToken).ConfigureAwait(false);
 
         public async Task<GenerationResult> GenerateAsync(
             GenerationRequest request,
@@ -150,6 +217,43 @@ namespace Cliq.VisualStudio.Core.Actions
                 },
                 cancellationToken).ConfigureAwait(false);
         }
+
+        public async Task<StagedPageScanResult?> ScanReviewAsync(
+            string url,
+            string name,
+            BrowserKind? browser,
+            bool headless,
+            CancellationToken cancellationToken = default)
+        {
+            if (!Uri.TryCreate(url?.Trim(), UriKind.Absolute, out var uri) ||
+                (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+            {
+                ErrorMessage = "Enter an absolute HTTP or HTTPS URL.";
+                return null;
+            }
+
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                ErrorMessage = "Enter a page name.";
+                return null;
+            }
+
+            return await RunAsync(
+                "Scanning page...",
+                async token =>
+                {
+                    var response = await _store.ScanPageReviewAsync(
+                        new ScanPageRequest(uri.AbsoluteUri, name.Trim(), browser, headless),
+                        token).ConfigureAwait(false);
+                    var report = response.Reconciliation;
+                    StatusMessage =
+                        $"Scanned {response.ActivePage.Name}: {report.MatchedCount} matched, " +
+                        $"{report.NewCount} new, {report.MissingCount} missing.";
+                    return response;
+                },
+                cancellationToken).ConfigureAwait(false);
+        }
+
 
         public Task<GenerationResult?> GenerateAllAsync(
             CancellationToken cancellationToken = default) =>

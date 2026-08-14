@@ -201,6 +201,24 @@ public sealed class MergeViewModelTests
         public Task<ScanPageResponse> ScanAsync(ScanPageRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public Task<StagedPageScanResult> ScanPageReviewAsync(ScanPageRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<ScanReview>> ListScanReviewsAsync(string? pageId, ScanReviewStatus? status, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<ScanReview> GetScanReviewAsync(string reviewId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<ScanReview> UpdateScanReviewDecisionsAsync(string reviewId, IReadOnlyList<ScanReviewDecisionRequest> decisions, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<ScanReviewApplyResult> ApplyScanReviewAsync(string reviewId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<ScanReview> DiscardScanReviewAsync(string reviewId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<GenerationResult> GenerateAsync(GenerationRequest request, CancellationToken cancellationToken)
         {
             LastGenerationRequest = request;
