@@ -49,6 +49,30 @@ public sealed class WorkspaceActionsViewModelTests
         });
     }
 
+    [Test]
+    public async Task ScanReviewAsync_ReportsReconciliationAndHeadlessChoice()
+    {
+        var store = new RecordingStore();
+        using var viewModel = new WorkspaceActionsViewModel(store);
+
+        var result = await viewModel.ScanReviewAsync(
+            " https://example.test/login ",
+            " Login ",
+            BrowserKind.Edge,
+            headless: false);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result, Is.Not.Null);
+            Assert.That(store.ScanRequest!.Url, Is.EqualTo("https://example.test/login"));
+            Assert.That(store.ScanRequest.Name, Is.EqualTo("Login"));
+            Assert.That(store.ScanRequest.Browser, Is.EqualTo(BrowserKind.Edge));
+            Assert.That(store.ScanRequest.Headless, Is.False);
+            Assert.That(viewModel.StatusMessage, Does.Contain("2 matched"));
+            Assert.That(viewModel.StatusMessage, Does.Contain("1 new"));
+        });
+    }
+
     [NUnit.Framework.TestCase(CliqDocumentKind.Test, "checkout")]
     [NUnit.Framework.TestCase(CliqDocumentKind.Page, "login")]
     public async Task GenerateSelectedAsync_ScopesTheRequest(
@@ -154,6 +178,51 @@ public sealed class WorkspaceActionsViewModelTests
                     Reconciliation = new ScanReconciliationReport(2, 1, 0),
                 });
         }
+
+        public Task<StagedPageScanResult> ScanPageReviewAsync(
+            ScanPageRequest request,
+            CancellationToken cancellationToken)
+        {
+            ScanRequest = request;
+            return Task.FromResult(
+                new StagedPageScanResult(
+                    new PageDefinition(
+                        PageDefinition.CurrentSchemaVersion,
+                        "login",
+                        request.Name,
+                        request.Url,
+                        Array.Empty<PageElement>(),
+                        DateTimeOffset.UtcNow),
+                    new ScanReconciliationReport(2, 1, 0)));
+        }
+
+        public Task<IReadOnlyList<ScanReview>> ListScanReviewsAsync(
+            string? pageId,
+            ScanReviewStatus? status,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<ScanReview> GetScanReviewAsync(
+            string reviewId,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<ScanReview> UpdateScanReviewDecisionsAsync(
+            string reviewId,
+            IReadOnlyList<ScanReviewDecisionRequest> decisions,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<ScanReviewApplyResult> ApplyScanReviewAsync(
+            string reviewId,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<ScanReview> DiscardScanReviewAsync(
+            string reviewId,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
 
         public Task<GenerationResult> GenerateAsync(
             GenerationRequest request,

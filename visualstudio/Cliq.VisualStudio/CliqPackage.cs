@@ -204,12 +204,12 @@ public sealed class CliqPackage : AsyncPackage, ICliqShellCommandTarget
             return;
         }
 
-        ScanPageResponse? response = null;
+        StagedPageScanResult? response = null;
         await RunProgressAsync(
             "Scanning the page with the installed browser...",
             async cancellationToken =>
             {
-                response = await _actions.ScanAsync(
+                response = await _actions.ScanReviewAsync(
                     dialog.PageUrl,
                     dialog.PageName,
                     dialog.Browser,
@@ -222,15 +222,61 @@ public sealed class CliqPackage : AsyncPackage, ICliqShellCommandTarget
             return;
         }
 
-        await Workbench.InitializeAsync(DisposalToken);
-        await OpenWorkbenchAsync();
+        if (response.Review is null)
+        {
+            await Workbench.InitializeAsync(DisposalToken);
+            await OpenWorkbenchAsync();
+            await JoinableTaskFactory.SwitchToMainThreadAsync(DisposalToken);
+            var resultDialog = new ScanResultDialog(new ScanPageResponse
+            {
+                Page = response.ActivePage,
+                Reconciliation = response.Reconciliation,
+                DynamicElementSuggestions = response.DynamicElementSuggestions,
+                ScreenshotPath = response.ScreenshotPath
+            })
+            {
+                Owner = Application.Current?.MainWindow,
+            };
+            resultDialog.ShowDialog();
+        }
+        else if (_session is not null)
+        {
+            await JoinableTaskFactory.SwitchToMainThreadAsync(DisposalToken);
+            var actionStore = new ApiWorkspaceActionStore(_session);
+            var reviewVm = new ScanReviewViewModel(actionStore, response.Review);
+            var reviewDialog = new ScanReviewDialog(reviewVm)
+            {
+                Owner = Application.Current?.MainWindow,
+            };
+            if (reviewDialog.ShowDialog() == true)
+            {
+                await Workbench.InitializeAsync(DisposalToken);
+                await OpenWorkbenchAsync();
+            }
+        }
+    }
+
+    internal async Task OpenScanReviewAsync(ScanReview review)
+    {
+        if (_session is null || Workbench is null)
+        {
+            return;
+        }
+
         await JoinableTaskFactory.SwitchToMainThreadAsync(DisposalToken);
-        var resultDialog = new ScanResultDialog(response)
+        var actionStore = new ApiWorkspaceActionStore(_session);
+        var reviewVm = new ScanReviewViewModel(actionStore, review);
+        var reviewDialog = new ScanReviewDialog(reviewVm)
         {
             Owner = Application.Current?.MainWindow,
         };
-        resultDialog.ShowDialog();
+        if (reviewDialog.ShowDialog() == true)
+        {
+            await Workbench.InitializeAsync(DisposalToken);
+            await OpenWorkbenchAsync();
+        }
     }
+
 
     private async Task LocateElementFromSourceAsync(IdeContextSnapshot context)
     {

@@ -33,7 +33,31 @@ namespace Cliq.VisualStudio.Core.Api
         public ScanReconciliationReport Reconciliation { get; set; } = null!;
         public LocatorDiffReport? LocatorDiff { get; set; }
         public IReadOnlyList<DynamicElementSuggestion>? DynamicElementSuggestions { get; set; }
+        public string? ScreenshotPath { get; set; }
     }
+
+    public sealed class ScanReviewDecisionRequest
+    {
+        public ScanReviewDecisionRequest(string itemId, ScanReviewDecision decision)
+        {
+            ItemId = itemId;
+            Decision = decision;
+        }
+
+        public string ItemId { get; }
+        public ScanReviewDecision Decision { get; }
+    }
+
+    public sealed class UpdateScanReviewDecisionsRequest
+    {
+        public UpdateScanReviewDecisionsRequest(IReadOnlyList<ScanReviewDecisionRequest> decisions)
+        {
+            Decisions = decisions;
+        }
+
+        public IReadOnlyList<ScanReviewDecisionRequest> Decisions { get; }
+    }
+
 
     public sealed class GenerationRequest
     {

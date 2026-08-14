@@ -356,6 +356,223 @@ public sealed class CliqApiClientTests
         });
     }
 
+    [Test]
+    public async Task ScanPageReview_SendsPostToScanReviewsAndParsesResponse()
+    {
+        HttpRequestMessage? captured = null;
+        string? body = null;
+        var handler = new StubHttpHandler(async request =>
+        {
+            captured = request;
+            body = await request.Content!.ReadAsStringAsync();
+            return Json(HttpStatusCode.OK, StagedScanResponseJson);
+        });
+        var client = CreateClient(handler);
+
+        var result = await client.ScanPageReviewAsync(
+            new ScanPageRequest("https://example.com/orders", "Orders", BrowserKind.Chrome, true),
+            CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(captured!.Method, Is.EqualTo(HttpMethod.Post));
+            Assert.That(captured.RequestUri!.AbsolutePath, Is.EqualTo("/api/v1/pages/scan-reviews"));
+            Assert.That(body, Does.Contain("\"url\":\"https://example.com/orders\""));
+            Assert.That(result.ActivePage.Name, Is.EqualTo("Orders"));
+            Assert.That(result.Review, Is.Not.Null);
+            Assert.That(result.Review!.Status, Is.EqualTo(ScanReviewStatus.Pending));
+            Assert.That(result.Review.Items, Has.Count.EqualTo(1));
+            Assert.That(result.Review.Items[0].Kind, Is.EqualTo(ScanReviewChangeKind.New));
+        });
+    }
+
+    [Test]
+    public async Task ListScanReviews_BuildsQueryParameters()
+    {
+        HttpRequestMessage? captured = null;
+        var handler = new StubHttpHandler(request =>
+        {
+            captured = request;
+            return Task.FromResult(Json(HttpStatusCode.OK, "[]"));
+        });
+        var client = CreateClient(handler);
+
+        var reviews = await client.ListScanReviewsAsync("page-123", ScanReviewStatus.Pending, CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(captured!.Method, Is.EqualTo(HttpMethod.Get));
+            Assert.That(captured.RequestUri!.AbsolutePath, Is.EqualTo("/api/v1/scan-reviews"));
+            Assert.That(captured.RequestUri.Query, Does.Contain("pageId=page-123"));
+            Assert.That(captured.RequestUri.Query, Does.Contain("status=pending"));
+            Assert.That(reviews, Is.Empty);
+        });
+    }
+
+    [Test]
+    public async Task GetScanReview_SendsGetToSpecificReview()
+    {
+        HttpRequestMessage? captured = null;
+        var handler = new StubHttpHandler(request =>
+        {
+            captured = request;
+            return Task.FromResult(Json(HttpStatusCode.OK, ScanReviewJson));
+        });
+        var client = CreateClient(handler);
+
+        var review = await client.GetScanReviewAsync("rev-1", CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(captured!.Method, Is.EqualTo(HttpMethod.Get));
+            Assert.That(captured.RequestUri!.AbsolutePath, Is.EqualTo("/api/v1/scan-reviews/rev-1"));
+            Assert.That(review.Id, Is.EqualTo("rev-1"));
+            Assert.That(review.Status, Is.EqualTo(ScanReviewStatus.Pending));
+        });
+    }
+
+    [Test]
+    public async Task UpdateScanReviewDecisions_SendsPutWithDecisions()
+    {
+        HttpRequestMessage? captured = null;
+        string? body = null;
+        var handler = new StubHttpHandler(async request =>
+        {
+            captured = request;
+            body = await request.Content!.ReadAsStringAsync();
+            return Json(HttpStatusCode.OK, ScanReviewJson);
+        });
+        var client = CreateClient(handler);
+
+        var updated = await client.UpdateScanReviewDecisionsAsync(
+            "rev-1",
+            new UpdateScanReviewDecisionsRequest([new ScanReviewDecisionRequest("item-1", ScanReviewDecision.Accept)]),
+            CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(captured!.Method, Is.EqualTo(HttpMethod.Put));
+            Assert.That(captured.RequestUri!.AbsolutePath, Is.EqualTo("/api/v1/scan-reviews/rev-1/decisions"));
+            Assert.That(body, Does.Contain("\"itemId\":\"item-1\""));
+            Assert.That(body, Does.Contain("\"decision\":\"accept\""));
+            Assert.That(updated.Id, Is.EqualTo("rev-1"));
+        });
+    }
+
+    [Test]
+    public async Task ApplyScanReview_SendsPostToApply()
+    {
+        HttpRequestMessage? captured = null;
+        const string applyJson = """
+            {
+              "review": {
+                "schemaVersion": 1,
+                "id": "rev-1",
+                "pageId": "orders",
+                "status": "applied",
+                "createdAt": "2026-01-01T00:00:00Z",
+                "updatedAt": "2026-01-01T00:00:00Z",
+                "completedAt": "2026-01-01T00:00:00Z",
+                "baselinePage": {
+                  "schemaVersion": 1,
+                  "id": "orders",
+                  "name": "Orders",
+                  "url": "https://example.com/orders",
+                  "elements": [],
+                  "updatedAt": "2026-01-01T00:00:00Z"
+                },
+                "proposedPage": {
+                  "schemaVersion": 1,
+                  "id": "orders",
+                  "name": "Orders",
+                  "url": "https://example.com/orders",
+                  "elements": [],
+                  "updatedAt": "2026-01-01T00:00:00Z"
+                },
+                "items": []
+              },
+              "page": {
+                "schemaVersion": 1,
+                "id": "orders",
+                "name": "Orders",
+                "url": "https://example.com/orders",
+                "elements": [],
+                "updatedAt": "2026-01-01T00:00:00Z"
+              }
+            }
+            """;
+
+        var handler = new StubHttpHandler(request =>
+        {
+            captured = request;
+            return Task.FromResult(Json(HttpStatusCode.OK, applyJson));
+        });
+        var client = CreateClient(handler);
+
+        var result = await client.ApplyScanReviewAsync("rev-1", CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(captured!.Method, Is.EqualTo(HttpMethod.Post));
+            Assert.That(captured.RequestUri!.AbsolutePath, Is.EqualTo("/api/v1/scan-reviews/rev-1/apply"));
+            Assert.That(result.Review.Status, Is.EqualTo(ScanReviewStatus.Applied));
+            Assert.That(result.Page.Name, Is.EqualTo("Orders"));
+        });
+    }
+
+    [Test]
+    public async Task DiscardScanReview_SendsPostToDiscard()
+    {
+        HttpRequestMessage? captured = null;
+        var handler = new StubHttpHandler(request =>
+        {
+            captured = request;
+            return Task.FromResult(Json(HttpStatusCode.OK, ScanReviewJson));
+        });
+        var client = CreateClient(handler);
+
+        var discarded = await client.DiscardScanReviewAsync("rev-1", CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(captured!.Method, Is.EqualTo(HttpMethod.Post));
+            Assert.That(captured.RequestUri!.AbsolutePath, Is.EqualTo("/api/v1/scan-reviews/rev-1/discard"));
+            Assert.That(discarded.Id, Is.EqualTo("rev-1"));
+        });
+    }
+
+    [Test]
+    public void ScanReviewConflict_MapsScanReviewConflictApiExceptionWithReferences()
+    {
+        const string problem = """
+            {
+              "type":"https://example/errors/scan-review",
+              "title":"Scan review conflict",
+              "status":409,
+              "detail":"One or more accepted element removals are referenced by saved tests.",
+              "code":"scan_review_removal_referenced",
+              "references":[
+                {"testId":"test-1","stepId":"step-2"}
+              ]
+            }
+            """;
+        var client = CreateClient(new StubHttpHandler(
+            _ => Task.FromResult(Json(HttpStatusCode.Conflict, problem))));
+
+        var exception = Assert.ThrowsAsync<ScanReviewConflictApiException>(
+            async () => await client.ApplyScanReviewAsync("rev-1", CancellationToken.None));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(exception!.StatusCode, Is.EqualTo(HttpStatusCode.Conflict));
+            Assert.That(exception.Code, Is.EqualTo("scan_review_removal_referenced"));
+            Assert.That(exception.References, Has.Count.EqualTo(1));
+            Assert.That(exception.References[0].TestId, Is.EqualTo("test-1"));
+            Assert.That(exception.References[0].StepId, Is.EqualTo("step-2"));
+        });
+    }
+
+
     private static CliqApiClient CreateClient(HttpMessageHandler handler, string token = "token") =>
         new(new HttpClient(handler), new Uri("http://127.0.0.1:43123/"), token);
 
@@ -410,6 +627,102 @@ public sealed class CliqApiClientTests
           ]
         }
         """;
+
+    private const string StagedScanResponseJson = """
+        {
+          "activePage":{
+            "schemaVersion":1,
+            "id":"orders",
+            "name":"Orders",
+            "url":"https://example.com/orders",
+            "elements":[],
+            "updatedAt":"2026-01-01T00:00:00Z"
+          },
+          "reconciliation":{"matchedCount":1,"newCount":1,"missingCount":0},
+          "review":{
+            "schemaVersion":1,
+            "id":"rev-1",
+            "pageId":"orders",
+            "status":"pending",
+            "createdAt":"2026-01-01T00:00:00Z",
+            "updatedAt":"2026-01-01T00:00:00Z",
+            "completedAt":null,
+            "baselinePage":{
+              "schemaVersion":1,
+              "id":"orders",
+              "name":"Orders",
+              "url":"https://example.com/orders",
+              "elements":[],
+              "updatedAt":"2026-01-01T00:00:00Z"
+            },
+            "proposedPage":{
+              "schemaVersion":1,
+              "id":"orders",
+              "name":"Orders",
+              "url":"https://example.com/orders",
+              "elements":[],
+              "updatedAt":"2026-01-01T00:00:00Z"
+            },
+            "items":[
+              {
+                "id":"item-1",
+                "kind":"new",
+                "element":{
+                  "id":"e1",
+                  "name":"Submit",
+                  "tag":"button",
+                  "action":"click",
+                  "locator":{"strategy":"css","value":"#submit"}
+                },
+                "decision":"wait"
+              }
+            ]
+          }
+        }
+        """;
+
+    private const string ScanReviewJson = """
+        {
+          "schemaVersion":1,
+          "id":"rev-1",
+          "pageId":"orders",
+          "status":"pending",
+          "createdAt":"2026-01-01T00:00:00Z",
+          "updatedAt":"2026-01-01T00:00:00Z",
+          "completedAt":null,
+          "baselinePage":{
+            "schemaVersion":1,
+            "id":"orders",
+            "name":"Orders",
+            "url":"https://example.com/orders",
+            "elements":[],
+            "updatedAt":"2026-01-01T00:00:00Z"
+          },
+          "proposedPage":{
+            "schemaVersion":1,
+            "id":"orders",
+            "name":"Orders",
+            "url":"https://example.com/orders",
+            "elements":[],
+            "updatedAt":"2026-01-01T00:00:00Z"
+          },
+          "items":[
+            {
+              "id":"item-1",
+              "kind":"new",
+              "element":{
+                "id":"e1",
+                "name":"Submit",
+                "tag":"button",
+                "action":"click",
+                "locator":{"strategy":"css","value":"#submit"}
+              },
+              "decision":"wait"
+            }
+          ]
+        }
+        """;
+
 
     private const string WorkspaceJson = """
         {
