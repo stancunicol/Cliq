@@ -61,27 +61,4 @@ public sealed class WorkspaceContextTests
         Assert.That(first, Is.EqualTo(second));
         Assert.That(first, Has.Length.EqualTo(64));
     }
-
-    [TestCase(WorkspaceTransitionDecision.Save, true, 1, 0)]
-    [TestCase(WorkspaceTransitionDecision.Discard, true, 0, 1)]
-    [TestCase(WorkspaceTransitionDecision.Cancel, false, 0, 0)]
-    public void DirtyTransitionHonorsDecision(
-        WorkspaceTransitionDecision decision,
-        bool expected,
-        int saves,
-        int discards)
-    {
-        var guard = new WorkspaceTransitionGuard { IsDirty = true };
-        var actualSaves = 0;
-        var actualDiscards = 0;
-
-        var result = guard.CanTransition(
-            () => decision,
-            () => actualSaves++,
-            () => actualDiscards++);
-
-        Assert.That(result, Is.EqualTo(expected));
-        Assert.That(actualSaves, Is.EqualTo(saves));
-        Assert.That(actualDiscards, Is.EqualTo(discards));
-    }
 }

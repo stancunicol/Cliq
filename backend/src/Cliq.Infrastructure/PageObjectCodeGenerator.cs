@@ -199,25 +199,42 @@ public static class PageObjectCodeGenerator
         var name = IdentifierNaming.ToPascalCase(element.SuggestedName);
         var locatorRef = $"{name}Locator";
         var dataType = WrapperDataType(element.Kind, element.DataType);
-        var (upload, read) = WrapperBody(element.Kind, element.DataType, locatorRef);
+        var body = WrapperBody(element.Kind, element.DataType, locatorRef);
 
-        sb.AppendLine($"        {name} = new {ElementWrapperClassName}<{dataType}>(");
-        sb.AppendLine("            value =>");
-        sb.AppendLine("            {");
-        foreach (var line in upload)
+        AppendWrapperConstruction(sb, "        ", $"{name} = ", dataType, body);
+    }
+
+    /// <summary>
+    /// Emits the <c>new ElementWrapper&lt;T&gt;(value => {...}, () => {...});</c> block shared by
+    /// a static element's field initializer (<see cref="AppendWrappedInit"/>, which assigns it to
+    /// <paramref name="prefix"/>) and a dynamic element's factory method (the wrapped branch of
+    /// <see cref="AppendDynamicFactory"/>, which returns it instead - <paramref name="prefix"/>
+    /// empty there since the preceding <c>=&gt;</c> line already supplies the "return").
+    /// </summary>
+    private static void AppendWrapperConstruction(
+        StringBuilder sb,
+        string indent,
+        string prefix,
+        string dataType,
+        (string[] Upload, string[] Read) body)
+    {
+        sb.AppendLine($"{indent}{prefix}new {ElementWrapperClassName}<{dataType}>(");
+        sb.AppendLine($"{indent}    value =>");
+        sb.AppendLine($"{indent}    {{");
+        foreach (var line in body.Upload)
         {
-            sb.AppendLine($"                {line}");
+            sb.AppendLine($"{indent}        {line}");
         }
 
-        sb.AppendLine("            },");
-        sb.AppendLine("            () =>");
-        sb.AppendLine("            {");
-        foreach (var line in read)
+        sb.AppendLine($"{indent}    }},");
+        sb.AppendLine($"{indent}    () =>");
+        sb.AppendLine($"{indent}    {{");
+        foreach (var line in body.Read)
         {
-            sb.AppendLine($"                {line}");
+            sb.AppendLine($"{indent}        {line}");
         }
 
-        sb.AppendLine("            });");
+        sb.AppendLine($"{indent}    }});");
     }
 
     /// <summary>Upload/read body lines (without leading indentation - the caller supplies it) for
@@ -337,26 +354,10 @@ public static class PageObjectCodeGenerator
         if (IsWrapped(element.Kind))
         {
             var dataType = WrapperDataType(element.Kind, element.DataType);
-            var (upload, read) = WrapperBody(element.Kind, element.DataType, locatorExpr);
+            var body = WrapperBody(element.Kind, element.DataType, locatorExpr);
 
             sb.AppendLine($"    public {ElementWrapperClassName}<{dataType}> {name}({paramType} param) =>");
-            sb.AppendLine($"        new {ElementWrapperClassName}<{dataType}>(");
-            sb.AppendLine("            value =>");
-            sb.AppendLine("            {");
-            foreach (var line in upload)
-            {
-                sb.AppendLine($"                {line}");
-            }
-
-            sb.AppendLine("            },");
-            sb.AppendLine("            () =>");
-            sb.AppendLine("            {");
-            foreach (var line in read)
-            {
-                sb.AppendLine($"                {line}");
-            }
-
-            sb.AppendLine("            });");
+            AppendWrapperConstruction(sb, "        ", string.Empty, dataType, body);
             return;
         }
 
@@ -456,39 +457,48 @@ public static class PageObjectCodeGenerator
         sb.Append('"');
         foreach (var c in value)
         {
-            switch (c)
-            {
-                case '\\':
-                    sb.Append("\\\\");
-                    break;
-                case '"':
-                    sb.Append("\\\"");
-                    break;
-                case '\r':
-                    sb.Append("\\r");
-                    break;
-                case '\n':
-                    sb.Append("\\n");
-                    break;
-                case '\t':
-                    sb.Append("\\t");
-                    break;
-                default:
-                    if (char.IsControl(c))
-                    {
-                        sb.Append("\\u").Append(((int)c).ToString("x4"));
-                    }
-                    else
-                    {
-                        sb.Append(c);
-                    }
-
-                    break;
-            }
+            AppendEscapedChar(sb, c);
         }
 
         sb.Append('"');
         return sb.ToString();
+    }
+
+    // Escapes everything a normal (non-verbatim) C# string literal can't contain literally.
+    // Shared by ToCSharpStringLiteral and ToInterpolatedCSharpStringLiteral - the latter handles
+    // '{'/'}' itself first (an interpolation concern this method knows nothing about) and routes
+    // every other character through here.
+    private static void AppendEscapedChar(StringBuilder sb, char c)
+    {
+        switch (c)
+        {
+            case '\\':
+                sb.Append("\\\\");
+                break;
+            case '"':
+                sb.Append("\\\"");
+                break;
+            case '\r':
+                sb.Append("\\r");
+                break;
+            case '\n':
+                sb.Append("\\n");
+                break;
+            case '\t':
+                sb.Append("\\t");
+                break;
+            default:
+                if (char.IsControl(c))
+                {
+                    sb.Append("\\u").Append(((int)c).ToString("x4"));
+                }
+                else
+                {
+                    sb.Append(c);
+                }
+
+                break;
+        }
     }
 
     /// <summary>
@@ -516,40 +526,17 @@ public static class PageObjectCodeGenerator
             }
 
             var c = template[i];
-            switch (c)
+            if (c == '{')
             {
-                case '{':
-                    sb.Append("{{");
-                    break;
-                case '}':
-                    sb.Append("}}");
-                    break;
-                case '\\':
-                    sb.Append("\\\\");
-                    break;
-                case '"':
-                    sb.Append("\\\"");
-                    break;
-                case '\r':
-                    sb.Append("\\r");
-                    break;
-                case '\n':
-                    sb.Append("\\n");
-                    break;
-                case '\t':
-                    sb.Append("\\t");
-                    break;
-                default:
-                    if (char.IsControl(c))
-                    {
-                        sb.Append("\\u").Append(((int)c).ToString("x4"));
-                    }
-                    else
-                    {
-                        sb.Append(c);
-                    }
-
-                    break;
+                sb.Append("{{");
+            }
+            else if (c == '}')
+            {
+                sb.Append("}}");
+            }
+            else
+            {
+                AppendEscapedChar(sb, c);
             }
 
             i++;

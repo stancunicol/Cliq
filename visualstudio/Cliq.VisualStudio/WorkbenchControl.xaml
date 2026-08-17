@@ -1,4 +1,4 @@
-<UserControl x:Class="Cliq.VisualStudio.WorkbenchControl"
+<local:CliqThemedUserControl x:Class="Cliq.VisualStudio.WorkbenchControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:domain="clr-namespace:Cliq.Domain;assembly=Cliq.Domain"
@@ -7,7 +7,7 @@
              MinHeight="280"
              KeyboardNavigation.TabNavigation="Continue"
              AutomationProperties.Name="Cliq Workbench">
-    <UserControl.Resources>
+    <local:CliqThemedUserControl.Resources>
         <local:BooleanToVisibilityConverter x:Key="BoolToVisibility" />
         <local:BooleanToVisibilityConverter x:Key="InverseBoolToVisibility" Invert="True" />
         <local:NullToVisibilityConverter x:Key="NullToVisibility" />
@@ -158,7 +158,7 @@
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Margin" Value="0,0,0,10" />
         </Style>
-    </UserControl.Resources>
+    </local:CliqThemedUserControl.Resources>
 
     <Grid Background="{DynamicResource Cliq.Background}">
         <Grid.RowDefinitions>
@@ -881,4 +881,4 @@
             </StackPanel>
         </Border>
     </Grid>
-</UserControl>
+</local:CliqThemedUserControl>

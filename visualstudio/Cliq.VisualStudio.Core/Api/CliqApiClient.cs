@@ -40,9 +40,6 @@ namespace Cliq.VisualStudio.Core.Api
         public Task<WorkspaceSnapshot> GetWorkspaceAsync(CancellationToken cancellationToken) =>
             SendJsonAsync<WorkspaceSnapshot>(HttpMethod.Get, "api/v1/workspace", null, cancellationToken);
 
-        public Task<ProjectManifest> GetProjectAsync(CancellationToken cancellationToken) =>
-            SendJsonAsync<ProjectManifest>(HttpMethod.Get, "api/v1/project", null, cancellationToken);
-
         public Task<ProjectManifest> SaveProjectAsync(ProjectManifest project, CancellationToken cancellationToken) =>
             SendJsonAsync<ProjectManifest>(HttpMethod.Put, "api/v1/project", project, cancellationToken);
 
@@ -51,9 +48,6 @@ namespace Cliq.VisualStudio.Core.Api
 
         public Task<CliqSettings> SaveSettingsAsync(CliqSettings settings, CancellationToken cancellationToken) =>
             SendJsonAsync<CliqSettings>(HttpMethod.Put, "api/v1/settings", settings, cancellationToken);
-
-        public Task<IReadOnlyList<PageDefinition>> ListPagesAsync(CancellationToken cancellationToken) =>
-            SendJsonAsync<IReadOnlyList<PageDefinition>>(HttpMethod.Get, "api/v1/pages", null, cancellationToken);
 
         public Task<PageDefinition> GetPageAsync(string id, CancellationToken cancellationToken) =>
             SendJsonAsync<PageDefinition>(HttpMethod.Get, $"api/v1/pages/{Escape(id)}", null, cancellationToken);
@@ -64,9 +58,6 @@ namespace Cliq.VisualStudio.Core.Api
                 $"api/v1/pages/{Escape(page.Id)}",
                 page,
                 cancellationToken);
-
-        public Task DeletePageAsync(string id, CancellationToken cancellationToken) =>
-            SendNoContentAsync(HttpMethod.Delete, $"api/v1/pages/{Escape(id)}", null, cancellationToken);
 
         public Task<GeneratedPathResponse> GetGeneratedPageObjectPathAsync(string pageId, CancellationToken cancellationToken) =>
             SendJsonAsync<GeneratedPathResponse>(
@@ -146,9 +137,6 @@ namespace Cliq.VisualStudio.Core.Api
                 request,
                 cancellationToken);
 
-        public Task<IReadOnlyList<TestCase>> ListTestsAsync(CancellationToken cancellationToken) =>
-            SendJsonAsync<IReadOnlyList<TestCase>>(HttpMethod.Get, "api/v1/tests", null, cancellationToken);
-
         public Task<TestCase> GetTestAsync(string id, CancellationToken cancellationToken) =>
             SendJsonAsync<TestCase>(HttpMethod.Get, $"api/v1/tests/{Escape(id)}", null, cancellationToken);
 
@@ -211,13 +199,6 @@ namespace Cliq.VisualStudio.Core.Api
 
         public Task<TestRun> GetRunAsync(string runId, CancellationToken cancellationToken) =>
             SendJsonAsync<TestRun>(HttpMethod.Get, $"api/v1/runs/{Escape(runId)}", null, cancellationToken);
-
-        public Task<TestRun> SaveRunAsync(TestRun run, CancellationToken cancellationToken) =>
-            SendJsonAsync<TestRun>(
-                HttpMethod.Put,
-                $"api/v1/runs/{Escape(run.Id)}",
-                run,
-                cancellationToken);
 
         public Task CancelRunAsync(string runId, CancellationToken cancellationToken) =>
             SendNoContentAsync(

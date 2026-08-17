@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Cliq.Domain;
 
 namespace Cliq.UnitTests;
@@ -7,10 +6,7 @@ namespace Cliq.UnitTests;
 [TestFixture]
 public sealed class DomainSerializationTests
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
-    {
-        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
-    };
+    private static readonly JsonSerializerOptions JsonOptions = TestJson.Options;
 
     [Test]
     public void ProjectManifest_PreservesWorkspaceWireShape()

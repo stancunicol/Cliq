@@ -17,6 +17,7 @@ public sealed partial class ScanReviewService(
     };
 
     private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly AtomicFileWriter _atomicWriter = new();
 
     public async Task<StagedPageScanResult> ScanAsync(
         string url,
@@ -338,7 +339,11 @@ public sealed partial class ScanReviewService(
         }
     }
 
-    public void Dispose() => _gate.Dispose();
+    public void Dispose()
+    {
+        _gate.Dispose();
+        _atomicWriter.Dispose();
+    }
 
     private async Task SupersedePendingAsync(string pageId, CancellationToken cancellationToken)
     {
@@ -419,27 +424,7 @@ public sealed partial class ScanReviewService(
         Directory.CreateDirectory(directory);
         var path = Path.Combine(directory, $"{review.Id}.json");
         ValidatePersistedReview(review, path);
-        var temporary = $"{path}.{Guid.NewGuid():N}.tmp";
-        try
-        {
-            await using (var stream = new FileStream(
-                             temporary,
-                             FileMode.CreateNew,
-                             FileAccess.Write,
-                             FileShare.None,
-                             4_096,
-                             FileOptions.Asynchronous))
-            {
-                await JsonSerializer.SerializeAsync(stream, review, JsonOptions, cancellationToken);
-                await stream.FlushAsync(cancellationToken);
-            }
-
-            File.Move(temporary, path, true);
-        }
-        finally
-        {
-            File.Delete(temporary);
-        }
+        await _atomicWriter.WriteJsonAsync(path, review, JsonOptions, cancellationToken);
     }
 
     private string ReviewDirectory()

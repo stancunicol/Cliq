@@ -182,37 +182,3 @@ public static class WorkspacePathResolver
         }
     }
 }
-
-public enum WorkspaceTransitionDecision
-{
-    Save,
-    Discard,
-    Cancel
-}
-
-public sealed class WorkspaceTransitionGuard
-{
-    public bool IsDirty { get; set; }
-
-    public bool CanTransition(Func<WorkspaceTransitionDecision> prompt, Action save, Action discard)
-    {
-        if (!IsDirty)
-        {
-            return true;
-        }
-
-        switch (prompt())
-        {
-            case WorkspaceTransitionDecision.Save:
-                save();
-                IsDirty = false;
-                return true;
-            case WorkspaceTransitionDecision.Discard:
-                discard();
-                IsDirty = false;
-                return true;
-            default:
-                return false;
-        }
-    }
-}

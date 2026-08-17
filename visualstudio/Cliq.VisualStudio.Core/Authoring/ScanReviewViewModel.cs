@@ -336,52 +336,55 @@ namespace Cliq.VisualStudio.Core.Authoring
             Func<CancellationToken, Task<bool>> operation,
             CancellationToken cancellationToken)
         {
-            IsBusy = true;
-            ErrorMessage = null;
-            StatusMessage = status;
-            try
+            // Without this guard, a second click while IsBusy is already true (the UI doesn't
+            // reliably disable every trigger fast enough) would run two operations concurrently
+            // against the same scan review state.
+            if (IsBusy)
             {
-                return await operation(cancellationToken).ConfigureAwait(false);
+                ErrorMessage = "Another Cliq action is already running.";
+                return false;
             }
-            catch (ScanReviewConflictApiException conflict)
-            {
-                if (conflict.References.Count > 0)
-                {
-                    ConflictReferences = conflict.References;
-                    var referenceDetails = string.Join(
-                        Environment.NewLine,
-                        conflict.References.Select(r => $"• Test '{r.TestId}', Step '{r.StepId}'"));
-                    ConflictMessage =
-                        "Cannot remove element(s): One or more accepted element removals are referenced by saved tests." +
-                        Environment.NewLine + Environment.NewLine +
-                        "Referenced by:" + Environment.NewLine +
-                        referenceDetails;
-                }
-                else if (string.Equals(conflict.Code, "scan_review_stale", StringComparison.Ordinal))
-                {
-                    ErrorMessage = "The page was modified since this scan review was created. Please re-scan the page.";
-                }
-                else
-                {
-                    ErrorMessage = conflict.Message;
-                }
 
-                return false;
-            }
-            catch (OperationCanceledException)
-            {
-                StatusMessage = "Operation cancelled.";
-                return false;
-            }
-            catch (Exception exception)
-            {
-                ErrorMessage = exception.Message;
-                return false;
-            }
-            finally
-            {
-                IsBusy = false;
-            }
+            return await AsyncOperation.RunAsync<bool>(
+                busy => IsBusy = busy,
+                s => StatusMessage = s,
+                e => ErrorMessage = e,
+                status,
+                async () =>
+                {
+                    // Caught here, inside the operation itself, rather than left to
+                    // AsyncOperation's own generic catch (Exception) - a conflict needs its
+                    // References/ConflictMessage broken out, not just reported as ErrorMessage.
+                    try
+                    {
+                        return await operation(cancellationToken).ConfigureAwait(false);
+                    }
+                    catch (ScanReviewConflictApiException conflict)
+                    {
+                        if (conflict.References.Count > 0)
+                        {
+                            ConflictReferences = conflict.References;
+                            var referenceDetails = string.Join(
+                                Environment.NewLine,
+                                conflict.References.Select(r => $"• Test '{r.TestId}', Step '{r.StepId}'"));
+                            ConflictMessage =
+                                "Cannot remove element(s): One or more accepted element removals are referenced by saved tests." +
+                                Environment.NewLine + Environment.NewLine +
+                                "Referenced by:" + Environment.NewLine +
+                                referenceDetails;
+                        }
+                        else if (string.Equals(conflict.Code, "scan_review_stale", StringComparison.Ordinal))
+                        {
+                            ErrorMessage = "The page was modified since this scan review was created. Please re-scan the page.";
+                        }
+                        else
+                        {
+                            ErrorMessage = conflict.Message;
+                        }
+
+                        return false;
+                    }
+                });
         }
     }
 }

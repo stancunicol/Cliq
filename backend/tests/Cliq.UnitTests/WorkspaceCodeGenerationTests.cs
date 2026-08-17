@@ -6,23 +6,18 @@ namespace Cliq.UnitTests;
 [TestFixture]
 public sealed class WorkspaceCodeGenerationTests
 {
+    private TempWorkspaceDirectory _workspace = null!;
     private string _root = null!;
 
     [SetUp]
     public void SetUp()
     {
-        _root = Path.Combine(Path.GetTempPath(), "cliq-generation-tests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(_root);
+        _workspace = new TempWorkspaceDirectory();
+        _root = _workspace.RootPath;
     }
 
     [TearDown]
-    public void TearDown()
-    {
-        if (Directory.Exists(_root))
-        {
-            Directory.Delete(_root, recursive: true);
-        }
-    }
+    public void TearDown() => _workspace.Dispose();
 
     [Test]
     public async Task GenerateAsync_CreatesPageObjectWorkflowAndAttributeFile()
@@ -241,22 +236,7 @@ public sealed class WorkspaceCodeGenerationTests
         // entry fires in this case though (that's reserved for genuine recovery failures, aimed at
         // the Electron frontend) - a perfectly clean method needing a decision isn't a "problem".
         using var repository = new WorkspaceRepository();
-        var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
-        var page = new PageDefinition(
-            PageDefinition.CurrentSchemaVersion,
-            "login",
-            "Login",
-            "https://example.com/login",
-            [
-                new PageElement(
-                    "username",
-                    "username",
-                    "input",
-                    StepAction.Fill,
-                    new Locator(LocatorStrategy.TestId, "username")),
-            ],
-            DateTimeOffset.UtcNow);
-        var generator = new WorkspaceCodeGeneration(repository);
+        var (snapshot, generator, page) = await OpenLoginPageAsync(repository);
 
         var first = await generator.GenerateAsync(snapshot.Project, [page], [], _root, CancellationToken.None);
         var pageObjectPath = first.Artifacts.Single(item => item.Kind == "pageObject").Path;
@@ -270,8 +250,7 @@ public sealed class WorkspaceCodeGenerationTests
 
             """;
         // Insert just before the class's own closing brace (the last one in the file).
-        var classCloseIndex = generated.LastIndexOf('}');
-        var withHandWrittenMethod = generated[..classCloseIndex] + handWrittenMethod + generated[classCloseIndex..];
+        var withHandWrittenMethod = InsertBeforeClassClose(generated, handWrittenMethod);
         await File.WriteAllTextAsync(pageObjectPath, withHandWrittenMethod);
 
         var detection = await generator.GenerateAsync(snapshot.Project, [page], [], _root, CancellationToken.None);
@@ -309,22 +288,7 @@ public sealed class WorkspaceCodeGenerationTests
     public async Task GenerateAsync_MarkerCountExceedsRecoveredMethods_LeavesFileUntouchedAndReturnsWarning()
     {
         using var repository = new WorkspaceRepository();
-        var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
-        var page = new PageDefinition(
-            PageDefinition.CurrentSchemaVersion,
-            "login",
-            "Login",
-            "https://example.com/login",
-            [
-                new PageElement(
-                    "username",
-                    "username",
-                    "input",
-                    StepAction.Fill,
-                    new Locator(LocatorStrategy.TestId, "username")),
-            ],
-            DateTimeOffset.UtcNow);
-        var generator = new WorkspaceCodeGeneration(repository);
+        var (snapshot, generator, page) = await OpenLoginPageAsync(repository);
 
         var first = await generator.GenerateAsync(snapshot.Project, [page], [], _root, CancellationToken.None);
         var pageObjectPath = first.Artifacts.Single(item => item.Kind == "pageObject").Path;
@@ -368,22 +332,7 @@ public sealed class WorkspaceCodeGenerationTests
         // "borrowed" to close it. Silently re-emitting that instead of flagging a mismatch would
         // make the corruption invisible instead of raising a warning + merge conflict.
         using var repository = new WorkspaceRepository();
-        var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
-        var page = new PageDefinition(
-            PageDefinition.CurrentSchemaVersion,
-            "login",
-            "Login",
-            "https://example.com/login",
-            [
-                new PageElement(
-                    "username",
-                    "username",
-                    "input",
-                    StepAction.Fill,
-                    new Locator(LocatorStrategy.TestId, "username")),
-            ],
-            DateTimeOffset.UtcNow);
-        var generator = new WorkspaceCodeGeneration(repository);
+        var (snapshot, generator, page) = await OpenLoginPageAsync(repository);
 
         var first = await generator.GenerateAsync(snapshot.Project, [page], [], _root, CancellationToken.None);
         var pageObjectPath = first.Artifacts.Single(item => item.Kind == "pageObject").Path;
@@ -398,8 +347,7 @@ public sealed class WorkspaceCodeGenerationTests
             """;
         // Insert right before the class's own closing brace, WITHOUT stripping that brace - it's
         // what the malformed method's depth-walk ends up (wrongly) matching against.
-        var classCloseIndex = generated.LastIndexOf('}');
-        var corrupted = generated[..classCloseIndex] + methodMissingItsOwnClosingBrace + generated[classCloseIndex..];
+        var corrupted = InsertBeforeClassClose(generated, methodMissingItsOwnClosingBrace);
         await File.WriteAllTextAsync(pageObjectPath, corrupted);
 
         var second = await generator.GenerateAsync(snapshot.Project, [page], [], _root, CancellationToken.None);
@@ -427,22 +375,7 @@ public sealed class WorkspaceCodeGenerationTests
     public async Task GenerateAsync_MalformedCustomMethod_ReturnsPendingMergeWithSyntaxErrorFlagged()
     {
         using var repository = new WorkspaceRepository();
-        var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
-        var page = new PageDefinition(
-            PageDefinition.CurrentSchemaVersion,
-            "login",
-            "Login",
-            "https://example.com/login",
-            [
-                new PageElement(
-                    "username",
-                    "username",
-                    "input",
-                    StepAction.Fill,
-                    new Locator(LocatorStrategy.TestId, "username")),
-            ],
-            DateTimeOffset.UtcNow);
-        var generator = new WorkspaceCodeGeneration(repository);
+        var (snapshot, generator, page) = await OpenLoginPageAsync(repository);
 
         var first = await generator.GenerateAsync(snapshot.Project, [page], [], _root, CancellationToken.None);
         var pageObjectPath = first.Artifacts.Single(item => item.Kind == "pageObject").Path;
@@ -457,8 +390,7 @@ public sealed class WorkspaceCodeGenerationTests
                 {
                     DoSomething();
             """;
-        var classCloseIndex = generated.LastIndexOf('}');
-        var withMalformedMethod = generated[..classCloseIndex] + malformedMethod;
+        var withMalformedMethod = InsertBeforeClassCloseWithoutClosingBrace(generated, malformedMethod);
         await File.WriteAllTextAsync(pageObjectPath, withMalformedMethod);
 
         var second = await generator.GenerateAsync(snapshot.Project, [page], [], _root, CancellationToken.None);
@@ -480,22 +412,7 @@ public sealed class WorkspaceCodeGenerationTests
     public async Task GenerateAsync_RenamedPage_DeletesStaleFileWhenItHasNoCustomMethods()
     {
         using var repository = new WorkspaceRepository();
-        var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
-        var page = new PageDefinition(
-            PageDefinition.CurrentSchemaVersion,
-            "login",
-            "Login",
-            "https://example.com/login",
-            [
-                new PageElement(
-                    "username",
-                    "username",
-                    "input",
-                    StepAction.Fill,
-                    new Locator(LocatorStrategy.TestId, "username")),
-            ],
-            DateTimeOffset.UtcNow);
-        var generator = new WorkspaceCodeGeneration(repository);
+        var (snapshot, generator, page) = await OpenLoginPageAsync(repository);
 
         var first = await generator.GenerateAsync(snapshot.Project, [page], [], _root, CancellationToken.None);
         var oldPath = first.Artifacts.Single(item => item.Kind == "pageObject").Path;
@@ -516,22 +433,7 @@ public sealed class WorkspaceCodeGenerationTests
     public async Task GenerateAsync_RenamedPage_KeepsStaleFileAndWarnsWhenItHasCustomMethods()
     {
         using var repository = new WorkspaceRepository();
-        var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
-        var page = new PageDefinition(
-            PageDefinition.CurrentSchemaVersion,
-            "login",
-            "Login",
-            "https://example.com/login",
-            [
-                new PageElement(
-                    "username",
-                    "username",
-                    "input",
-                    StepAction.Fill,
-                    new Locator(LocatorStrategy.TestId, "username")),
-            ],
-            DateTimeOffset.UtcNow);
-        var generator = new WorkspaceCodeGeneration(repository);
+        var (snapshot, generator, page) = await OpenLoginPageAsync(repository);
 
         var first = await generator.GenerateAsync(snapshot.Project, [page], [], _root, CancellationToken.None);
         var oldPath = first.Artifacts.Single(item => item.Kind == "pageObject").Path;
@@ -544,8 +446,7 @@ public sealed class WorkspaceCodeGenerationTests
                 }
 
             """;
-        var classCloseIndex = generated.LastIndexOf('}');
-        var withHandWrittenMethod = generated[..classCloseIndex] + handWrittenMethod + generated[classCloseIndex..];
+        var withHandWrittenMethod = InsertBeforeClassClose(generated, handWrittenMethod);
         await File.WriteAllTextAsync(oldPath, withHandWrittenMethod);
 
         var renamed = page with { Name = "Sign In" };
@@ -580,22 +481,7 @@ public sealed class WorkspaceCodeGenerationTests
     public async Task GenerateAsync_ResolvingRenameConflict_CarriesOverChosenMethodAndDefersTheRest()
     {
         using var repository = new WorkspaceRepository();
-        var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
-        var page = new PageDefinition(
-            PageDefinition.CurrentSchemaVersion,
-            "login",
-            "Login",
-            "https://example.com/login",
-            [
-                new PageElement(
-                    "username",
-                    "username",
-                    "input",
-                    StepAction.Fill,
-                    new Locator(LocatorStrategy.TestId, "username")),
-            ],
-            DateTimeOffset.UtcNow);
-        var generator = new WorkspaceCodeGeneration(repository);
+        var (snapshot, generator, page) = await OpenLoginPageAsync(repository);
 
         var first = await generator.GenerateAsync(snapshot.Project, [page], [], _root, CancellationToken.None);
         var oldPath = first.Artifacts.Single(item => item.Kind == "pageObject").Path;
@@ -616,9 +502,7 @@ public sealed class WorkspaceCodeGenerationTests
                     DoSomethingElse();
                 }
             """;
-        var classCloseIndex = generated.LastIndexOf('}');
-        await File.WriteAllTextAsync(
-            oldPath, generated[..classCloseIndex] + keptMethod + deferredMethod + generated[classCloseIndex..]);
+        await File.WriteAllTextAsync(oldPath, InsertBeforeClassClose(generated, keptMethod + deferredMethod));
 
         var renamed = page with { Name = "Sign In" };
         var conflict = await generator.GenerateAsync(snapshot.Project, [renamed], [], _root, CancellationToken.None);
@@ -807,22 +691,7 @@ public sealed class WorkspaceCodeGenerationTests
         // method slide through without an explicit decision. It gets deferred instead, same as any
         // other undecided candidate.
         using var repository = new WorkspaceRepository();
-        var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
-        var page = new PageDefinition(
-            PageDefinition.CurrentSchemaVersion,
-            "login",
-            "Login",
-            "https://example.com/login",
-            [
-                new PageElement(
-                    "username",
-                    "username",
-                    "input",
-                    StepAction.Fill,
-                    new Locator(LocatorStrategy.TestId, "username")),
-            ],
-            DateTimeOffset.UtcNow);
-        var generator = new WorkspaceCodeGeneration(repository);
+        var (snapshot, generator, page) = await OpenLoginPageAsync(repository);
 
         var first = await generator.GenerateAsync(snapshot.Project, [page], [], _root, CancellationToken.None);
         var pageObjectPath = first.Artifacts.Single(item => item.Kind == "pageObject").Path;
@@ -836,9 +705,7 @@ public sealed class WorkspaceCodeGenerationTests
                 }
 
             """;
-        var classCloseIndex = generated.LastIndexOf('}');
-        await File.WriteAllTextAsync(
-            pageObjectPath, generated[..classCloseIndex] + existingMethod + generated[classCloseIndex..]);
+        await File.WriteAllTextAsync(pageObjectPath, InsertBeforeClassClose(generated, existingMethod));
 
         const string includedMethod = """
             [CliqCustomMethod]
@@ -878,22 +745,7 @@ public sealed class WorkspaceCodeGenerationTests
         // VS extension's own in-memory WaitingList collection dropped it client-side - so it would
         // silently resurface on the next RefreshWaitingListAsync call.
         using var repository = new WorkspaceRepository();
-        var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
-        var page = new PageDefinition(
-            PageDefinition.CurrentSchemaVersion,
-            "login",
-            "Login",
-            "https://example.com/login",
-            [
-                new PageElement(
-                    "username",
-                    "username",
-                    "input",
-                    StepAction.Fill,
-                    new Locator(LocatorStrategy.TestId, "username")),
-            ],
-            DateTimeOffset.UtcNow);
-        var generator = new WorkspaceCodeGeneration(repository);
+        var (snapshot, generator, page) = await OpenLoginPageAsync(repository);
 
         await generator.GenerateAsync(snapshot.Project, [page], [], _root, CancellationToken.None);
 
@@ -944,22 +796,7 @@ public sealed class WorkspaceCodeGenerationTests
         // once the file "healed" itself. The file has to stay exactly as it is - same principle as
         // a renamed page's untouched old file - until an actual resolution arrives.
         using var repository = new WorkspaceRepository();
-        var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
-        var page = new PageDefinition(
-            PageDefinition.CurrentSchemaVersion,
-            "login",
-            "Login",
-            "https://example.com/login",
-            [
-                new PageElement(
-                    "username",
-                    "username",
-                    "input",
-                    StepAction.Fill,
-                    new Locator(LocatorStrategy.TestId, "username")),
-            ],
-            DateTimeOffset.UtcNow);
-        var generator = new WorkspaceCodeGeneration(repository);
+        var (snapshot, generator, page) = await OpenLoginPageAsync(repository);
 
         var first = await generator.GenerateAsync(snapshot.Project, [page], [], _root, CancellationToken.None);
         var pageObjectPath = first.Artifacts.Single(item => item.Kind == "pageObject").Path;
@@ -972,8 +809,7 @@ public sealed class WorkspaceCodeGenerationTests
                 {
                     DoSomething();
             """;
-        var classCloseIndex = generated.LastIndexOf('}');
-        var corrupted = generated[..classCloseIndex] + malformedMethod;
+        var corrupted = InsertBeforeClassCloseWithoutClosingBrace(generated, malformedMethod);
         await File.WriteAllTextAsync(pageObjectPath, corrupted);
 
         var conflict = await generator.GenerateAsync(snapshot.Project, [page], [], _root, CancellationToken.None);
@@ -1022,22 +858,7 @@ public sealed class WorkspaceCodeGenerationTests
         // discarded one must not appear anywhere afterward - not in the regenerated file, and not
         // in the waiting list either.
         using var repository = new WorkspaceRepository();
-        var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
-        var page = new PageDefinition(
-            PageDefinition.CurrentSchemaVersion,
-            "login",
-            "Login",
-            "https://example.com/login",
-            [
-                new PageElement(
-                    "username",
-                    "username",
-                    "input",
-                    StepAction.Fill,
-                    new Locator(LocatorStrategy.TestId, "username")),
-            ],
-            DateTimeOffset.UtcNow);
-        var generator = new WorkspaceCodeGeneration(repository);
+        var (snapshot, generator, page) = await OpenLoginPageAsync(repository);
 
         var first = await generator.GenerateAsync(snapshot.Project, [page], [], _root, CancellationToken.None);
         var pageObjectPath = first.Artifacts.Single(item => item.Kind == "pageObject").Path;
@@ -1059,9 +880,8 @@ public sealed class WorkspaceCodeGenerationTests
                 {
                     DoSomethingElse();
             """;
-        var classCloseIndex = generated.LastIndexOf('}');
         await File.WriteAllTextAsync(
-            pageObjectPath, generated[..classCloseIndex] + keptMethod + dropMethod);
+            pageObjectPath, InsertBeforeClassCloseWithoutClosingBrace(generated, keptMethod + dropMethod));
 
         var conflict = await generator.GenerateAsync(snapshot.Project, [page], [], _root, CancellationToken.None);
         var pending = conflict.PendingMerges.Single();
@@ -1101,22 +921,7 @@ public sealed class WorkspaceCodeGenerationTests
         // list ones) - discarding it there must delete that existing entry, not just skip creating
         // a new one.
         using var repository = new WorkspaceRepository();
-        var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
-        var page = new PageDefinition(
-            PageDefinition.CurrentSchemaVersion,
-            "login",
-            "Login",
-            "https://example.com/login",
-            [
-                new PageElement(
-                    "username",
-                    "username",
-                    "input",
-                    StepAction.Fill,
-                    new Locator(LocatorStrategy.TestId, "username")),
-            ],
-            DateTimeOffset.UtcNow);
-        var generator = new WorkspaceCodeGeneration(repository);
+        var (snapshot, generator, page) = await OpenLoginPageAsync(repository);
 
         var first = await generator.GenerateAsync(snapshot.Project, [page], [], _root, CancellationToken.None);
         var pageObjectPath = first.Artifacts.Single(item => item.Kind == "pageObject").Path;
@@ -1131,8 +936,8 @@ public sealed class WorkspaceCodeGenerationTests
                 {
                     DoSomething();
             """;
-        var firstCloseIndex = generated.LastIndexOf('}');
-        await File.WriteAllTextAsync(pageObjectPath, generated[..firstCloseIndex] + dropMeMethod);
+        await File.WriteAllTextAsync(
+            pageObjectPath, InsertBeforeClassCloseWithoutClosingBrace(generated, dropMeMethod));
         await generator.GenerateAsync(snapshot.Project, [page], [], _root, CancellationToken.None);
         var noResolutions = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal)
         {
@@ -1154,8 +959,8 @@ public sealed class WorkspaceCodeGenerationTests
                 {
                     DoSomethingElse();
             """;
-        var secondCloseIndex = cleanedUp.LastIndexOf('}');
-        await File.WriteAllTextAsync(pageObjectPath, cleanedUp[..secondCloseIndex] + anotherBrokenMethod);
+        await File.WriteAllTextAsync(
+            pageObjectPath, InsertBeforeClassCloseWithoutClosingBrace(cleanedUp, anotherBrokenMethod));
         var conflict = await generator.GenerateAsync(snapshot.Project, [page], [], _root, CancellationToken.None);
         var pending = conflict.PendingMerges.Single();
         Assert.That(pending.Candidates, Has.Count.EqualTo(2), "should offer both the fresh and the already-deferred candidate");
@@ -1181,5 +986,51 @@ public sealed class WorkspaceCodeGenerationTests
             Assert.That(waitingListAfterDiscard[0].SourceText, Does.Contain("AnotherBroken"));
             Assert.That(waitingListAfterDiscard.Any(entry => entry.SourceText.Contains("DropMe")), Is.False);
         });
+    }
+
+    // Every custom-method-merge scenario in this file (rename, discard, defer, waiting-list,
+    // same-name conflicts, partial resolution) exercises the same "Login" page with a single
+    // Fill/TestId element - the merge behavior under test never depends on the page's own shape,
+    // only on what's already in the generated file. Shared here so each test's setup is one line
+    // instead of the ~15-line PageDefinition literal repeated per test.
+    private static PageDefinition CreateLoginPage() =>
+        new(
+            PageDefinition.CurrentSchemaVersion,
+            "login",
+            "Login",
+            "https://example.com/login",
+            [
+                new PageElement(
+                    "username",
+                    "username",
+                    "input",
+                    StepAction.Fill,
+                    new Locator(LocatorStrategy.TestId, "username")),
+            ],
+            DateTimeOffset.UtcNow);
+
+    private async Task<(WorkspaceSnapshot Snapshot, WorkspaceCodeGeneration Generator, PageDefinition Page)>
+        OpenLoginPageAsync(WorkspaceRepository repository)
+    {
+        var snapshot = await repository.OpenAsync(_root, CancellationToken.None);
+        return (snapshot, new WorkspaceCodeGeneration(repository), CreateLoginPage());
+    }
+
+    // Inserts methodText just before the class's own closing brace (the last one in the file),
+    // keeping that brace and everything after it - a regeneration-safe way to simulate a
+    // hand-written custom method landing in an otherwise-valid generated file.
+    private static string InsertBeforeClassClose(string source, string methodText)
+    {
+        var classCloseIndex = source.LastIndexOf('}');
+        return source[..classCloseIndex] + methodText + source[classCloseIndex..];
+    }
+
+    // Like InsertBeforeClassClose, but deliberately corrupts the file: drops the class's closing
+    // brace (and anything after it) instead of keeping it, leaving unbalanced braces - used by
+    // tests exercising the malformed/undetected-corruption recovery paths.
+    private static string InsertBeforeClassCloseWithoutClosingBrace(string source, string methodText)
+    {
+        var classCloseIndex = source.LastIndexOf('}');
+        return source[..classCloseIndex] + methodText;
     }
 }

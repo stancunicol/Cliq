@@ -1,13 +1,10 @@
 using System;
-using System.Diagnostics.CodeAnalysis;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Media;
 using Cliq.VisualStudio.Core.Authoring;
 using Microsoft.VisualStudio.PlatformUI;
 using Microsoft.VisualStudio.Shell;
-using Microsoft.VisualStudio.Threading;
 
 namespace Cliq.VisualStudio;
 
@@ -20,7 +17,7 @@ internal enum WorkbenchSection
     Secrets,
 }
 
-public partial class WorkbenchControl : UserControl
+public partial class WorkbenchControl : CliqThemedUserControl
 {
     private readonly WorkbenchViewModel _viewModel;
     private bool _initialized;
@@ -30,32 +27,18 @@ public partial class WorkbenchControl : UserControl
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
         InitializeComponent();
         DataContext = _viewModel;
-        Loaded += OnLoaded;
-        Unloaded += OnUnloaded;
         PreviewKeyDown += OnPreviewKeyDown;
-        ApplyTheme();
     }
 
-    private void OnLoaded(object sender, RoutedEventArgs e)
+    protected override string DiagnosticTag => "Cliq/Workbench";
+
+    protected override void OnControlLoaded()
     {
-        VSColorTheme.ThemeChanged -= OnThemeChanged;
-        VSColorTheme.ThemeChanged += OnThemeChanged;
-        ApplyTheme();
         if (!_initialized)
         {
             _initialized = true;
             RunOperation(() => _viewModel.InitializeAsync());
         }
-    }
-
-    private void OnUnloaded(object sender, RoutedEventArgs e)
-    {
-        VSColorTheme.ThemeChanged -= OnThemeChanged;
-    }
-
-    private void OnThemeChanged(ThemeChangedEventArgs e)
-    {
-        ApplyTheme();
     }
 
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
@@ -319,7 +302,7 @@ public partial class WorkbenchControl : UserControl
             });
     }
 
-    private void ApplyTheme()
+    protected override void ApplyTheme()
     {
         SetBrush("Cliq.Background", EnvironmentColors.ToolWindowBackgroundColorKey);
         SetBrush("Cliq.SidebarBackground", EnvironmentColors.CommandBarGradientBeginColorKey);
@@ -335,26 +318,5 @@ public partial class WorkbenchControl : UserControl
         SetBrush("Cliq.SelectedForeground", EnvironmentColors.SystemHighlightTextColorKey);
         SetBrush("Cliq.Warning", EnvironmentColors.SystemInfoTextColorKey);
         SetBrush("Cliq.Error", EnvironmentColors.ToolWindowValidationErrorTextColorKey);
-    }
-
-    private void SetBrush(string resourceKey, ThemeResourceKey colorKey, double opacity = 1)
-    {
-        var color = VSColorTheme.GetThemedColor(colorKey);
-        Resources[resourceKey] = new SolidColorBrush(
-            Color.FromArgb(color.A, color.R, color.G, color.B))
-        {
-            Opacity = opacity,
-        };
-    }
-
-    [SuppressMessage(
-        "Usage",
-        "VSSDK007:Await or join tasks created from ThreadHelper.JoinableTaskFactory.RunAsync",
-        Justification = "The operation is intentionally fire-and-forget from a WPF event and is observed by FileAndForget.")]
-    private static void RunOperation(Func<System.Threading.Tasks.Task> operation)
-    {
-        ThreadHelper.JoinableTaskFactory
-            .RunAsync(operation)
-            .FileAndForget("Cliq/Workbench");
     }
 }

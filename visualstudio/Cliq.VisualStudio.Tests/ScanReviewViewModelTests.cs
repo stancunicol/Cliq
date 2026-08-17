@@ -259,7 +259,7 @@ namespace Cliq.VisualStudio.Tests
                 items);
         }
 
-        private sealed class RecordingActionStore : IWorkspaceActionStore
+        private sealed class RecordingActionStore : FakeWorkspaceActionStore
         {
             public string? LastUpdatedReviewId { get; private set; }
             public IReadOnlyList<ScanReviewDecisionRequest>? LastDecisions { get; private set; }
@@ -267,19 +267,7 @@ namespace Cliq.VisualStudio.Tests
             public string? LastDiscardedReviewId { get; private set; }
             public Exception? ApplyException { get; set; }
 
-            public Task<ScanPageResponse> ScanAsync(ScanPageRequest request, CancellationToken cancellationToken) =>
-                throw new NotSupportedException();
-
-            public Task<StagedPageScanResult> ScanPageReviewAsync(ScanPageRequest request, CancellationToken cancellationToken) =>
-                throw new NotSupportedException();
-
-            public Task<IReadOnlyList<ScanReview>> ListScanReviewsAsync(string? pageId, ScanReviewStatus? status, CancellationToken cancellationToken) =>
-                throw new NotSupportedException();
-
-            public Task<ScanReview> GetScanReviewAsync(string reviewId, CancellationToken cancellationToken) =>
-                throw new NotSupportedException();
-
-            public Task<ScanReview> UpdateScanReviewDecisionsAsync(
+            public override Task<ScanReview> UpdateScanReviewDecisionsAsync(
                 string reviewId,
                 IReadOnlyList<ScanReviewDecisionRequest> decisions,
                 CancellationToken cancellationToken)
@@ -289,7 +277,7 @@ namespace Cliq.VisualStudio.Tests
                 return Task.FromResult(CreateSampleReview());
             }
 
-            public Task<ScanReviewApplyResult> ApplyScanReviewAsync(string reviewId, CancellationToken cancellationToken)
+            public override Task<ScanReviewApplyResult> ApplyScanReviewAsync(string reviewId, CancellationToken cancellationToken)
             {
                 if (ApplyException != null)
                 {
@@ -301,27 +289,12 @@ namespace Cliq.VisualStudio.Tests
                 return Task.FromResult(new ScanReviewApplyResult(review, review.BaselinePage));
             }
 
-            public Task<ScanReview> DiscardScanReviewAsync(string reviewId, CancellationToken cancellationToken)
+            public override Task<ScanReview> DiscardScanReviewAsync(string reviewId, CancellationToken cancellationToken)
             {
                 LastDiscardedReviewId = reviewId;
                 var review = CreateSampleReview() with { Status = ScanReviewStatus.Discarded };
                 return Task.FromResult(review);
             }
-
-            public Task<GenerationResult> GenerateAsync(GenerationRequest request, CancellationToken cancellationToken) =>
-                throw new NotSupportedException();
-
-            public Task<IReadOnlyList<PendingCustomMethodEntry>> GetPendingCustomMethodsAsync(CancellationToken cancellationToken) =>
-                throw new NotSupportedException();
-
-            public Task DeletePendingCustomMethodAsync(string id, CancellationToken cancellationToken) =>
-                throw new NotSupportedException();
-
-            public Task LocateElementAsync(string pageId, string elementId, StartRunRequest request, CancellationToken cancellationToken) =>
-                throw new NotSupportedException();
-
-            public Task LocateElementFromSourceAsync(LocateFromSourceRequest request, CancellationToken cancellationToken) =>
-                throw new NotSupportedException();
         }
     }
 }

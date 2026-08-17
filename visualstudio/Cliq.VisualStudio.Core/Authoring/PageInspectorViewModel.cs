@@ -6,11 +6,10 @@ using Cliq.Domain;
 
 namespace Cliq.VisualStudio.Core.Authoring;
 
-public sealed class PageEditorViewModel : BindableBase
+public sealed class PageEditorViewModel : EditableViewModelBase
 {
     private PageDefinition _model;
     private string _name;
-    private bool _isDirty;
 
     public PageEditorViewModel(PageDefinition page)
     {
@@ -20,8 +19,6 @@ public sealed class PageEditorViewModel : BindableBase
             page.Elements.Select(element => new PageElementInspectorViewModel(element)));
     }
 
-    public event EventHandler? DirtyChanged;
-
     public string Id => _model.Id;
 
     public string Name
@@ -29,11 +26,9 @@ public sealed class PageEditorViewModel : BindableBase
         get => _name;
         set
         {
-            if (SetProperty(ref _name, value ?? string.Empty))
+            if (SetEditable(ref _name, value ?? string.Empty))
             {
-                MarkDirty();
                 OnPropertyChanged(nameof(DisplayName));
-                OnPropertyChanged(nameof(ValidationSummary));
             }
         }
     }
@@ -46,19 +41,7 @@ public sealed class PageEditorViewModel : BindableBase
 
     public bool HasNotFoundElements => Elements.Any(element => element.NotFound);
 
-    public bool IsDirty
-    {
-        get => _isDirty;
-        private set
-        {
-            if (SetProperty(ref _isDirty, value))
-            {
-                DirtyChanged?.Invoke(this, EventArgs.Empty);
-            }
-        }
-    }
-
-    public string ValidationSummary => string.Join(Environment.NewLine, Validate());
+    public override string ValidationSummary => string.Join(Environment.NewLine, Validate());
 
     public IReadOnlyList<string> Validate()
     {
@@ -110,11 +93,6 @@ public sealed class PageEditorViewModel : BindableBase
 
         MarkDirty();
         OnPropertyChanged(nameof(HasNotFoundElements));
-    }
-
-    private void MarkDirty()
-    {
-        IsDirty = true;
     }
 }
 

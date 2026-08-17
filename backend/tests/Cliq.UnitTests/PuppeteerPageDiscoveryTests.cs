@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Cliq.Domain;
 using Cliq.Infrastructure;
 
@@ -8,28 +7,20 @@ namespace Cliq.UnitTests;
 [TestFixture]
 public sealed class PuppeteerPageDiscoveryTests
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
-    {
-        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
-    };
+    private static readonly JsonSerializerOptions JsonOptions = TestJson.Options;
 
+    private TempWorkspaceDirectory _workspace = null!;
     private string _root = null!;
 
     [SetUp]
     public void SetUp()
     {
-        _root = Path.Combine(Path.GetTempPath(), "cliq-tests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(_root);
+        _workspace = new TempWorkspaceDirectory();
+        _root = _workspace.RootPath;
     }
 
     [TearDown]
-    public void TearDown()
-    {
-        if (Directory.Exists(_root))
-        {
-            Directory.Delete(_root, recursive: true);
-        }
-    }
+    public void TearDown() => _workspace.Dispose();
 
     private static PuppeteerPageDiscovery.RawElement Raw(string tag, string strategy, string locatorValue, string name) =>
         new()

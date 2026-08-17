@@ -12,23 +12,18 @@ public sealed class WorkspaceRepositoryTests
     private static readonly string[] DefaultStrategyOrder = ["testId", "xpath"];
     private static readonly string[] CustomStrategyOrder = ["xpath", "testId"];
 
+    private TempWorkspaceDirectory _workspace = null!;
     private string _root = null!;
 
     [SetUp]
     public void SetUp()
     {
-        _root = Path.Combine(Path.GetTempPath(), "cliq-tests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(_root);
+        _workspace = new TempWorkspaceDirectory();
+        _root = _workspace.RootPath;
     }
 
     [TearDown]
-    public void TearDown()
-    {
-        if (Directory.Exists(_root))
-        {
-            Directory.Delete(_root, recursive: true);
-        }
-    }
+    public void TearDown() => _workspace.Dispose();
 
     [Test]
     public async Task OpenAsync_InitializesVersionedWorkspace()

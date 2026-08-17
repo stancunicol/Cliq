@@ -135,6 +135,11 @@ public sealed class WorkspaceNotOpenException : InvalidOperationException
     public WorkspaceNotOpenException() : base("No Cliq workspace is open.") { }
 }
 
+public sealed class RunAlreadyActiveException : InvalidOperationException
+{
+    public RunAlreadyActiveException() : base("Another browser run is already active.") { }
+}
+
 public sealed record WorkspaceLeaseOwner(
     string HostKind,
     int ProcessId,

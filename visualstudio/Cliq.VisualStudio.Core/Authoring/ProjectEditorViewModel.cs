@@ -3,12 +3,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
-using System.Runtime.CompilerServices;
 using Cliq.Domain;
 
 namespace Cliq.VisualStudio.Core.Authoring;
 
-public sealed class ProjectEditorViewModel : BindableBase
+public sealed class ProjectEditorViewModel : EditableViewModelBase
 {
     private string _name;
     private string _baseUrl;
@@ -17,7 +16,6 @@ public sealed class ProjectEditorViewModel : BindableBase
     private string _testsDirectory;
     private string _pageObjectsNamespace;
     private string _testsNamespace;
-    private bool _isDirty;
 
     public ProjectEditorViewModel(ProjectManifest project)
     {
@@ -31,8 +29,6 @@ public sealed class ProjectEditorViewModel : BindableBase
         _pageObjectsNamespace = project.Output.PageObjectsNamespace;
         _testsNamespace = project.Output.TestsNamespace;
     }
-
-    public event EventHandler? DirtyChanged;
 
     public int SchemaVersion { get; }
 
@@ -80,19 +76,7 @@ public sealed class ProjectEditorViewModel : BindableBase
         set => SetEditable(ref _testsNamespace, value ?? string.Empty);
     }
 
-    public bool IsDirty
-    {
-        get => _isDirty;
-        private set
-        {
-            if (SetProperty(ref _isDirty, value))
-            {
-                DirtyChanged?.Invoke(this, EventArgs.Empty);
-            }
-        }
-    }
-
-    public string ValidationSummary => string.Join(Environment.NewLine, Validate());
+    public override string ValidationSummary => string.Join(Environment.NewLine, Validate());
 
     public IReadOnlyList<string> Validate()
     {
@@ -142,18 +126,6 @@ public sealed class ProjectEditorViewModel : BindableBase
         _testsNamespace = project.Output.TestsNamespace;
         OnPropertyChanged(string.Empty);
         IsDirty = false;
-    }
-
-    private void SetEditable<T>(
-        ref T field,
-        T value,
-        [CallerMemberName] string? propertyName = null)
-    {
-        if (SetProperty(ref field, value, propertyName))
-        {
-            IsDirty = true;
-            OnPropertyChanged(nameof(ValidationSummary));
-        }
     }
 
     private static void ValidateRelativeDirectory(

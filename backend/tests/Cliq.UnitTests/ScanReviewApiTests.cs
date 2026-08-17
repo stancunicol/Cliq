@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Cliq.Api;
 using Cliq.Application;
 using Cliq.Domain;
@@ -10,10 +9,7 @@ namespace Cliq.UnitTests;
 [TestFixture]
 public sealed class ScanReviewApiTests
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
-    {
-        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
-    };
+    private static readonly JsonSerializerOptions JsonOptions = TestJson.Options;
 
     [Test]
     public void DecisionRequest_UsesCamelCaseEnumValues()

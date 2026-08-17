@@ -58,38 +58,17 @@ internal static class CustomMethodExtractor
         var i = 0;
         while (i < source.Length)
         {
+            if (TrySkipCommentOrLiteral(source, i, out _, out var next))
+            {
+                // An unterminated comment/literal advances `next` to source.Length, which ends
+                // the loop on the next condition check exactly as a `break` would have - so no
+                // special-casing is needed here, unlike FindMethodEnd/SkipBlock which must
+                // distinguish "ran out of source" from "found the end" (see their own comments).
+                i = next;
+                continue;
+            }
+
             var c = source[i];
-
-            if (c == '/' && Peek(source, i + 1) == '/')
-            {
-                var newline = source.IndexOf('\n', i);
-                if (newline < 0)
-                {
-                    break;
-                }
-
-                i = newline;
-                continue;
-            }
-
-            if (c == '/' && Peek(source, i + 1) == '*')
-            {
-                var close = source.IndexOf("*/", i + 2, StringComparison.Ordinal);
-                if (close < 0)
-                {
-                    break;
-                }
-
-                i = close + 2;
-                continue;
-            }
-
-            if (c is '"' or '\'')
-            {
-                i = SkipLiteral(source, i);
-                continue;
-            }
-
             if (c == '{')
             {
                 depth++;
@@ -209,43 +188,18 @@ internal static class CustomMethodExtractor
         var i = 0;
         while (i < position)
         {
-            var c = source[i];
-
-            if (c == '/' && Peek(source, i + 1) == '/')
+            if (TrySkipCommentOrLiteral(source, i, out var kind, out var end))
             {
-                var newline = source.IndexOf('\n', i);
-                var commentEnd = newline < 0 ? source.Length : newline;
-                if (position <= commentEnd)
+                // A line comment's `end` is the newline index itself (not past it), so landing
+                // exactly there still counts as "inside" - hence <= here but < for block comments
+                // and literals, whose `end` already points one past the closing token.
+                var inside = kind == CommentOrLiteralKind.LineComment ? position <= end : position < end;
+                if (inside)
                 {
                     return true;
                 }
 
-                i = commentEnd;
-                continue;
-            }
-
-            if (c == '/' && Peek(source, i + 1) == '*')
-            {
-                var close = source.IndexOf("*/", i + 2, StringComparison.Ordinal);
-                var commentEnd = close < 0 ? source.Length : close + 2;
-                if (position < commentEnd)
-                {
-                    return true;
-                }
-
-                i = commentEnd;
-                continue;
-            }
-
-            if (c is '"' or '\'')
-            {
-                var literalEnd = SkipLiteral(source, i);
-                if (position < literalEnd)
-                {
-                    return true;
-                }
-
-                i = literalEnd;
+                i = end;
                 continue;
             }
 
@@ -268,38 +222,17 @@ internal static class CustomMethodExtractor
         var i = start;
         while (i < source.Length)
         {
+            // An unterminated comment/literal advances `i` to source.Length here too, same as
+            // IsBalanced - the loop ends on the next condition check and falls through to the
+            // `return -1` below, which is exactly what the old early-return on an unterminated
+            // comment produced, just one step later.
+            if (TrySkipCommentOrLiteral(source, i, out _, out var next))
+            {
+                i = next;
+                continue;
+            }
+
             var c = source[i];
-
-            if (c == '/' && Peek(source, i + 1) == '/')
-            {
-                var newline = source.IndexOf('\n', i);
-                if (newline < 0)
-                {
-                    return -1;
-                }
-
-                i = newline;
-                continue;
-            }
-
-            if (c == '/' && Peek(source, i + 1) == '*')
-            {
-                var close = source.IndexOf("*/", i + 2, StringComparison.Ordinal);
-                if (close < 0)
-                {
-                    return -1;
-                }
-
-                i = close + 2;
-                continue;
-            }
-
-            if (c is '"' or '\'')
-            {
-                i = SkipLiteral(source, i);
-                continue;
-            }
-
             if (parenDepth == 0 && c == '{')
             {
                 return SkipBlock(source, i);
@@ -336,38 +269,13 @@ internal static class CustomMethodExtractor
         var i = openBraceIndex;
         while (i < source.Length)
         {
+            if (TrySkipCommentOrLiteral(source, i, out _, out var next))
+            {
+                i = next;
+                continue;
+            }
+
             var c = source[i];
-
-            if (c == '/' && Peek(source, i + 1) == '/')
-            {
-                var newline = source.IndexOf('\n', i);
-                if (newline < 0)
-                {
-                    return -1;
-                }
-
-                i = newline;
-                continue;
-            }
-
-            if (c == '/' && Peek(source, i + 1) == '*')
-            {
-                var close = source.IndexOf("*/", i + 2, StringComparison.Ordinal);
-                if (close < 0)
-                {
-                    return -1;
-                }
-
-                i = close + 2;
-                continue;
-            }
-
-            if (c is '"' or '\'')
-            {
-                i = SkipLiteral(source, i);
-                continue;
-            }
-
             if (c == '{')
             {
                 depth++;
@@ -385,6 +293,60 @@ internal static class CustomMethodExtractor
         }
 
         return -1;
+    }
+
+    private enum CommentOrLiteralKind
+    {
+        LineComment,
+        BlockComment,
+        Literal,
+    }
+
+    /// <summary>
+    /// The single shared "skip forward one token" step every scanner in this file needs: if
+    /// <paramref name="source"/>[<paramref name="index"/>] starts a <c>//</c> comment, a
+    /// <c>/* */</c> comment, or a string/char literal, advances past it and returns true with
+    /// <paramref name="end"/> set to the resulting index (<c>source.Length</c> if a comment runs
+    /// off the end of the file without closing - <see cref="SkipLiteral"/> already does the same
+    /// for an unterminated literal). Returns false, leaving <paramref name="end"/> unset, when
+    /// <paramref name="index"/> is just an ordinary character the caller should handle itself.
+    /// Previously this same classify-and-skip logic was reimplemented independently in four
+    /// places in this class; a fix or extension to the skip rules (this class's remarks note one
+    /// known gap - C# 11 raw string literals) only has to be made here now.
+    /// </summary>
+    private static bool TrySkipCommentOrLiteral(
+        string source,
+        int index,
+        out CommentOrLiteralKind kind,
+        out int end)
+    {
+        var c = source[index];
+        if (c == '/' && Peek(source, index + 1) == '/')
+        {
+            kind = CommentOrLiteralKind.LineComment;
+            var newline = source.IndexOf('\n', index);
+            end = newline < 0 ? source.Length : newline;
+            return true;
+        }
+
+        if (c == '/' && Peek(source, index + 1) == '*')
+        {
+            kind = CommentOrLiteralKind.BlockComment;
+            var close = source.IndexOf("*/", index + 2, StringComparison.Ordinal);
+            end = close < 0 ? source.Length : close + 2;
+            return true;
+        }
+
+        if (c is '"' or '\'')
+        {
+            kind = CommentOrLiteralKind.Literal;
+            end = SkipLiteral(source, index);
+            return true;
+        }
+
+        kind = default;
+        end = index;
+        return false;
     }
 
     // Handles regular ("...", with \" escapes), interpolated ($"...", same escapes), and

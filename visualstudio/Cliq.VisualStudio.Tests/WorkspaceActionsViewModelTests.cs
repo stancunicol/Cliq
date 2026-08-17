@@ -154,13 +154,14 @@ public sealed class WorkspaceActionsViewModelTests
         });
     }
 
-    private sealed class RecordingStore : IWorkspaceActionStore
+    private sealed class RecordingStore : FakeWorkspaceActionStore
     {
         public ScanPageRequest? ScanRequest { get; private set; }
         public GenerationRequest? GenerationRequest { get; private set; }
         public (string PageId, string ElementId, StartRunRequest Request)? LocateCall { get; private set; }
+        public LocateFromSourceRequest? LocateFromSourceRequest { get; private set; }
 
-        public Task<ScanPageResponse> ScanAsync(
+        public override Task<ScanPageResponse> ScanAsync(
             ScanPageRequest request,
             CancellationToken cancellationToken)
         {
@@ -179,7 +180,7 @@ public sealed class WorkspaceActionsViewModelTests
                 });
         }
 
-        public Task<StagedPageScanResult> ScanPageReviewAsync(
+        public override Task<StagedPageScanResult> ScanPageReviewAsync(
             ScanPageRequest request,
             CancellationToken cancellationToken)
         {
@@ -196,35 +197,7 @@ public sealed class WorkspaceActionsViewModelTests
                     new ScanReconciliationReport(2, 1, 0)));
         }
 
-        public Task<IReadOnlyList<ScanReview>> ListScanReviewsAsync(
-            string? pageId,
-            ScanReviewStatus? status,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<ScanReview> GetScanReviewAsync(
-            string reviewId,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<ScanReview> UpdateScanReviewDecisionsAsync(
-            string reviewId,
-            IReadOnlyList<ScanReviewDecisionRequest> decisions,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<ScanReviewApplyResult> ApplyScanReviewAsync(
-            string reviewId,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<ScanReview> DiscardScanReviewAsync(
-            string reviewId,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-
-        public Task<GenerationResult> GenerateAsync(
+        public override Task<GenerationResult> GenerateAsync(
             GenerationRequest request,
             CancellationToken cancellationToken)
         {
@@ -243,14 +216,14 @@ public sealed class WorkspaceActionsViewModelTests
                     Array.Empty<PendingCustomMethodMerge>()));
         }
 
-        public Task<IReadOnlyList<PendingCustomMethodEntry>> GetPendingCustomMethodsAsync(
+        public override Task<IReadOnlyList<PendingCustomMethodEntry>> GetPendingCustomMethodsAsync(
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<PendingCustomMethodEntry>>(Array.Empty<PendingCustomMethodEntry>());
 
-        public Task DeletePendingCustomMethodAsync(string id, CancellationToken cancellationToken) =>
+        public override Task DeletePendingCustomMethodAsync(string id, CancellationToken cancellationToken) =>
             Task.CompletedTask;
 
-        public Task LocateElementAsync(
+        public override Task LocateElementAsync(
             string pageId,
             string elementId,
             StartRunRequest request,
@@ -260,9 +233,7 @@ public sealed class WorkspaceActionsViewModelTests
             return Task.CompletedTask;
         }
 
-        public LocateFromSourceRequest? LocateFromSourceRequest { get; private set; }
-
-        public Task LocateElementFromSourceAsync(
+        public override Task LocateElementFromSourceAsync(
             LocateFromSourceRequest request,
             CancellationToken cancellationToken)
         {

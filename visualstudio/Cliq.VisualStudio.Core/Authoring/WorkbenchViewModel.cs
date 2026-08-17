@@ -236,45 +236,50 @@ public sealed class WorkbenchViewModel : BindableBase
     {
         if (SelectedTest is { } test)
         {
-            var errors = test.Validate();
-            if (errors.Count > 0)
+            return await ValidateAndSaveAsync(test.Validate(), async () =>
             {
-                ErrorMessage = string.Join(Environment.NewLine, errors);
-                return false;
-            }
-
-            return await RunExclusiveAsync(
-                async () =>
-                {
-                    var saved = await _store.SaveTestAsync(test.ToModel(), cancellationToken);
-                    test.AcceptChanges(saved);
-                    StatusMessage = $"Saved {saved.Name}.";
-                    RaiseDirtyState();
-                    return true;
-                });
+                var saved = await _store.SaveTestAsync(test.ToModel(), cancellationToken);
+                test.AcceptChanges(saved);
+                return $"Saved {saved.Name}.";
+            });
         }
 
         if (SelectedPage is { } page)
         {
-            var errors = page.Validate();
-            if (errors.Count > 0)
+            return await ValidateAndSaveAsync(page.Validate(), async () =>
             {
-                ErrorMessage = string.Join(Environment.NewLine, errors);
-                return false;
-            }
-
-            return await RunExclusiveAsync(
-                async () =>
-                {
-                    var saved = await _store.SavePageAsync(page.ToModel(), cancellationToken);
-                    page.AcceptChanges(saved);
-                    StatusMessage = $"Saved {saved.Name}. Regenerate to rename the Page Object file.";
-                    RaiseDirtyState();
-                    return true;
-                });
+                var saved = await _store.SavePageAsync(page.ToModel(), cancellationToken);
+                page.AcceptChanges(saved);
+                return $"Saved {saved.Name}. Regenerate to rename the Page Object file.";
+            });
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// The "validate, bail out with ErrorMessage if invalid, otherwise save under
+    /// <see cref="RunExclusiveAsync"/> and report the resulting status" shape every single-entity
+    /// save (a selected test or page, the project, the settings) needs - what differs per caller is
+    /// just which store call to make, how to accept the saved result back into the editor, and what
+    /// status text to show, all captured in <paramref name="saveAndDescribe"/>.
+    /// </summary>
+    private Task<bool> ValidateAndSaveAsync(
+        IReadOnlyList<string> validationErrors,
+        Func<Task<string>> saveAndDescribe)
+    {
+        if (validationErrors.Count > 0)
+        {
+            ErrorMessage = string.Join(Environment.NewLine, validationErrors);
+            return Task.FromResult(false);
+        }
+
+        return RunExclusiveAsync(async () =>
+        {
+            StatusMessage = await saveAndDescribe();
+            RaiseDirtyState();
+            return true;
+        });
     }
 
     public async Task<bool> SaveAllAsync(CancellationToken cancellationToken = default)
@@ -356,24 +361,12 @@ public sealed class WorkbenchViewModel : BindableBase
             return false;
         }
 
-        var errors = Project.Validate();
-        if (errors.Count > 0)
+        return await ValidateAndSaveAsync(Project.Validate(), async () =>
         {
-            ErrorMessage = string.Join(Environment.NewLine, errors);
-            return false;
-        }
-
-        return await RunExclusiveAsync(
-            async () =>
-            {
-                var saved = await _configurationStore.SaveProjectAsync(
-                    Project.ToModel(),
-                    cancellationToken);
-                Project.AcceptChanges(saved);
-                StatusMessage = "Project settings saved.";
-                RaiseDirtyState();
-                return true;
-            });
+            var saved = await _configurationStore.SaveProjectAsync(Project.ToModel(), cancellationToken);
+            Project.AcceptChanges(saved);
+            return "Project settings saved.";
+        });
     }
 
     public async Task<bool> SaveSettingsAsync(CancellationToken cancellationToken = default)
@@ -384,24 +377,12 @@ public sealed class WorkbenchViewModel : BindableBase
             return false;
         }
 
-        var errors = Settings.Validate();
-        if (errors.Count > 0)
+        return await ValidateAndSaveAsync(Settings.Validate(), async () =>
         {
-            ErrorMessage = string.Join(Environment.NewLine, errors);
-            return false;
-        }
-
-        return await RunExclusiveAsync(
-            async () =>
-            {
-                var saved = await _configurationStore.SaveSettingsAsync(
-                    Settings.ToModel(),
-                    cancellationToken);
-                Settings.AcceptChanges(saved);
-                StatusMessage = "Cliq settings saved.";
-                RaiseDirtyState();
-                return true;
-            });
+            var saved = await _configurationStore.SaveSettingsAsync(Settings.ToModel(), cancellationToken);
+            Settings.AcceptChanges(saved);
+            return "Cliq settings saved.";
+        });
     }
 
     public async Task<bool> SaveSecretAsync(
@@ -667,31 +648,22 @@ public sealed class WorkbenchViewModel : BindableBase
     private async Task<bool> RunExclusiveAsync(Func<Task<bool>> action)
     {
         await _operationLock.WaitAsync();
-        IsBusy = true;
-        OnPropertyChanged(nameof(IsNotBusy));
-        OnPropertyChanged(nameof(CanSaveSelected));
-        OnPropertyChanged(nameof(CanSaveAll));
-        ErrorMessage = null;
         try
         {
-            return await action();
-        }
-        catch (OperationCanceledException)
-        {
-            StatusMessage = "Operation cancelled.";
-            return false;
-        }
-        catch (Exception exception)
-        {
-            ErrorMessage = exception.Message;
-            return false;
+            return await AsyncOperation.RunAsync<bool>(
+                busy =>
+                {
+                    IsBusy = busy;
+                    OnPropertyChanged(nameof(IsNotBusy));
+                    OnPropertyChanged(nameof(CanSaveSelected));
+                    OnPropertyChanged(nameof(CanSaveAll));
+                },
+                s => StatusMessage = s,
+                e => ErrorMessage = e,
+                action);
         }
         finally
         {
-            IsBusy = false;
-            OnPropertyChanged(nameof(IsNotBusy));
-            OnPropertyChanged(nameof(CanSaveSelected));
-            OnPropertyChanged(nameof(CanSaveAll));
             _operationLock.Release();
         }
     }

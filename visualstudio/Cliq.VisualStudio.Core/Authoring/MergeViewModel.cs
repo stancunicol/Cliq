@@ -350,28 +350,24 @@ public sealed class MergeViewModel : BindableBase
         Func<CancellationToken, Task<bool>> operation,
         CancellationToken cancellationToken)
     {
-        IsBusy = true;
-        OnPropertyChanged(nameof(IsNotBusy));
-        ErrorMessage = null;
-        StatusMessage = status;
-        try
+        // Without this guard, a second click while IsBusy is already true (the UI doesn't
+        // reliably disable every trigger fast enough) would run two operations concurrently
+        // against the same pending-merge/waiting-list state.
+        if (IsBusy)
         {
-            return await operation(cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            StatusMessage = "Operation cancelled.";
+            ErrorMessage = "Another Cliq action is already running.";
             return false;
         }
-        catch (Exception exception)
-        {
-            ErrorMessage = exception.Message;
-            return false;
-        }
-        finally
-        {
-            IsBusy = false;
-            OnPropertyChanged(nameof(IsNotBusy));
-        }
+
+        return await AsyncOperation.RunAsync<bool>(
+            busy =>
+            {
+                IsBusy = busy;
+                OnPropertyChanged(nameof(IsNotBusy));
+            },
+            s => StatusMessage = s,
+            e => ErrorMessage = e,
+            status,
+            () => operation(cancellationToken));
     }
 }

@@ -9,6 +9,13 @@ public sealed class RunCoordinator(
     ITestRunner runner,
     ISecretStore secrets) : IDisposable
 {
+    // How long a finished run's state (events channel + cancellation token) stays resident after
+    // completion, so a client that's mid-poll for its final status/events doesn't have it vanish
+    // out from under it. Swept on the next StartAsync rather than on a timer - this is a
+    // single-workspace sidecar process, so "another run just started" is the natural point to
+    // reclaim the previous one.
+    private static readonly TimeSpan CompletedRunRetention = TimeSpan.FromMinutes(30);
+
     private readonly SemaphoreSlim _runGate = new(1, 1);
     private readonly ConcurrentDictionary<string, RunState> _runs = new(StringComparer.Ordinal);
 
@@ -16,11 +23,13 @@ public sealed class RunCoordinator(
     {
         if (!await _runGate.WaitAsync(0, cancellationToken))
         {
-            throw new InvalidOperationException("Another browser run is already active.");
+            throw new RunAlreadyActiveException();
         }
 
         try
         {
+            EvictCompletedRuns();
+
             var snapshot = await repository.GetSnapshotAsync(cancellationToken);
             var test = snapshot.Tests.SingleOrDefault(item => item.Id == testId)
                 ?? throw new KeyNotFoundException($"Test '{testId}' was not found.");
@@ -31,9 +40,13 @@ public sealed class RunCoordinator(
                 DateTimeOffset.UtcNow,
                 null,
                 []);
+            // Only tracked once the row is durably saved - if SaveRunAsync throws, there is no
+            // RunState left behind that would sit in _runs forever stuck at Queued with nothing
+            // to ever move it to a terminal status.
+            await repository.SaveRunAsync(run, cancellationToken);
+
             var state = new RunState(run);
             _runs[run.Id] = state;
-            await repository.SaveRunAsync(run, cancellationToken);
 
             _ = ExecuteAsync(
                 state,
@@ -47,6 +60,23 @@ public sealed class RunCoordinator(
         {
             _runGate.Release();
             throw;
+        }
+    }
+
+    private void EvictCompletedRuns()
+    {
+        var cutoff = DateTimeOffset.UtcNow - CompletedRunRetention;
+        foreach (var (id, state) in _runs)
+        {
+            // CompletedAt is only ever set once ExecuteAsync reaches a terminal status (Passed/
+            // Failed/Cancelled) - a still-Queued or Running entry always has a null CompletedAt
+            // and is never a candidate for eviction here.
+            if (state.Run.CompletedAt is { } completedAt &&
+                completedAt < cutoff &&
+                _runs.TryRemove(id, out var removed))
+            {
+                removed.Cancellation.Dispose();
+            }
         }
     }
 

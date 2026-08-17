@@ -199,7 +199,7 @@ public sealed class WorkspaceConfigurationViewModelTests
             new ScanningSettings(30000, 1000, false));
     }
 
-    private sealed class ConfigurationStore : IWorkbenchStore, IWorkspaceConfigurationStore
+    private sealed class ConfigurationStore : FakeWorkbenchStore, IWorkspaceConfigurationStore
     {
         public ProjectManifest? SavedProject { get; private set; }
 
@@ -211,7 +211,7 @@ public sealed class WorkspaceConfigurationViewModelTests
 
         public List<string> DeletedSecretKeys { get; } = new();
 
-        public Task<WorkspaceSnapshot> LoadAsync(CancellationToken cancellationToken)
+        public override Task<WorkspaceSnapshot> LoadAsync(CancellationToken cancellationToken)
         {
             return Task.FromResult(
                 new WorkspaceSnapshot(
@@ -221,17 +221,17 @@ public sealed class WorkspaceConfigurationViewModelTests
                     Array.Empty<TestCase>()));
         }
 
-        public Task<TestCase> SaveTestAsync(TestCase test, CancellationToken cancellationToken)
+        public override Task<TestCase> SaveTestAsync(TestCase test, CancellationToken cancellationToken)
         {
             return Task.FromResult(test);
         }
 
-        public Task DeleteTestAsync(string testId, CancellationToken cancellationToken)
+        public override Task DeleteTestAsync(string testId, CancellationToken cancellationToken)
         {
             return Task.CompletedTask;
         }
 
-        public Task<PageDefinition> SavePageAsync(PageDefinition page, CancellationToken cancellationToken)
+        public override Task<PageDefinition> SavePageAsync(PageDefinition page, CancellationToken cancellationToken)
         {
             return Task.FromResult(page);
         }

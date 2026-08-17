@@ -5,12 +5,11 @@ using System.Collections.Specialized;
 using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
-using System.Runtime.CompilerServices;
 using Cliq.Domain;
 
 namespace Cliq.VisualStudio.Core.Authoring;
 
-public sealed class SettingsEditorViewModel : BindableBase
+public sealed class SettingsEditorViewModel : EditableViewModelBase
 {
     public static readonly IReadOnlyList<string> SupportedStrategies =
         new[] { "testId", "id", "name" };
@@ -23,7 +22,6 @@ public sealed class SettingsEditorViewModel : BindableBase
     private string _loadTimeoutText;
     private string _networkIdleGraceText;
     private bool _captureScanScreenshot;
-    private bool _isDirty;
     private string? _strategyToAdd;
 
     public SettingsEditorViewModel(CliqSettings settings)
@@ -42,8 +40,6 @@ public sealed class SettingsEditorViewModel : BindableBase
         _captureScanScreenshot = settings.Scanning.CaptureScreenshot;
         _strategyToAdd = AvailableStrategies.FirstOrDefault();
     }
-
-    public event EventHandler? DirtyChanged;
 
     public int SchemaVersion { get; }
 
@@ -107,19 +103,7 @@ public sealed class SettingsEditorViewModel : BindableBase
         set => SetEditable(ref _captureScanScreenshot, value);
     }
 
-    public bool IsDirty
-    {
-        get => _isDirty;
-        private set
-        {
-            if (SetProperty(ref _isDirty, value))
-            {
-                DirtyChanged?.Invoke(this, EventArgs.Empty);
-            }
-        }
-    }
-
-    public string ValidationSummary => string.Join(Environment.NewLine, Validate());
+    public override string ValidationSummary => string.Join(Environment.NewLine, Validate());
 
     public IReadOnlyList<string> Validate()
     {
@@ -252,18 +236,6 @@ public sealed class SettingsEditorViewModel : BindableBase
         StrategyToAdd = AvailableStrategies.FirstOrDefault();
         OnPropertyChanged(nameof(AvailableStrategies));
         OnPropertyChanged(nameof(ValidationSummary));
-    }
-
-    private void SetEditable<T>(
-        ref T field,
-        T value,
-        [CallerMemberName] string? propertyName = null)
-    {
-        if (SetProperty(ref field, value, propertyName))
-        {
-            IsDirty = true;
-            OnPropertyChanged(nameof(ValidationSummary));
-        }
     }
 
     private static void ValidatePositiveInt(

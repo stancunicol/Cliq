@@ -11,8 +11,13 @@ using WorkspaceGenerationResult = Cliq.Domain.GenerationResult;
 
 namespace Cliq.Infrastructure;
 
-public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : ICodeGeneration
+public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : ICodeGeneration, IDisposable
 {
+    private readonly AtomicFileWriter _atomicWriter = new();
+    private readonly CustomMethodMergeCoordinator _mergeCoordinator = new(repository);
+
+    public void Dispose() => _atomicWriter.Dispose();
+
     public async Task<WorkspaceGenerationResult> GenerateAsync(
         ProjectManifest project,
         IReadOnlyList<PageDefinition> pages,
@@ -68,7 +73,7 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
             var renameResolved = true;
             if (wasRenamed)
             {
-                renameResolved = await HandleRenamedPageObjectAsync(
+                renameResolved = await _mergeCoordinator.HandleRenamedPageObjectAsync(
                     pageObjectDirectory,
                     page.Id,
                     previousClassName!,
@@ -144,8 +149,8 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
                 // Discard choice for an otherwise-clean method is actually respected, not silently
                 // overridden back in. Everything not chosen to carry over and not explicitly
                 // discarded goes to the waiting list instead of silently vanishing.
-                var candidates = await BuildMergedCandidatesAsync(page.Id, existingSource!, cancellationToken);
-                await DeferUnresolvedAsync(
+                var candidates = await _mergeCoordinator.BuildMergedCandidatesAsync(page.Id, existingSource!, cancellationToken);
+                await _mergeCoordinator.DeferUnresolvedAsync(
                     page.Id, className, candidates, resolvedMethods!, discardedMethods, cancellationToken);
                 customMethods = resolvedMethods!;
             }
@@ -165,7 +170,7 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
                         className, expectedCount, validated.Count, generatedPath));
                 }
 
-                var pending = await BuildPendingMergeAsync(
+                var pending = await _mergeCoordinator.BuildPendingMergeAsync(
                     page.Id, className, existingSource!, cancellationToken);
                 if (pending is not null)
                 {
@@ -182,8 +187,8 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
                 // waiting list onto an otherwise custom-method-free page. Still needs the same
                 // waiting-list reconciliation as above, so the included entry doesn't linger there
                 // and reappear on the next refresh.
-                var candidates = await BuildMergedCandidatesAsync(page.Id, existingSource ?? string.Empty, cancellationToken);
-                await DeferUnresolvedAsync(
+                var candidates = await _mergeCoordinator.BuildMergedCandidatesAsync(page.Id, existingSource ?? string.Empty, cancellationToken);
+                await _mergeCoordinator.DeferUnresolvedAsync(
                     page.Id, className, candidates, resolvedMethods!, discardedMethods, cancellationToken);
                 customMethods = resolvedMethods!;
             }
@@ -218,220 +223,6 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
         await SaveGenerationStateAsync(generationState, cancellationToken);
 
         return new WorkspaceGenerationResult(artifacts, warnings, pendingMerges);
-    }
-
-    /// <summary>
-    /// A page renamed since it was last generated now maps to a different class name, leaving its
-    /// old <c>&lt;OldName&gt;.cs</c> file behind under a name no page points to anymore -
-    /// regeneration never reads or rewrites that file since it addresses pages by their current
-    /// class name only. If the old file has no hand-written <c>[CliqCustomMethod]</c> content it's
-    /// deleted (nothing to lose); otherwise it's left exactly where it is and reported as a
-    /// warning rather than guessed at.
-    /// </summary>
-    /// <summary>
-    /// Returns whether the rename conflict is now fully dealt with (the old file no longer
-    /// exists) - false means it was left in place, unresolved, so the caller must keep pointing
-    /// <c>generationState</c> at the old name until a future call resolves it.
-    /// </summary>
-    private async Task<bool> HandleRenamedPageObjectAsync(
-        string pageObjectDirectory,
-        string pageId,
-        string previousClassName,
-        IReadOnlyDictionary<string, IReadOnlyList<string>>? customMethodResolutions,
-        IReadOnlyDictionary<string, IReadOnlyList<string>>? customMethodDiscards,
-        List<CustomMethodRecoveryWarning> warnings,
-        List<PendingCustomMethodMerge> pendingMerges,
-        CancellationToken cancellationToken)
-    {
-        var oldPath = Path.Combine(pageObjectDirectory, $"{previousClassName}.cs");
-        if (!File.Exists(oldPath))
-        {
-            return true;
-        }
-
-        var oldSource = await File.ReadAllTextAsync(oldPath, cancellationToken);
-        var customMethods = CustomMethodExtractor.Extract(oldSource);
-        if (customMethods.Count == 0)
-        {
-            File.Delete(oldPath);
-            return true;
-        }
-
-        if (customMethodResolutions is not null &&
-            customMethodResolutions.TryGetValue(pageId, out var resolvedMethods))
-        {
-            // Resolved via the merge UI: whatever wasn't chosen to carry over and wasn't
-            // explicitly discarded goes to the waiting list, and the stale renamed-away file can
-            // finally go - nothing of value is left in it.
-            IReadOnlyList<string> discardedMethods =
-                customMethodDiscards is not null && customMethodDiscards.TryGetValue(pageId, out var discards)
-                    ? discards
-                    : [];
-            var candidates = await BuildMergedCandidatesAsync(pageId, oldSource, cancellationToken);
-            await DeferUnresolvedAsync(
-                pageId, previousClassName, candidates, resolvedMethods, discardedMethods, cancellationToken);
-            File.Delete(oldPath);
-            return true;
-        }
-
-        warnings.Add(new CustomMethodRecoveryWarning(previousClassName, customMethods.Count, 0, oldPath));
-        var pending = await BuildPendingMergeAsync(pageId, previousClassName, oldSource, cancellationToken);
-        if (pending is not null)
-        {
-            pendingMerges.Add(pending);
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    /// The full candidate set for one page's conflict - everything <see cref="CustomMethodExtractor.ExtractAll"/>
-    /// finds in the given source, merged with anything already deferred for the same page in the
-    /// global waiting list (a fresh candidate wins over a stale deferred duplicate with the same
-    /// signature). Used both to build what the merge UI shows (<see cref="BuildPendingMergeAsync"/>)
-    /// AND, critically, by <see cref="DeferUnresolvedAsync"/>'s cleanup pass when a resolution
-    /// arrives - a candidate that only exists in the waiting list (carried over from an earlier,
-    /// separate conflict on the same page) still needs to be visited there too, or a user choosing
-    /// Carry Over/Discard for it would never clear its now-stale waiting-list entry.
-    /// </summary>
-    private async Task<IReadOnlyList<CustomMethodCandidate>> BuildMergedCandidatesAsync(
-        string pageId,
-        string sourceText,
-        CancellationToken cancellationToken)
-    {
-        var freshCandidates = BuildCandidates(
-            CustomMethodExtractor.ExtractAll(sourceText),
-            CustomMethodExtractor.IsBalanced(sourceText));
-        var waitingListCandidates = (await repository.ListPendingCustomMethodsAsync(cancellationToken))
-            .Where(entry => string.Equals(entry.PageId, pageId, StringComparison.Ordinal))
-            .Select(entry => new CustomMethodCandidate(
-                entry.Signature,
-                entry.SourceText,
-                entry.HasSyntaxError,
-                entry.HasSyntaxError
-                    ? ["Previously deferred with a syntax error."]
-                    : Array.Empty<string>()));
-
-        return freshCandidates
-            .Concat(waitingListCandidates)
-            .GroupBy(candidate => candidate.Signature, StringComparer.Ordinal)
-            .Select(group => group.First())
-            .ToList();
-    }
-
-    /// <summary>
-    /// Wraps <see cref="BuildMergedCandidatesAsync"/> as the <see cref="PendingCustomMethodMerge"/>
-    /// the VS extension's merge UI shows for one page's conflict. Returns null when there's
-    /// nothing to show.
-    /// </summary>
-    private async Task<PendingCustomMethodMerge?> BuildPendingMergeAsync(
-        string pageId,
-        string pageObjectName,
-        string sourceText,
-        CancellationToken cancellationToken)
-    {
-        var merged = await BuildMergedCandidatesAsync(pageId, sourceText, cancellationToken);
-        return merged.Count == 0 ? null : new PendingCustomMethodMerge(pageId, pageObjectName, merged);
-    }
-
-    // fileIsBalanced covers the whole page object file, not just this one span - a missing brace
-    // anywhere else in the file can make FindMethodEnd's depth-walk latch onto the wrong closing
-    // brace (most commonly the class's own) for a span it otherwise reports as ClosedCleanly, so
-    // a syntactically-valid-looking recovery still can't be trusted when the file as a whole is
-    // unbalanced. See CustomMethodExtractor.IsBalanced.
-    private static IReadOnlyList<CustomMethodCandidate> BuildCandidates(
-        IReadOnlyList<ExtractedSpan> spans,
-        bool fileIsBalanced)
-    {
-        var candidates = new List<CustomMethodCandidate>();
-        foreach (var span in spans)
-        {
-            IReadOnlyList<string> syntaxErrors;
-            if (!span.ClosedCleanly)
-            {
-                syntaxErrors = ["The custom method's body could not be parsed (unbalanced braces or unsupported syntax)."];
-            }
-            else if (!fileIsBalanced)
-            {
-                syntaxErrors = ["The page object file has unbalanced braces elsewhere, so this method's extracted boundaries can't be trusted."];
-            }
-            else
-            {
-                syntaxErrors = CustomMethodSyntaxChecker.FindSyntaxErrors(span.SourceText);
-            }
-
-            candidates.Add(new CustomMethodCandidate(
-                ExtractSignature(span.SourceText), span.SourceText, syntaxErrors.Count > 0, syntaxErrors));
-        }
-
-        return candidates;
-    }
-
-    private static string ExtractSignature(string sourceText)
-    {
-        foreach (var line in sourceText.Split('\n'))
-        {
-            var trimmed = line.Trim('\r', ' ', '\t');
-            if (trimmed.Length == 0 ||
-                trimmed.StartsWith("///", StringComparison.Ordinal) ||
-                (trimmed.StartsWith('[') && trimmed.EndsWith(']')))
-            {
-                continue;
-            }
-
-            return trimmed.TrimEnd('{').TrimEnd();
-        }
-
-        return sourceText.Split('\n')[0].Trim();
-    }
-
-    /// <summary>
-    /// Splits every candidate the user didn't choose to carry over into two buckets: explicitly
-    /// discarded (permanently dropped - any existing waiting-list entry for it is deleted, and no
-    /// new one is created) or still undecided (deferred/upserted into the global waiting list,
-    /// preserving its existing entry Id if it was already there, so a VS extension caller's cached
-    /// reference doesn't go stale). Also clears out any waiting-list entry for a candidate that WAS
-    /// carried over, since it's resolved now and shouldn't reappear.
-    /// </summary>
-    private async Task DeferUnresolvedAsync(
-        string pageId,
-        string pageObjectName,
-        IReadOnlyList<CustomMethodCandidate> candidates,
-        IReadOnlyList<string> resolvedMethods,
-        IReadOnlyList<string> discardedMethods,
-        CancellationToken cancellationToken)
-    {
-        var resolvedSet = new HashSet<string>(resolvedMethods, StringComparer.Ordinal);
-        var discardedSet = new HashSet<string>(discardedMethods, StringComparer.Ordinal);
-        var existingWaitingList = await repository.ListPendingCustomMethodsAsync(cancellationToken);
-
-        foreach (var candidate in candidates)
-        {
-            var existing = existingWaitingList.FirstOrDefault(entry =>
-                string.Equals(entry.PageId, pageId, StringComparison.Ordinal) &&
-                string.Equals(entry.Signature, candidate.Signature, StringComparison.Ordinal));
-
-            if (resolvedSet.Contains(candidate.SourceText) || discardedSet.Contains(candidate.SourceText))
-            {
-                if (existing is not null)
-                {
-                    await repository.DeletePendingCustomMethodAsync(existing.Id, cancellationToken);
-                }
-
-                continue;
-            }
-
-            await repository.SavePendingCustomMethodAsync(
-                new PendingCustomMethodEntry(
-                    existing?.Id ?? Guid.NewGuid().ToString("N"),
-                    pageId,
-                    pageObjectName,
-                    candidate.Signature,
-                    candidate.SourceText,
-                    candidate.HasSyntaxError,
-                    DateTimeOffset.UtcNow),
-                cancellationToken);
-        }
     }
 
     /// <summary>
@@ -795,14 +586,6 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
     private static string Variable(string className) => char.ToLowerInvariant(className[0]) + className[1..];
     private static string CssAttributeEscape(string value) => value.Replace("\\", "\\\\").Replace("\"", "\\\"");
 
-    private static async Task WriteAtomicTextAsync(
-        string path,
-        string contents,
-        CancellationToken cancellationToken)
-    {
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        var temporary = $"{path}.{Guid.NewGuid():N}.tmp";
-        await File.WriteAllTextAsync(temporary, contents, cancellationToken);
-        File.Move(temporary, path, true);
-    }
+    private Task WriteAtomicTextAsync(string path, string contents, CancellationToken cancellationToken) =>
+        _atomicWriter.WriteTextAsync(path, contents, cancellationToken);
 }

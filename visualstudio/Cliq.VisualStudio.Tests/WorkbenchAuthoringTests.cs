@@ -373,7 +373,7 @@ public sealed class WorkbenchAuthoringTests
             new[] { checkout, login });
     }
 
-    private sealed class RecordingWorkbenchStore : IWorkbenchStore
+    private sealed class RecordingWorkbenchStore : FakeWorkbenchStore
     {
         private readonly WorkspaceSnapshot _snapshot;
 
@@ -390,25 +390,25 @@ public sealed class WorkbenchAuthoringTests
 
         public List<PageDefinition> SavedPages { get; } = new();
 
-        public Task<WorkspaceSnapshot> LoadAsync(CancellationToken cancellationToken)
+        public override Task<WorkspaceSnapshot> LoadAsync(CancellationToken cancellationToken)
         {
             LoadCalls++;
             return Task.FromResult(_snapshot);
         }
 
-        public Task<TestCase> SaveTestAsync(TestCase test, CancellationToken cancellationToken)
+        public override Task<TestCase> SaveTestAsync(TestCase test, CancellationToken cancellationToken)
         {
             SavedTests.Add(test);
             return Task.FromResult(test);
         }
 
-        public Task DeleteTestAsync(string testId, CancellationToken cancellationToken)
+        public override Task DeleteTestAsync(string testId, CancellationToken cancellationToken)
         {
             DeletedTestIds.Add(testId);
             return Task.CompletedTask;
         }
 
-        public Task<PageDefinition> SavePageAsync(PageDefinition page, CancellationToken cancellationToken)
+        public override Task<PageDefinition> SavePageAsync(PageDefinition page, CancellationToken cancellationToken)
         {
             SavedPages.Add(page);
             return Task.FromResult(page);

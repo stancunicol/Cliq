@@ -272,22 +272,8 @@ public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRu
 
         var (locator, elementName) = ResolveLocator(step, pages, testIdAttribute);
 
-        var locateStopwatch = Stopwatch.StartNew();
-        var webElement = new WebDriverWait(driver, timeout).Until(current => current.FindElement(locator));
-        var locateMs = locateStopwatch.ElapsedMilliseconds;
-
-        Highlight(driver, webElement);
-        try
+        return LocateHighlightAndAct(driver, locator, timeout, highlightPauseMs, webElement =>
         {
-            Pause(highlightPauseMs);
-
-            // The pause is a deliberate window where the page can legitimately re-render (React
-            // replacing a node, a tooltip mounting, ...) and detach the element this reference
-            // points to - re-locate right before acting so the action always targets what's
-            // actually on screen now, not whatever used to be there when the wait first resolved.
-            webElement = driver.FindElement(locator);
-
-            var actionStopwatch = Stopwatch.StartNew();
             switch (step.Action)
             {
                 case StepAction.Click when isCheckbox:
@@ -336,13 +322,7 @@ public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRu
 
                     break;
             }
-
-            return new StepTiming(locateMs, actionStopwatch.ElapsedMilliseconds);
-        }
-        finally
-        {
-            Unhighlight(driver, webElement);
-        }
+        });
     }
 
     private static StepTiming ExecuteRadioSelect(
@@ -356,6 +336,26 @@ public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRu
         var value = ResolveValue(step.Value, secrets);
         var locator = By.CssSelector(RadioOptionCssSelector(element.Locator.Value, value));
 
+        return LocateHighlightAndAct(
+            driver, locator, timeout, highlightPauseMs, webElement => ClickWithFallback(driver, webElement));
+    }
+
+    /// <summary>
+    /// Locates <paramref name="locator"/>, highlights it, pauses, re-locates it, times and runs
+    /// <paramref name="act"/> against the fresh reference, then always unhighlights - the bracket
+    /// <see cref="ExecuteStep"/> and <see cref="ExecuteRadioSelect"/> both need around whatever
+    /// action they actually perform. The re-locate after the pause is deliberate: the pause is a
+    /// window where the page can legitimately re-render (React replacing a node, a tooltip
+    /// mounting, ...) and detach the element <paramref name="locator"/> first resolved to - acting
+    /// on a fresh reference means the action always targets what's actually on screen now.
+    /// </summary>
+    private static StepTiming LocateHighlightAndAct(
+        IWebDriver driver,
+        By locator,
+        TimeSpan timeout,
+        int highlightPauseMs,
+        Action<IWebElement> act)
+    {
         var locateStopwatch = Stopwatch.StartNew();
         var webElement = new WebDriverWait(driver, timeout).Until(current => current.FindElement(locator));
         var locateMs = locateStopwatch.ElapsedMilliseconds;
@@ -367,7 +367,7 @@ public sealed class SeleniumTestRunner(WorkspaceRepository repository) : ITestRu
             webElement = driver.FindElement(locator);
 
             var actionStopwatch = Stopwatch.StartNew();
-            ClickWithFallback(driver, webElement);
+            act(webElement);
             return new StepTiming(locateMs, actionStopwatch.ElapsedMilliseconds);
         }
         finally

@@ -364,26 +364,17 @@ namespace Cliq.VisualStudio.Core.Actions
             }
 
             _operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            IsBusy = true;
-            ErrorMessage = null;
-            StatusMessage = status;
             try
             {
-                return await operation(_operation.Token).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException) when (_operation.IsCancellationRequested)
-            {
-                StatusMessage = "Operation cancelled.";
-                return null;
-            }
-            catch (Exception exception)
-            {
-                ErrorMessage = exception.Message;
-                return null;
+                return await AsyncOperation.RunAsync<T>(
+                    busy => IsBusy = busy,
+                    s => StatusMessage = s,
+                    e => ErrorMessage = e,
+                    status,
+                    () => operation(_operation.Token)).ConfigureAwait(false);
             }
             finally
             {
-                IsBusy = false;
                 _operation.Dispose();
                 _operation = null;
             }
@@ -401,27 +392,17 @@ namespace Cliq.VisualStudio.Core.Actions
             }
 
             _operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            IsBusy = true;
-            ErrorMessage = null;
-            StatusMessage = status;
             try
             {
-                await operation(_operation.Token).ConfigureAwait(false);
-                return true;
-            }
-            catch (OperationCanceledException) when (_operation.IsCancellationRequested)
-            {
-                StatusMessage = "Operation cancelled.";
-                return false;
-            }
-            catch (Exception exception)
-            {
-                ErrorMessage = exception.Message;
-                return false;
+                return await AsyncOperation.RunAsync(
+                    busy => IsBusy = busy,
+                    s => StatusMessage = s,
+                    e => ErrorMessage = e,
+                    status,
+                    () => operation(_operation.Token)).ConfigureAwait(false);
             }
             finally
             {
-                IsBusy = false;
                 _operation.Dispose();
                 _operation = null;
             }

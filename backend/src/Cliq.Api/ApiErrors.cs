@@ -12,10 +12,9 @@ internal static class ApiErrors
             ScanReviewConflictException => StatusCodes.Status409Conflict,
             WorkspaceInUseException => StatusCodes.Status409Conflict,
             WorkspaceNotOpenException => StatusCodes.Status409Conflict,
+            RunAlreadyActiveException => StatusCodes.Status409Conflict,
             WorkspaceValidationException or ArgumentException => StatusCodes.Status400BadRequest,
             DirectoryNotFoundException or KeyNotFoundException => StatusCodes.Status404NotFound,
-            InvalidOperationException when exception.Message.Contains("already active", StringComparison.Ordinal) =>
-                StatusCodes.Status409Conflict,
             _ => StatusCodes.Status500InternalServerError,
         };
 

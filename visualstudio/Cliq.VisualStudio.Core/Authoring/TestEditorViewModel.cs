@@ -7,13 +7,12 @@ using Cliq.Domain;
 
 namespace Cliq.VisualStudio.Core.Authoring;
 
-public sealed class TestEditorViewModel : BindableBase
+public sealed class TestEditorViewModel : EditableViewModelBase
 {
     private readonly Func<IReadOnlyList<PageDefinition>> _pages;
     private string _name;
     private string _description;
     private string _tagsText;
-    private bool _isDirty;
     private bool _isNew;
     private TestStepEditorViewModel? _selectedStep;
 
@@ -32,8 +31,6 @@ public sealed class TestEditorViewModel : BindableBase
         _selectedStep = Steps.FirstOrDefault();
     }
 
-    public event EventHandler? DirtyChanged;
-
     public string Id { get; }
 
     public string Name
@@ -41,11 +38,9 @@ public sealed class TestEditorViewModel : BindableBase
         get => _name;
         set
         {
-            if (SetProperty(ref _name, value ?? string.Empty))
+            if (SetEditable(ref _name, value ?? string.Empty))
             {
-                MarkDirty();
                 OnPropertyChanged(nameof(DisplayName));
-                OnPropertyChanged(nameof(ValidationSummary));
             }
         }
     }
@@ -98,26 +93,15 @@ public sealed class TestEditorViewModel : BindableBase
     public bool CanMoveSelectedStepDown =>
         SelectedStep != null && Steps.IndexOf(SelectedStep) < Steps.Count - 1;
 
-    public bool IsDirty
-    {
-        get => _isDirty;
-        private set
-        {
-            if (SetProperty(ref _isDirty, value))
-            {
-                DirtyChanged?.Invoke(this, EventArgs.Empty);
-                OnPropertyChanged(nameof(DirtyMarker));
-            }
-        }
-    }
-
     public string DirtyMarker => IsDirty ? "Modified" : "Saved";
 
     public bool IsNew => _isNew;
 
-    public string ValidationSummary => string.Join(
+    public override string ValidationSummary => string.Join(
         Environment.NewLine,
         Validate());
+
+    protected override void OnDirtyChanged() => OnPropertyChanged(nameof(DirtyMarker));
 
     public IReadOnlyList<string> Validate()
     {
@@ -304,10 +288,5 @@ public sealed class TestEditorViewModel : BindableBase
 
         Steps.CollectionChanged += OnStepsChanged;
         SelectedStep = Steps.FirstOrDefault();
-    }
-
-    private void MarkDirty()
-    {
-        IsDirty = true;
     }
 }

@@ -56,6 +56,22 @@ internal abstract class CliqDialogWindow : Window
             new Setter(Control.BackgroundProperty, buttonBackground),
             new Setter(Control.ForegroundProperty, foreground),
             new Setter(Control.BorderBrushProperty, border));
+
+        OnThemeApplied();
+    }
+
+    /// <summary>
+    /// Hook for a subclass with custom, imperatively-built elements (colors this base class's
+    /// implicit type-based styles above don't reach) to re-theme itself alongside the rest of the
+    /// window, instead of hardcoding literal colors that would stay wrong across VS's light/dark/
+    /// high-contrast themes. Runs on every <see cref="ApplyTheme"/> call, including the one from
+    /// this class's own constructor - an override must only populate named <see cref="Resources"/>
+    /// entries here (picked up later via <see cref="FrameworkElement.SetResourceReference"/> on
+    /// whatever elements the subclass creates), not touch subclass instance fields, since those
+    /// aren't initialized yet the first time this runs.
+    /// </summary>
+    protected virtual void OnThemeApplied()
+    {
     }
 
     private static Style InputStyle<T>(Brush background, Brush foreground, Brush border)
@@ -76,7 +92,7 @@ internal abstract class CliqDialogWindow : Window
         return style;
     }
 
-    private static SolidColorBrush Brush(ThemeResourceKey key)
+    protected static SolidColorBrush Brush(ThemeResourceKey key)
     {
         var color = VSColorTheme.GetThemedColor(key);
         return new SolidColorBrush(Color.FromArgb(color.A, color.R, color.G, color.B));

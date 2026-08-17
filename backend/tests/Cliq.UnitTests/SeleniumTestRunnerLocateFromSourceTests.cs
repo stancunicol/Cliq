@@ -8,23 +8,18 @@ namespace Cliq.UnitTests;
 [TestFixture]
 public sealed class SeleniumTestRunnerLocateFromSourceTests
 {
+    private TempWorkspaceDirectory _workspace = null!;
     private string _root = null!;
 
     [SetUp]
     public void SetUp()
     {
-        _root = Path.Combine(Path.GetTempPath(), "cliq-locate-from-source-tests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(_root);
+        _workspace = new TempWorkspaceDirectory();
+        _root = _workspace.RootPath;
     }
 
     [TearDown]
-    public void TearDown()
-    {
-        if (Directory.Exists(_root))
-        {
-            Directory.Delete(_root, recursive: true);
-        }
-    }
+    public void TearDown() => _workspace.Dispose();
 
     private static readonly Regex CommentLine = new(@"^\s*// Locator .*$", RegexOptions.Multiline);
 

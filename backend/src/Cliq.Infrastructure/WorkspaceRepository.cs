@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
@@ -10,18 +9,15 @@ namespace Cliq.Infrastructure;
 
 public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposable
 {
-    private static readonly ConcurrentDictionary<string, WorkspaceLeaseOwner> ProcessWorkspaceLeases =
-        new(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
-
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         WriteIndented = true,
         Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
     };
 
-    private readonly SemaphoreSlim _writeGate = new(1, 1);
+    private readonly AtomicFileWriter _atomicWriter = new();
     private readonly SemaphoreSlim _workspaceGate = new(1, 1);
-    private WorkspaceLease? _workspaceLease;
+    private WorkspaceLeaseManager.WorkspaceLease? _workspaceLease;
     private bool _disposed;
 
     public string? RootPath { get; private set; }
@@ -45,7 +41,7 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
 
             var cliqDirectory = Path.Combine(fullPath, ".cliq");
             Directory.CreateDirectory(cliqDirectory);
-            var candidateLease = await AcquireWorkspaceLeaseAsync(cliqDirectory, cancellationToken);
+            var candidateLease = await WorkspaceLeaseManager.AcquireAsync(cliqDirectory, JsonOptions, cancellationToken);
             try
             {
                 Directory.CreateDirectory(Path.Combine(cliqDirectory, "pages"));
@@ -558,7 +554,7 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
         RootPath = null;
         _workspaceLease?.Dispose();
         _workspaceLease = null;
-        _writeGate.Dispose();
+        _atomicWriter.Dispose();
         _workspaceGate.Dispose();
     }
 
@@ -653,26 +649,8 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
         }
     }
 
-    private async Task WriteAtomicAsync<T>(string path, T value, CancellationToken cancellationToken)
-    {
-        await _writeGate.WaitAsync(cancellationToken);
-        try
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            var tempPath = $"{path}.{Guid.NewGuid():N}.tmp";
-            await using (var stream = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
-            {
-                await JsonSerializer.SerializeAsync(stream, value, JsonOptions, cancellationToken);
-                await stream.FlushAsync(cancellationToken);
-            }
-
-            File.Move(tempPath, path, true);
-        }
-        finally
-        {
-            _writeGate.Release();
-        }
-    }
+    private Task WriteAtomicAsync<T>(string path, T value, CancellationToken cancellationToken) =>
+        _atomicWriter.WriteJsonAsync(path, value, JsonOptions, cancellationToken);
 
     private static Task DeleteAsync(string path, CancellationToken cancellationToken)
     {
@@ -695,135 +673,6 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
         {
             await File.WriteAllTextAsync(ignorePath, contents, cancellationToken);
         }
-    }
-
-    private static async Task<WorkspaceLease> AcquireWorkspaceLeaseAsync(
-        string cliqDirectory,
-        CancellationToken cancellationToken)
-    {
-        var lockPath = Path.GetFullPath(Path.Combine(cliqDirectory, "workspace.lock"));
-        var owner = new WorkspaceLeaseOwner(
-            NormalizeHostKind(Environment.GetEnvironmentVariable("CLIQ_HOST_KIND")),
-            Environment.ProcessId,
-            DateTimeOffset.UtcNow);
-        if (!ProcessWorkspaceLeases.TryAdd(lockPath, owner))
-        {
-            ProcessWorkspaceLeases.TryGetValue(lockPath, out var existingOwner);
-            throw new WorkspaceInUseException(existingOwner);
-        }
-
-        FileStream? stream = null;
-        try
-        {
-            try
-            {
-                stream = new FileStream(
-                    lockPath,
-                    FileMode.OpenOrCreate,
-                    FileAccess.ReadWrite,
-                    FileShare.Read,
-                    bufferSize: 4_096,
-                    FileOptions.Asynchronous);
-            }
-            catch (IOException)
-            {
-                throw new WorkspaceInUseException(await ReadLeaseOwnerAsync(lockPath, cancellationToken));
-            }
-
-            stream.SetLength(0);
-            await JsonSerializer.SerializeAsync(stream, owner, JsonOptions, cancellationToken);
-            await stream.FlushAsync(cancellationToken);
-            return new WorkspaceLease(lockPath, stream);
-        }
-        catch
-        {
-            try
-            {
-                if (stream is not null)
-                {
-                    await stream.DisposeAsync();
-                }
-            }
-            finally
-            {
-                ProcessWorkspaceLeases.TryRemove(lockPath, out _);
-            }
-
-            throw;
-        }
-    }
-
-    private sealed class WorkspaceLease(string lockPath, FileStream stream) : IDisposable
-    {
-        private FileStream? _stream = stream;
-
-        public void Dispose()
-        {
-            var ownedStream = Interlocked.Exchange(ref _stream, null);
-            if (ownedStream is null)
-            {
-                return;
-            }
-
-            try
-            {
-                ownedStream.Dispose();
-            }
-            finally
-            {
-                ProcessWorkspaceLeases.TryRemove(lockPath, out _);
-            }
-        }
-    }
-
-    private static async Task<WorkspaceLeaseOwner?> ReadLeaseOwnerAsync(
-        string lockPath,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            await using var stream = new FileStream(
-                lockPath,
-                FileMode.Open,
-                FileAccess.Read,
-                FileShare.ReadWrite | FileShare.Delete,
-                bufferSize: 4_096,
-                FileOptions.Asynchronous);
-            var owner = await JsonSerializer.DeserializeAsync<WorkspaceLeaseOwner>(
-                stream,
-                JsonOptions,
-                cancellationToken);
-            return owner is null
-                ? null
-                : owner with
-                {
-                    HostKind = NormalizeHostKind(owner.HostKind),
-                    ProcessId = Math.Max(0, owner.ProcessId),
-                };
-        }
-        catch (IOException)
-        {
-            return null;
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-    }
-
-    private static string NormalizeHostKind(string? hostKind)
-    {
-        if (string.IsNullOrWhiteSpace(hostKind))
-        {
-            return "unknown";
-        }
-
-        var normalized = new string(hostKind
-            .Trim()
-            .Take(64)
-            .Where(character => char.IsAsciiLetterOrDigit(character) || character is '-' or '_')
-            .ToArray());
-        return string.IsNullOrEmpty(normalized) ? "unknown" : normalized;
     }
 
     [GeneratedRegex("^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$")]

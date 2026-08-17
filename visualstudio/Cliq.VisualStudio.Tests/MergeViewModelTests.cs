@@ -203,7 +203,7 @@ public sealed class MergeViewModelTests
         });
     }
 
-    private sealed class RecordingActionStore : IWorkspaceActionStore
+    private sealed class RecordingActionStore : FakeWorkspaceActionStore
     {
         public IReadOnlyList<PendingCustomMethodEntry> PendingEntries { get; set; } = [];
 
@@ -211,54 +211,21 @@ public sealed class MergeViewModelTests
 
         public GenerationRequest? LastGenerationRequest { get; private set; }
 
-        public Task<ScanPageResponse> ScanAsync(ScanPageRequest request, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<StagedPageScanResult> ScanPageReviewAsync(ScanPageRequest request, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<IReadOnlyList<ScanReview>> ListScanReviewsAsync(string? pageId, ScanReviewStatus? status, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<ScanReview> GetScanReviewAsync(string reviewId, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<ScanReview> UpdateScanReviewDecisionsAsync(string reviewId, IReadOnlyList<ScanReviewDecisionRequest> decisions, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<ScanReviewApplyResult> ApplyScanReviewAsync(string reviewId, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<ScanReview> DiscardScanReviewAsync(string reviewId, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<GenerationResult> GenerateAsync(GenerationRequest request, CancellationToken cancellationToken)
+        public override Task<GenerationResult> GenerateAsync(GenerationRequest request, CancellationToken cancellationToken)
         {
             LastGenerationRequest = request;
             return Task.FromResult(
                 new GenerationResult(Array.Empty<GeneratedArtifact>(), Array.Empty<CustomMethodRecoveryWarning>(), Array.Empty<PendingCustomMethodMerge>()));
         }
 
-        public Task<IReadOnlyList<PendingCustomMethodEntry>> GetPendingCustomMethodsAsync(CancellationToken cancellationToken) =>
+        public override Task<IReadOnlyList<PendingCustomMethodEntry>> GetPendingCustomMethodsAsync(CancellationToken cancellationToken) =>
             Task.FromResult(PendingEntries);
 
-        public Task DeletePendingCustomMethodAsync(string id, CancellationToken cancellationToken)
+        public override Task DeletePendingCustomMethodAsync(string id, CancellationToken cancellationToken)
         {
             DeletedPendingIds.Add(id);
             PendingEntries = PendingEntries.Where(item => item.Id != id).ToArray();
             return Task.CompletedTask;
         }
-
-        public Task LocateElementAsync(
-            string pageId,
-            string elementId,
-            StartRunRequest request,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task LocateElementFromSourceAsync(
-            LocateFromSourceRequest request,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
     }
 }
