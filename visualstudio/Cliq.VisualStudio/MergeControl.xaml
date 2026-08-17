@@ -206,7 +206,22 @@
                               CanUserAddRows="False"
                               IsReadOnly="True"
                               AlternationCount="2"
+                              RowDetailsVisibilityMode="VisibleWhenSelected"
                               AutomationProperties.Name="Waiting list">
+                        <DataGrid.RowDetailsTemplate>
+                            <DataTemplate>
+                                <TextBox Text="{Binding SourceText, Mode=OneWay}"
+                                         IsReadOnly="True"
+                                         FontFamily="Consolas"
+                                         AcceptsReturn="True"
+                                         TextWrapping="NoWrap"
+                                         MaxHeight="220"
+                                         Margin="4,4,4,10"
+                                         VerticalScrollBarVisibility="Auto"
+                                         HorizontalScrollBarVisibility="Auto"
+                                         AutomationProperties.Name="{Binding Signature}" />
+                            </DataTemplate>
+                        </DataGrid.RowDetailsTemplate>
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Page" Binding="{Binding PageObjectName}" Width="*" />
                             <DataGridTextColumn Header="Method" Binding="{Binding Signature}" Width="2*" />

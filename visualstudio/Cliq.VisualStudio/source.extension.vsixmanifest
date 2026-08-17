@@ -4,7 +4,7 @@
                  xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
     <Identity Id="Cliq.VisualStudio"
-              Version="0.1.18"
+              Version="0.1.19"
               Language="en-US"
               Publisher="Cliq" />
     <DisplayName>Cliq for Visual Studio</DisplayName>

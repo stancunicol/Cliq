@@ -147,6 +147,8 @@ public sealed class WaitingListEntryViewModel
 
     public string Signature => Model.Signature;
 
+    public string SourceText => Model.SourceText;
+
     public bool HasSyntaxError => Model.HasSyntaxError;
 
     // Gates the "Include now" button in the UI (see MergeControl.xaml) - a deferred entry's

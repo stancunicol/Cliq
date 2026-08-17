@@ -129,6 +129,19 @@ public sealed class MergeViewModelTests
     }
 
     [Test]
+    public async Task RefreshWaitingListAsync_ExposesSourceTextForPreview()
+    {
+        var entry = new PendingCustomMethodEntry(
+            "entry-1", "login", "LoginPage", "public void Old()", "public void Old() { }", false, DateTimeOffset.UtcNow);
+        var store = new RecordingActionStore { PendingEntries = [entry] };
+        var viewModel = new MergeViewModel(store);
+
+        await viewModel.RefreshWaitingListAsync();
+
+        Assert.That(viewModel.WaitingList.Single().SourceText, Is.EqualTo("public void Old() { }"));
+    }
+
+    [Test]
     public async Task DiscardAsync_RemovesEntryFromWaitingListAndCallsStore()
     {
         var entry = new PendingCustomMethodEntry(
