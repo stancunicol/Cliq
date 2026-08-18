@@ -10,7 +10,7 @@ const httpUrlSchema = z.url().refine((value) => {
 export const identifierSchema = z.string().min(1).max(200)
 
 const locatorSchema = z.object({
-  strategy: z.enum(['testId', 'id', 'name', 'css', 'xpath']),
+  strategy: z.enum(['testId', 'name', 'css', 'xpath']),
   value: z.string().min(1),
   displayName: optionalStringSchema,
 })

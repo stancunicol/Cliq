@@ -73,6 +73,29 @@ internal static class AsyncOperation
         return RunAsync(setBusy, setStatus, setError, operation);
     }
 
+    /// <summary>
+    /// The "reject if a second call comes in while one is already running" guard that every
+    /// tool-window view-model's own RunAsync wrapper (MergeViewModel, ScanReviewViewModel) used to
+    /// duplicate by hand before delegating to <see cref="RunAsync{T}(Action{bool}, Action{string}, Action{string}, string, Func{Task{T}})"/> -
+    /// factored out here so a caller only supplies how busy-ness is read, not the check itself.
+    /// </summary>
+    public static Task<T?> RunGuardedAsync<T>(
+        Func<bool> isBusy,
+        Action<bool> setBusy,
+        Action<string?> setStatus,
+        Action<string?> setError,
+        string status,
+        Func<Task<T>> operation)
+    {
+        if (isBusy())
+        {
+            setError("Another Cliq action is already running.");
+            return Task.FromResult<T?>(default);
+        }
+
+        return RunAsync(setBusy, setStatus, setError, status, operation);
+    }
+
     public static async Task<bool> RunAsync(
         Action<bool> setBusy,
         Action<string?> setStatus,

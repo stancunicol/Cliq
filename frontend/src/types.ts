@@ -237,6 +237,13 @@ export interface GenerationResult {
   warnings: CustomMethodRecoveryWarning[]
 }
 
+/** Shape shared by every "fetch a screenshot data URL on demand" panel (the scan screenshot in
+ * App.tsx, each step's screenshot in RunResults.tsx) - undefined means "not fetched yet". */
+export type ScreenshotState =
+  | { status: 'ready'; url: string }
+  | { status: 'missing' }
+  | { status: 'error'; message: string }
+
 export interface BrowserState {
   url: string
   title: string

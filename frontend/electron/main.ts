@@ -2,7 +2,6 @@ import {
   app,
   BaseWindow,
   dialog,
-  ipcMain,
   Menu,
   session,
   WebContentsView,
@@ -11,21 +10,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { BackendSupervisor } from './backend-supervisor.js'
 import { BrowserController } from './browser-controller.js'
-import {
-  booleanSchema,
-  boundsSchema,
-  cliqSettingsSchema,
-  discoveryScreenshotRequestSchema,
-  generationRequestSchema,
-  httpNavigationSchema,
-  identifierSchema,
-  pageSchema,
-  scanRequestSchema,
-  screenshotRequestSchema,
-  secretValuesSchema,
-  startRunRequestSchema,
-  testCaseSchema,
-} from './ipc-schemas.js'
+import { installIpc } from './ipc.js'
 import {
   parseWorkspaceLaunch,
   workspaceFromAdditionalData,
@@ -161,109 +146,6 @@ async function chooseAndOpenWorkspace() {
   return openWorkspace(result.filePaths[0], false)
 }
 
-function installIpc() {
-  ipcMain.handle('workspace:choose-open', chooseAndOpenWorkspace)
-  ipcMain.handle('workspace:get', () => backend.request('/api/v1/workspace'))
-  ipcMain.handle('workspace:save-page', (_event, candidate) => {
-    const page = pageSchema.parse(candidate)
-    return backend.request(`/api/v1/pages/${encodeURIComponent(page.id)}`, {
-      method: 'PUT',
-      body: JSON.stringify(page),
-    })
-  })
-  ipcMain.handle('workspace:save-test', (_event, candidate) => {
-    const test = testCaseSchema.parse(candidate)
-    return backend.request(`/api/v1/tests/${encodeURIComponent(test.id)}`, {
-      method: 'PUT',
-      body: JSON.stringify(test),
-    })
-  })
-  ipcMain.handle('workspace:delete-test', (_event, candidate) => {
-    const id = identifierSchema.parse(candidate)
-    return backend.request(`/api/v1/tests/${encodeURIComponent(id)}`, { method: 'DELETE' })
-  })
-  ipcMain.handle('workspace:scan-page', (_event, candidate) => {
-    const request = scanRequestSchema.parse(candidate)
-    return backend.request('/api/v1/pages/scan', {
-      method: 'POST',
-      body: JSON.stringify(request),
-    })
-  })
-  ipcMain.handle(
-    'workspace:generate',
-    (_event, candidate) => {
-      const request = generationRequestSchema.parse(candidate)
-      return backend.request('/api/v1/generation', {
-        method: 'POST',
-        body: JSON.stringify(request),
-      })
-    },
-  )
-  ipcMain.handle(
-    'workspace:start-run',
-    async (_event, candidate) => {
-      const request = startRunRequestSchema.parse(candidate)
-      const run = await backend.request<{ id: string }>(
-        `/api/v1/tests/${encodeURIComponent(request.testId)}/runs`,
-        { method: 'POST', body: JSON.stringify({ browser: request.browser }) },
-      )
-      void backend
-        .streamRunEvents(run.id, (event, payload) => {
-          shell?.webContents.send(
-            'workspace:run-event',
-            event === 'step' ? { type: 'step', step: payload } : { type: 'done', run: payload },
-          )
-        })
-        .catch((error: unknown) => {
-          console.error(`Run '${run.id}' event stream failed:`, error)
-        })
-      return run
-    },
-  )
-  ipcMain.handle('workspace:cancel-run', (_event, candidate) => {
-    const runId = identifierSchema.parse(candidate)
-    return backend.request(`/api/v1/runs/${encodeURIComponent(runId)}/cancel`, { method: 'POST' })
-  })
-  ipcMain.handle('workspace:save-secrets', (_event, candidate) => {
-    const values = secretValuesSchema.parse(candidate)
-    return backend.request('/api/v1/secrets', {
-      method: 'PUT',
-      body: JSON.stringify(values),
-    })
-  })
-  ipcMain.handle('workspace:get-settings', () => backend.request('/api/v1/settings'))
-  ipcMain.handle('workspace:save-settings', (_event, candidate) => {
-    const settings = cliqSettingsSchema.parse(candidate)
-    return backend.request('/api/v1/settings', {
-      method: 'PUT',
-      body: JSON.stringify(settings),
-    })
-  })
-  ipcMain.handle('workspace:get-screenshot', (_event, candidate) => {
-    const request = screenshotRequestSchema.parse(candidate)
-    return backend.requestDataUrl(
-      `/api/v1/runs/${encodeURIComponent(request.runId)}/screenshots/${encodeURIComponent(request.fileName)}`,
-    )
-  })
-  ipcMain.handle('workspace:get-discovery-screenshot', (_event, candidate) => {
-    const request = discoveryScreenshotRequestSchema.parse(candidate)
-    return backend.requestDataUrl(
-      `/api/v1/pages/discovery-screenshots/${encodeURIComponent(request.fileName)}`,
-    )
-  })
-
-  ipcMain.handle('browser:navigate', (_event, candidate) =>
-    browser?.navigate(httpNavigationSchema.parse(candidate)),
-  )
-  ipcMain.handle('browser:back', () => browser?.back())
-  ipcMain.handle('browser:forward', () => browser?.forward())
-  ipcMain.handle('browser:reload', () => browser?.reload())
-  ipcMain.handle('browser:bounds', (_event, value) => browser?.setBounds(boundsSchema.parse(value)))
-  ipcMain.handle('browser:visible', (_event, candidate) =>
-    browser?.setVisible(booleanSchema.parse(candidate)),
-  )
-}
-
 function installMenu() {
   const isMac = process.platform === 'darwin'
   Menu.setApplicationMenu(
@@ -325,7 +207,12 @@ if (hasSingleInstanceLock) app.whenReady().then(async () => {
   if (initialLaunch.workspacePath) {
     await openWorkspace(initialLaunch.workspacePath, false)
   }
-  installIpc()
+  installIpc({
+    backend,
+    chooseAndOpenWorkspace,
+    getShell: () => shell,
+    getBrowser: () => browser,
+  })
   installMenu()
   await createWindow()
   if (queuedWorkspaceLaunch) {

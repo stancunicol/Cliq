@@ -113,24 +113,16 @@ internal sealed class SecretValueDialog : CliqDialogWindow
     {
         if (string.IsNullOrWhiteSpace(_key.Text))
         {
-            MessageBox.Show(
-                this,
-                "Enter a secret key.",
-                "Cliq",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
+            CliqMessageBox.ShowWarning(this, "Enter a secret key.");
             _key.Focus();
             return;
         }
 
         if (!WorkbenchViewModel.IsValidSecretKey(_key.Text))
         {
-            MessageBox.Show(
+            CliqMessageBox.ShowWarning(
                 this,
-                "Secret key must start with a letter or underscore and contain only letters, numbers, '.', '-' or '_'.",
-                "Cliq",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
+                "Secret key must start with a letter or underscore and contain only letters, numbers, '.', '-' or '_'.");
             _key.Focus();
             _key.SelectAll();
             return;
@@ -138,12 +130,7 @@ internal sealed class SecretValueDialog : CliqDialogWindow
 
         if (_value.SecurePassword.Length == 0)
         {
-            MessageBox.Show(
-                this,
-                "Enter a secret value.",
-                "Cliq",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
+            CliqMessageBox.ShowWarning(this, "Enter a secret value.");
             _value.Focus();
             return;
         }

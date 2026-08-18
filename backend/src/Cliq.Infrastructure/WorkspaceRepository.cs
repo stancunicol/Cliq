@@ -1,19 +1,18 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Cliq.Application;
 using Cliq.Domain;
-using GenerationIdentifierNaming = Cliq.Infrastructure.Generation.IdentifierNaming;
 
 namespace Cliq.Infrastructure;
 
+/// <summary>
+/// Workspace lifecycle (open/close/lease) and the generic JSON file I/O every other partial of
+/// this class builds on. The per-concern CRUD (project/settings/pages/tests/runs) lives in its own
+/// WorkspaceRepository.*.cs file - this one only owns what's shared across all of them.
+/// </summary>
 public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposable
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
-    {
-        WriteIndented = true,
-        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
-    };
+    private static readonly JsonSerializerOptions JsonOptions = CliqJsonOptions.Indented;
 
     private readonly AtomicFileWriter _atomicWriter = new();
     private readonly SemaphoreSlim _workspaceGate = new(1, 1);
@@ -31,8 +30,7 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
             throw new DirectoryNotFoundException($"Workspace '{fullPath}' does not exist.");
         }
 
-        await _workspaceGate.WaitAsync(cancellationToken);
-        try
+        return await _workspaceGate.WithLockAsync(async () =>
         {
             if (string.Equals(RootPath, fullPath, StringComparison.OrdinalIgnoreCase))
             {
@@ -82,27 +80,19 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
             {
                 candidateLease?.Dispose();
             }
-        }
-        finally
-        {
-            _workspaceGate.Release();
-        }
+        }, cancellationToken);
     }
 
     public async Task CloseAsync(CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        await _workspaceGate.WaitAsync(cancellationToken);
-        try
+        await _workspaceGate.WithLockAsync(() =>
         {
             RootPath = null;
             _workspaceLease?.Dispose();
             _workspaceLease = null;
-        }
-        finally
-        {
-            _workspaceGate.Release();
-        }
+            return Task.CompletedTask;
+        }, cancellationToken);
     }
 
     public async Task<WorkspaceSnapshot> GetSnapshotAsync(CancellationToken cancellationToken)
@@ -130,417 +120,6 @@ public sealed partial class WorkspaceRepository : IWorkspaceRepository, IDisposa
                 Path.Combine(cliqDirectory, "tests"),
                 TestCase.CurrentSchemaVersion,
                 cancellationToken));
-    }
-
-    public async Task<ProjectManifest> SaveProjectAsync(ProjectManifest project, CancellationToken cancellationToken)
-    {
-        EnsureOpen();
-        ValidateVersion(project.SchemaVersion, ProjectManifest.CurrentSchemaVersion, "project");
-        ValidateRelativeDirectory(project.Output.PageObjectsDirectory, nameof(project.Output.PageObjectsDirectory));
-        ValidateRelativeDirectory(project.Output.TestsDirectory, nameof(project.Output.TestsDirectory));
-        var updated = project with { UpdatedAt = DateTimeOffset.UtcNow };
-        await WriteAtomicAsync(ProjectPath, updated, cancellationToken);
-        return updated;
-    }
-
-    public async Task<CliqSettings> GetSettingsAsync(CancellationToken cancellationToken)
-    {
-        EnsureOpen();
-        var settings = await ReadOptionalAsync<CliqSettings>(SettingsPath, cancellationToken) ?? DefaultSettings();
-        ValidateVersion(settings.SchemaVersion, CliqSettings.CurrentSchemaVersion, "settings");
-
-        // A settings.json written before a field was introduced deserializes that field as null
-        // (not an empty collection) via constructor binding - backfill so older files upgrade
-        // cleanly instead of crashing whatever first reads the missing value.
-        if (settings.ElementIdentification.IgnoreIdPatterns is null)
-        {
-            settings = settings with
-            {
-                ElementIdentification = settings.ElementIdentification with { IgnoreIdPatterns = [] },
-            };
-        }
-
-        return settings;
-    }
-
-    public async Task<CliqSettings> SaveSettingsAsync(CliqSettings settings, CancellationToken cancellationToken)
-    {
-        EnsureOpen();
-        ValidateVersion(settings.SchemaVersion, CliqSettings.CurrentSchemaVersion, "settings");
-        ValidateSettings(settings);
-        await WriteAtomicAsync(SettingsPath, settings, cancellationToken);
-        return settings;
-    }
-
-    private static readonly HashSet<string> KnownIdentificationStrategies = new(StringComparer.Ordinal) { "testId", "xpath" };
-
-    private static void ValidateSettings(CliqSettings settings)
-    {
-        if (string.IsNullOrWhiteSpace(settings.ElementIdentification.TestIdAttribute))
-        {
-            throw new WorkspaceValidationException("elementIdentification.testIdAttribute must not be empty.");
-        }
-
-        if (settings.ElementIdentification.StrategyOrder.Count == 0)
-        {
-            throw new WorkspaceValidationException("elementIdentification.strategyOrder must not be empty.");
-        }
-
-        foreach (var strategy in settings.ElementIdentification.StrategyOrder)
-        {
-            if (!KnownIdentificationStrategies.Contains(strategy))
-            {
-                throw new WorkspaceValidationException(
-                    $"elementIdentification.strategyOrder contains unknown strategy '{strategy}'. Expected one of: testId, xpath.");
-            }
-        }
-
-        foreach (var pattern in settings.ElementIdentification.IgnoreIdPatterns)
-        {
-            try
-            {
-                _ = new Regex(pattern);
-            }
-            catch (ArgumentException exception)
-            {
-                throw new WorkspaceValidationException(
-                    $"elementIdentification.ignoreIdPatterns contains an invalid regular expression '{pattern}': {exception.Message}");
-            }
-        }
-
-        if (settings.TestExecution.DefaultStepTimeoutMs <= 0)
-        {
-            throw new WorkspaceValidationException("testExecution.defaultStepTimeoutMs must be positive.");
-        }
-
-        if (settings.TestExecution.PageReadyTimeoutMs <= 0)
-        {
-            throw new WorkspaceValidationException("testExecution.pageReadyTimeoutMs must be positive.");
-        }
-
-        if (settings.Scanning.LoadTimeoutMs <= 0)
-        {
-            throw new WorkspaceValidationException("scanning.loadTimeoutMs must be positive.");
-        }
-
-        if (settings.Scanning.NetworkIdleGraceMs <= 0)
-        {
-            throw new WorkspaceValidationException("scanning.networkIdleGraceMs must be positive.");
-        }
-    }
-
-    // Known framework-instance-generated id shapes: values that look like this are volatile
-    // across page loads even without any DOM/data change, so they're untrustworthy as a locator
-    // and as a naming source - see ElementIdentificationSettings.IgnoreIdPatterns.
-    private static readonly string[] DefaultIgnoreIdPatterns =
-    [
-        @"^ember\d+$",
-        @"^react-select-\d+-",
-        @"^mat-[a-z]+(-[a-z]+)*-\d+$",
-        @"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-    ];
-
-    private static CliqSettings DefaultSettings() => new(
-        CliqSettings.CurrentSchemaVersion,
-        new ElementIdentificationSettings("data-testid", ["testId", "xpath"], DefaultIgnoreIdPatterns),
-        new TestExecutionSettings(DefaultStepTimeoutMs: 10_000, PageReadyTimeoutMs: 15_000, CaptureScreenshotOnFailure: false),
-        new ScanningSettings(LoadTimeoutMs: 30_000, NetworkIdleGraceMs: 3_000, CaptureScreenshot: false));
-
-    public Task<IReadOnlyList<PageDefinition>> ListPagesAsync(CancellationToken cancellationToken) =>
-        ReadDirectoryAsync<PageDefinition>(PagesDirectory, PageDefinition.CurrentSchemaVersion, cancellationToken);
-
-    public async Task<PageDefinition?> GetPageAsync(string id, CancellationToken cancellationToken) =>
-        await ReadOptionalAsync<PageDefinition>(EntityPath(PagesDirectory, id), cancellationToken);
-
-    public async Task<PageDefinition> SavePageAsync(PageDefinition page, CancellationToken cancellationToken)
-    {
-        EnsureOpen();
-        ValidateVersion(page.SchemaVersion, PageDefinition.CurrentSchemaVersion, "page");
-        ValidateDynamicElements(page);
-        await ValidateUniqueClassNameAsync(page, cancellationToken);
-        var updated = page with { UpdatedAt = DateTimeOffset.UtcNow };
-        await WriteAtomicAsync(EntityPath(PagesDirectory, page.Id), updated, cancellationToken);
-        return updated;
-    }
-
-    // Two pages whose names sanitize to the same class name (e.g. "Login" and "log in" both ->
-    // LoginPage) would otherwise silently overwrite each other's generated file on the next
-    // Generate - WorkspaceCodeGeneration addresses pages by class name only (see its
-    // pageClassNames dictionary), with no way to tell them apart once collided.
-    private async Task ValidateUniqueClassNameAsync(PageDefinition page, CancellationToken cancellationToken)
-    {
-        var className = GenerationIdentifierNaming.ToPageObjectClassName(page.Name);
-        var others = await ListPagesAsync(cancellationToken);
-        var collision = others.FirstOrDefault(other =>
-            !string.Equals(other.Id, page.Id, StringComparison.Ordinal) &&
-            string.Equals(
-                GenerationIdentifierNaming.ToPageObjectClassName(other.Name), className, StringComparison.Ordinal));
-        if (collision is not null)
-        {
-            throw new WorkspaceValidationException(
-                $"Page name '{page.Name}' generates the same class name ('{className}') as page " +
-                $"'{collision.Name}'. Choose a different name.");
-        }
-    }
-
-    // Only these four actions have a generated factory method for a dynamic element - see
-    // PageObjectCodeGenerator.AppendDynamicFactory. Anything else would silently fall back to a
-    // Click-shaped method at generation time (WorkspaceCodeGeneration.ToDynamicDescriptor), which
-    // is wrong for e.g. a Radio/MultiSelect action, so it's rejected here instead.
-    private static readonly HashSet<StepAction> SupportedDynamicActions =
-    [
-        StepAction.Click,
-        StepAction.Fill,
-        StepAction.Select,
-        StepAction.AssertText,
-    ];
-
-    // Mirrors PageObjectCodeGenerator.ByExpression/InterpolatedByExpression's own restriction -
-    // testId, xpath, and css are the only strategies discovery ever produces for a regular element,
-    // and per the 2026-08-03 identification decision, id/name are never a valid locator strategy
-    // (id is a naming hint only; name exists solely for a Radio group, which has no dynamic
-    // equivalent) - so a dynamic element can't use them either, even though it's hand-authored.
-    private static readonly HashSet<LocatorStrategy> SupportedDynamicStrategies =
-    [
-        LocatorStrategy.TestId,
-        LocatorStrategy.XPath,
-        LocatorStrategy.Css,
-    ];
-
-    private static void ValidateDynamicElements(PageDefinition page)
-    {
-        var dynamicElements = page.DynamicElements ?? [];
-        if (dynamicElements.Count == 0)
-        {
-            return;
-        }
-
-        // Seeded with every static element's generated member name so a dynamic element can't
-        // silently collide with one - both become a real C# member on the same Page Object class
-        // (PageObjectCodeGenerator.Generate emits static-element members and dynamic-element
-        // factories into the same class), and a collision would only surface as a compiler error
-        // at generation time otherwise.
-        var usedMemberNames = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var element in page.Elements)
-        {
-            usedMemberNames.Add(GenerationIdentifierNaming.ToPascalCase(element.Name));
-        }
-
-        foreach (var element in dynamicElements)
-        {
-            if (!SupportedDynamicActions.Contains(element.Action))
-            {
-                throw new WorkspaceValidationException(
-                    $"Dynamic element '{element.Name}' on page '{page.Id}' has unsupported action " +
-                    $"'{element.Action}'. Only click, fill, select, and assertText are supported.");
-            }
-
-            if (!SupportedDynamicStrategies.Contains(element.Strategy))
-            {
-                throw new WorkspaceValidationException(
-                    $"Dynamic element '{element.Name}' on page '{page.Id}' has unsupported locator " +
-                    $"strategy '{element.Strategy}'. Only testId, xpath, and css are supported.");
-            }
-
-            if (!element.LocatorTemplate.Contains("{param}", StringComparison.Ordinal))
-            {
-                throw new WorkspaceValidationException(
-                    $"Dynamic element '{element.Name}' on page '{page.Id}' has a locator template " +
-                    "with no '{param}' placeholder.");
-            }
-
-            var memberName = GenerationIdentifierNaming.ToPascalCase(WorkspaceCodeGeneration.DynamicMemberName(element));
-            if (!usedMemberNames.Add(memberName))
-            {
-                throw new WorkspaceValidationException(
-                    $"Dynamic element '{element.Name}' on page '{page.Id}' generates the member name " +
-                    $"'{memberName}', which collides with another element on the same page.");
-            }
-        }
-    }
-
-    public Task DeletePageAsync(string id, CancellationToken cancellationToken) =>
-        DeleteAsync(EntityPath(PagesDirectory, id), cancellationToken);
-
-    public Task<IReadOnlyList<TestCase>> ListTestsAsync(CancellationToken cancellationToken) =>
-        ReadDirectoryAsync<TestCase>(TestsDirectory, TestCase.CurrentSchemaVersion, cancellationToken);
-
-    public async Task<TestCase?> GetTestAsync(string id, CancellationToken cancellationToken) =>
-        await ReadOptionalAsync<TestCase>(EntityPath(TestsDirectory, id), cancellationToken);
-
-    public async Task<TestCase> SaveTestAsync(TestCase test, CancellationToken cancellationToken)
-    {
-        EnsureOpen();
-        ValidateVersion(test.SchemaVersion, TestCase.CurrentSchemaVersion, "test");
-        await ValidateStepReferencesAsync(test, cancellationToken);
-        var updated = test with { UpdatedAt = DateTimeOffset.UtcNow };
-        await WriteAtomicAsync(EntityPath(TestsDirectory, test.Id), updated, cancellationToken);
-        return updated;
-    }
-
-    private static readonly HashSet<StepAction> ActionsRequiringElement =
-    [
-        StepAction.Click,
-        StepAction.Fill,
-        StepAction.Select,
-        StepAction.PressKey,
-        StepAction.AssertVisible,
-        StepAction.AssertText,
-    ];
-
-    private async Task ValidateStepReferencesAsync(TestCase test, CancellationToken cancellationToken)
-    {
-        var pageCache = new Dictionary<string, PageDefinition?>(StringComparer.Ordinal);
-
-        foreach (var step in test.Steps)
-        {
-            if (!ActionsRequiringElement.Contains(step.Action))
-            {
-                continue;
-            }
-
-            if (string.IsNullOrEmpty(step.PageId))
-            {
-                throw new WorkspaceValidationException($"Step '{step.Id}' has no page reference.");
-            }
-
-            if (!pageCache.TryGetValue(step.PageId, out var page))
-            {
-                page = await ReadOptionalAsync<PageDefinition>(EntityPath(PagesDirectory, step.PageId), cancellationToken);
-                pageCache[step.PageId] = page;
-            }
-
-            if (page is null)
-            {
-                throw new WorkspaceValidationException($"Step '{step.Id}' references page '{step.PageId}', which does not exist.");
-            }
-
-            // A dynamic-element step has no ElementId (it targets a DynamicElement instead - see
-            // TestStep.DynamicElementId) and is validated against the page's dynamic elements, not
-            // its scanned ones.
-            if (!string.IsNullOrEmpty(step.DynamicElementId))
-            {
-                if ((page.DynamicElements ?? []).All(element => element.Id != step.DynamicElementId))
-                {
-                    throw new WorkspaceValidationException(
-                        $"Step '{step.Id}' references dynamic element '{step.DynamicElementId}' on page '{step.PageId}', which does not exist.");
-                }
-
-                continue;
-            }
-
-            if (string.IsNullOrEmpty(step.ElementId) || page.Elements.All(element => element.Id != step.ElementId))
-            {
-                throw new WorkspaceValidationException(
-                    $"Step '{step.Id}' references element '{step.ElementId}' on page '{step.PageId}', which does not exist.");
-            }
-        }
-    }
-
-    public Task DeleteTestAsync(string id, CancellationToken cancellationToken) =>
-        DeleteAsync(EntityPath(TestsDirectory, id), cancellationToken);
-
-    public Task SaveRunAsync(TestRun run, CancellationToken cancellationToken)
-    {
-        EnsureOpen();
-        var runDirectory = Path.Combine(RunsDirectory, SafeId(run.Id));
-        Directory.CreateDirectory(runDirectory);
-        return WriteAtomicAsync(Path.Combine(runDirectory, "run.json"), run, cancellationToken);
-    }
-
-    public async Task<IReadOnlyList<PendingCustomMethodEntry>> ListPendingCustomMethodsAsync(CancellationToken cancellationToken)
-    {
-        EnsureOpen();
-        return await ReadOptionalAsync<List<PendingCustomMethodEntry>>(PendingCustomMethodsPath, cancellationToken)
-            ?? [];
-    }
-
-    // Upserts by (PageId, Signature) rather than Id, so re-deferring the same method (e.g. it's
-    // offered again in a later conflict for the same page) replaces its entry instead of
-    // duplicating it - Id only exists to give the VS extension a stable key for a discard action.
-    public async Task SavePendingCustomMethodAsync(PendingCustomMethodEntry entry, CancellationToken cancellationToken)
-    {
-        EnsureOpen();
-        var entries = (await ListPendingCustomMethodsAsync(cancellationToken)).ToList();
-        var existingIndex = entries.FindIndex(item =>
-            string.Equals(item.PageId, entry.PageId, StringComparison.Ordinal) &&
-            string.Equals(item.Signature, entry.Signature, StringComparison.Ordinal));
-        if (existingIndex >= 0)
-        {
-            entries[existingIndex] = entry;
-        }
-        else
-        {
-            entries.Add(entry);
-        }
-
-        await WriteAtomicAsync(PendingCustomMethodsPath, entries, cancellationToken);
-    }
-
-    public async Task DeletePendingCustomMethodAsync(string id, CancellationToken cancellationToken)
-    {
-        EnsureOpen();
-        var entries = (await ListPendingCustomMethodsAsync(cancellationToken))
-            .Where(item => !string.Equals(item.Id, id, StringComparison.Ordinal))
-            .ToList();
-        await WriteAtomicAsync(PendingCustomMethodsPath, entries, cancellationToken);
-    }
-
-    public string? GetScreenshotPath(string runId, string fileName)
-    {
-        EnsureOpen();
-        if (!IdPattern().IsMatch(runId) || !GenerationIdentifierNaming.IsSafeFileName(fileName))
-        {
-            return null;
-        }
-
-        var path = Path.Combine(RunsDirectory, runId, fileName);
-        return File.Exists(path) ? path : null;
-    }
-
-    // Discovery screenshots (see PuppeteerPageDiscovery.ScanAsync) all land in one flat
-    // "discovery" directory rather than a per-run one - a scan isn't a run, it has no id to scope
-    // by - so this only needs the same filename safety check GetScreenshotPath already applies.
-    public string? GetDiscoveryScreenshotPath(string fileName)
-    {
-        EnsureOpen();
-        if (!GenerationIdentifierNaming.IsSafeFileName(fileName))
-        {
-            return null;
-        }
-
-        var path = Path.Combine(RunsDirectory, "discovery", fileName);
-        return File.Exists(path) ? path : null;
-    }
-
-    internal string GetContainedPath(string relativeDirectory)
-    {
-        EnsureOpen();
-        ValidateRelativeDirectory(relativeDirectory, nameof(relativeDirectory));
-        var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(RootPath!));
-        var candidate = Path.GetFullPath(Path.Combine(root, relativeDirectory));
-
-        // Path.GetRelativePath (rather than a raw StartsWith) handles trailing separators and,
-        // on Windows, compares case-insensitively - a plain Ordinal StartsWith check previously
-        // used here could false-positive-reject a valid path whose casing merely differed from
-        // RootPath's, which the filesystem itself would treat as the same location.
-        var relative = Path.GetRelativePath(root, candidate);
-        if (relative.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(relative))
-        {
-            throw new WorkspaceValidationException(
-                $"Configured output directory escapes the workspace. Workspace root: '{root}'. " +
-                $"Resolved output directory: '{candidate}'.");
-        }
-
-        return candidate;
-    }
-
-    public async Task<string> GetGeneratedPageObjectPathAsync(PageDefinition page, CancellationToken cancellationToken)
-    {
-        var snapshot = await GetSnapshotAsync(cancellationToken);
-        var directory = GetContainedPath(snapshot.Project.Output.PageObjectsDirectory);
-        var className = GenerationIdentifierNaming.ToPageObjectClassName(page.Name);
-        return Path.Combine(directory, $"{className}.cs");
     }
 
     public void Dispose()

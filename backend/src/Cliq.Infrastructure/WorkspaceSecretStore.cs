@@ -5,10 +5,7 @@ namespace Cliq.Infrastructure;
 
 public sealed class WorkspaceSecretStore(WorkspaceRepository repository) : ISecretStore
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
-    {
-        WriteIndented = true,
-    };
+    private static readonly JsonSerializerOptions JsonOptions = CliqJsonOptions.Indented;
 
     public async Task<IReadOnlyDictionary<string, string>> ReadAsync(CancellationToken cancellationToken)
     {

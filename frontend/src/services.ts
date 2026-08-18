@@ -3,6 +3,7 @@ import type {
   GenerationResult,
   PageDefinition,
   PageScanResult,
+  ScreenshotState,
   TestCase,
   TestRun,
   WorkspaceSnapshot,
@@ -34,4 +35,16 @@ export const workspaceService = {
 export const screenshotService = {
   get: (runId: string, fileName: string): Promise<string | null> => bridge().getScreenshot(runId, fileName),
   getDiscovery: (fileName: string): Promise<string | null> => bridge().getDiscoveryScreenshot(fileName),
+}
+
+/** Shared by every screenshot panel: runs `fetcher`, maps its result to a `ScreenshotState`, and
+ * turns a thrown error into `{ status: 'error' }` instead of letting it propagate - the caller
+ * only needs to store the result, not repeat the try/catch shape. */
+export async function loadScreenshotState(fetcher: () => Promise<string | null>): Promise<ScreenshotState> {
+  try {
+    const dataUrl = await fetcher()
+    return dataUrl ? { status: 'ready', url: dataUrl } : { status: 'missing' }
+  } catch (cause) {
+    return { status: 'error', message: cause instanceof Error ? cause.message : String(cause) }
+  }
 }

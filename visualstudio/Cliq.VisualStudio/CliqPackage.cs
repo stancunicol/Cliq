@@ -34,7 +34,7 @@ namespace Cliq.VisualStudio;
 [ProvideToolWindow(typeof(CliqMergeToolWindow))]
 [ProvideOptionPage(typeof(CliqOptionsPage), "Cliq", "General", 110, 111, true)]
 [Guid(PackageGuidString)]
-public sealed class CliqPackage : AsyncPackage, ICliqShellCommandTarget
+public sealed partial class CliqPackage : AsyncPackage, ICliqShellCommandTarget, ICliqWorkbenchCommands
 {
     public const string PackageGuidString = "2C0AF2DA-640F-41B8-B02D-E847AF06C29E";
     private CliqOutputLogger? _logger;
@@ -130,12 +130,9 @@ public sealed class CliqPackage : AsyncPackage, ICliqShellCommandTarget
         if (Workbench.IsDirty)
         {
             await JoinableTaskFactory.SwitchToMainThreadAsync(DisposalToken);
-            var decision = MessageBox.Show(
+            var decision = CliqMessageBox.AskYesNoCancel(
                 "The Visual Studio workspace changed while Cliq has unsaved edits.\n\n" +
                 "Yes: save before switching\nNo: discard and switch\nCancel: keep the current Cliq workspace",
-                "Cliq",
-                MessageBoxButton.YesNoCancel,
-                MessageBoxImage.Warning,
                 MessageBoxResult.Cancel);
             if (decision == MessageBoxResult.Cancel)
             {
@@ -178,276 +175,6 @@ public sealed class CliqPackage : AsyncPackage, ICliqShellCommandTarget
         await Workbench.ReloadAsync(DisposalToken);
     }
 
-    internal async Task ScanPageAsync()
-    {
-        if (_context is null || Workbench is null || _actions is null ||
-            !await PrepareForPersistedActionAsync("scan a page"))
-        {
-            return;
-        }
-
-        await JoinableTaskFactory.SwitchToMainThreadAsync(DisposalToken);
-        var context = _context.Capture();
-        CliqDocumentClassifier.TryParseHttpSelection(context.SelectedText, out var selectedUrl);
-        var defaultUrl = selectedUrl?.AbsoluteUri
-            ?? Workbench.SelectedPage?.Url
-            ?? Workbench.Project?.BaseUrl;
-        var defaultName = Workbench.SelectedPage?.Name
-            ?? (selectedUrl is null ? null : selectedUrl.Host);
-        var defaultBrowser = Workbench.Project?.DefaultBrowser ?? BrowserKind.Chrome;
-        var dialog = new ScanPageDialog(defaultUrl, defaultName, defaultBrowser)
-        {
-            Owner = Application.Current?.MainWindow,
-        };
-        if (dialog.ShowDialog() != true)
-        {
-            return;
-        }
-
-        StagedPageScanResult? response = null;
-        await RunProgressAsync(
-            "Scanning the page with the installed browser...",
-            async cancellationToken =>
-            {
-                response = await _actions.ScanReviewAsync(
-                    dialog.PageUrl,
-                    dialog.PageName,
-                    dialog.Browser,
-                    dialog.Headless,
-                    cancellationToken);
-            });
-        if (response is null)
-        {
-            ShowActionError();
-            return;
-        }
-
-        if (response.Review is null)
-        {
-            await Workbench.InitializeAsync(DisposalToken);
-            await OpenWorkbenchAsync();
-            await JoinableTaskFactory.SwitchToMainThreadAsync(DisposalToken);
-            var resultDialog = new ScanResultDialog(new ScanPageResponse
-            {
-                Page = response.ActivePage,
-                Reconciliation = response.Reconciliation,
-                DynamicElementSuggestions = response.DynamicElementSuggestions,
-                ScreenshotPath = response.ScreenshotPath
-            })
-            {
-                Owner = Application.Current?.MainWindow,
-            };
-            resultDialog.ShowDialog();
-        }
-        else if (_session is not null)
-        {
-            await JoinableTaskFactory.SwitchToMainThreadAsync(DisposalToken);
-            var actionStore = new ApiWorkspaceActionStore(_session);
-            var reviewVm = new ScanReviewViewModel(actionStore, response.Review);
-            var reviewDialog = new ScanReviewDialog(reviewVm)
-            {
-                Owner = Application.Current?.MainWindow,
-            };
-            if (reviewDialog.ShowDialog() == true)
-            {
-                await Workbench.InitializeAsync(DisposalToken);
-                await OpenWorkbenchAsync();
-            }
-        }
-    }
-
-    internal async Task OpenScanReviewAsync(ScanReview review)
-    {
-        if (_session is null || Workbench is null)
-        {
-            return;
-        }
-
-        await JoinableTaskFactory.SwitchToMainThreadAsync(DisposalToken);
-        var actionStore = new ApiWorkspaceActionStore(_session);
-        var reviewVm = new ScanReviewViewModel(actionStore, review);
-        var reviewDialog = new ScanReviewDialog(reviewVm)
-        {
-            Owner = Application.Current?.MainWindow,
-        };
-        if (reviewDialog.ShowDialog() == true)
-        {
-            await Workbench.InitializeAsync(DisposalToken);
-            await OpenWorkbenchAsync();
-        }
-    }
-
-
-    private async Task LocateElementFromSourceAsync(IdeContextSnapshot context)
-    {
-        if (_actions is null)
-        {
-            return;
-        }
-
-        await JoinableTaskFactory.SwitchToMainThreadAsync(DisposalToken);
-        var documentPath = context.ActiveDocumentPath ?? context.SelectedItemPath;
-        var locatorComment = CliqDocumentClassifier.ResolveLocatorFieldComment(context.SelectedText, context.LineAboveSelection);
-        if (documentPath is null || locatorComment is null)
-        {
-            return;
-        }
-
-        var className = Path.GetFileNameWithoutExtension(documentPath);
-        var succeeded = false;
-        await RunProgressAsync(
-            "Locating element...",
-            async cancellationToken =>
-                succeeded = await _actions.LocateElementFromSourceAsync(
-                    className, locatorComment, browser: null, cancellationToken));
-        if (!succeeded)
-        {
-            ShowActionError();
-        }
-    }
-
-    internal async Task GenerateSelectedAsync()
-    {
-        if (_context is null || Workbench is null || _actions is null ||
-            !await PrepareForPersistedActionAsync("generate the selected item"))
-        {
-            return;
-        }
-
-        await JoinableTaskFactory.SwitchToMainThreadAsync(DisposalToken);
-        var context = _context.Capture();
-        var kind = context.SelectedDocumentKind;
-        var id = context.SelectedCliqEntityId;
-        if (kind == CliqDocumentKind.Other)
-        {
-            if (Workbench.SelectedTest is not null)
-            {
-                kind = CliqDocumentKind.Test;
-                id = Workbench.SelectedTest.Id;
-            }
-            else if (Workbench.SelectedPage is not null)
-            {
-                kind = CliqDocumentKind.Page;
-                id = Workbench.SelectedPage.Id;
-            }
-        }
-
-        if (id is null || kind == CliqDocumentKind.Other)
-        {
-            MessageBox.Show(
-                "Select a Cliq test or page in Solution Explorer or the Workbench.",
-                "Cliq",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
-            return;
-        }
-
-        await GenerateAsync(
-            cancellationToken => _actions.GenerateSelectedAsync(kind, id, cancellationToken));
-    }
-
-    internal async Task GenerateAllAsync()
-    {
-        if (_actions is null || !await PrepareForPersistedActionAsync("generate all artifacts"))
-        {
-            return;
-        }
-
-        await GenerateAsync(_actions.GenerateAllAsync);
-    }
-
-    internal async Task RunSelectedTestAsync()
-    {
-        if (_context is null || _session is null || Workbench is null || RunResults is null ||
-            !await PrepareForPersistedActionAsync("run the selected test"))
-        {
-            return;
-        }
-
-        await JoinableTaskFactory.SwitchToMainThreadAsync(DisposalToken);
-        var context = _context.Capture();
-        var testId = context.SelectedDocumentKind == CliqDocumentKind.Test
-            ? context.SelectedCliqEntityId
-            : Workbench.SelectedTest?.Id;
-        if (string.IsNullOrWhiteSpace(testId))
-        {
-            MessageBox.Show(
-                "Select a Cliq test in Solution Explorer or the Workbench.",
-                "Cliq",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
-            return;
-        }
-
-        var test = Workbench.Tests
-            .FirstOrDefault(candidate =>
-                string.Equals(candidate.Id, testId, StringComparison.Ordinal))
-            ?.ToModel();
-        if (test is null)
-        {
-            var client = await _session.GetClientAsync(DisposalToken);
-            test = await client.GetTestAsync(testId!, DisposalToken);
-        }
-
-        await ShowToolWindowAsync(
-            typeof(CliqRunResultsToolWindow),
-            0,
-            create: true,
-            DisposalToken);
-        var browser = Workbench.Project?.DefaultBrowser ?? BrowserKind.Chrome;
-        await RunResults.StartAsync(test, browser, DisposalToken);
-    }
-
-    internal async Task CancelRunAsync()
-    {
-        if (RunResults is not null)
-        {
-            await RunResults.CancelAsync(DisposalToken);
-        }
-    }
-
-    private async Task GenerateAsync(
-        Func<CancellationToken, Task<GenerationResult?>> generate)
-    {
-        GenerationResult? result = null;
-        await RunProgressAsync(
-            "Generating Cliq page objects and tests...",
-            async cancellationToken => result = await generate(cancellationToken));
-        if (result is null)
-        {
-            ShowActionError();
-            return;
-        }
-
-        await JoinableTaskFactory.SwitchToMainThreadAsync(DisposalToken);
-        var dialog = new GenerationResultDialog(result)
-        {
-            Owner = Application.Current?.MainWindow,
-        };
-        dialog.OpenRequested += OpenGeneratedFile;
-        dialog.ShowDialog();
-
-        if (result.PendingMerges.Count > 0)
-        {
-            await OpenMergeAsync(result.PendingMerges);
-        }
-    }
-
-    internal async Task OpenMergeAsync(IReadOnlyList<PendingCustomMethodMerge>? pendingMerges = null)
-    {
-        if (Merge is null)
-        {
-            return;
-        }
-
-        if (pendingMerges is not null)
-        {
-            Merge.LoadPendingMerges(pendingMerges);
-        }
-
-        await ShowToolWindowAsync(typeof(CliqMergeToolWindow), 0, create: true, DisposalToken);
-    }
-
     private async Task<bool> PrepareForPersistedActionAsync(string operation)
     {
         if (Workbench?.IsDirty != true)
@@ -456,11 +183,8 @@ public sealed class CliqPackage : AsyncPackage, ICliqShellCommandTarget
         }
 
         await JoinableTaskFactory.SwitchToMainThreadAsync(DisposalToken);
-        var decision = MessageBox.Show(
+        var decision = CliqMessageBox.AskYesNoCancel(
             $"Cliq has unsaved edits. Save them before you {operation}?",
-            "Cliq",
-            MessageBoxButton.YesNoCancel,
-            MessageBoxImage.Warning,
             MessageBoxResult.Yes);
         if (decision == MessageBoxResult.Cancel)
         {
@@ -481,19 +205,12 @@ public sealed class CliqPackage : AsyncPackage, ICliqShellCommandTarget
         Func<CancellationToken, Task> operation)
     {
         await JoinableTaskFactory.SwitchToMainThreadAsync(DisposalToken);
-        var dialog = new CliqProgressDialog(message, operation)
-        {
-            Owner = Application.Current?.MainWindow,
-        };
-        dialog.ShowDialog();
+        var dialog = new CliqProgressDialog(message, operation);
+        CliqDialogWindow.ShowOwned(dialog);
         if (dialog.Error is not null)
         {
             _logger?.Write(dialog.Error.ToString());
-            MessageBox.Show(
-                dialog.Error.Message,
-                "Cliq",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+            CliqMessageBox.ShowError(dialog.Error.Message);
         }
     }
 
@@ -503,11 +220,7 @@ public sealed class CliqPackage : AsyncPackage, ICliqShellCommandTarget
         var errorMessage = _actions?.ErrorMessage;
         if (!string.IsNullOrWhiteSpace(errorMessage))
         {
-            MessageBox.Show(
-                errorMessage,
-                "Cliq",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+            CliqMessageBox.ShowError(errorMessage);
         }
     }
 
@@ -523,42 +236,18 @@ public sealed class CliqPackage : AsyncPackage, ICliqShellCommandTarget
         dte?.ItemOperations.OpenFile(path, Constants.vsViewKindCode);
     }
 
-    internal async Task OpenGeneratedPageObjectAsync(string pageId)
-    {
-        if (_session is null)
-        {
-            return;
-        }
+    // Explicit implementations forwarding to the existing internal members - keeps those members
+    // internal for direct in-assembly callers while still satisfying ICliqWorkbenchCommands for
+    // WorkbenchControl, since implicit interface implementation requires a public member.
+    Task ICliqWorkbenchCommands.GenerateSelectedAsync() => GenerateSelectedAsync();
 
-        string path;
-        try
-        {
-            var client = await _session.GetClientAsync(DisposalToken);
-            path = (await client.GetGeneratedPageObjectPathAsync(pageId, DisposalToken)).Path;
-        }
-        catch (OperationCanceledException) when (DisposalToken.IsCancellationRequested)
-        {
-            return;
-        }
-        catch (Exception exception)
-        {
-            _logger?.Write($"Failed to resolve the generated file path: {exception}");
-            return;
-        }
+    Task ICliqWorkbenchCommands.ScanPageAsync() => ScanPageAsync();
 
-        await JoinableTaskFactory.SwitchToMainThreadAsync(DisposalToken);
-        if (!System.IO.File.Exists(path))
-        {
-            MessageBox.Show(
-                "This page hasn't been generated yet. Use Regenerate first.",
-                "Cliq",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
-            return;
-        }
+    Task ICliqWorkbenchCommands.OpenGeneratedPageObjectAsync(string pageId) => OpenGeneratedPageObjectAsync(pageId);
 
-        OpenGeneratedFile(path);
-    }
+    Task ICliqWorkbenchCommands.RunSelectedTestAsync() => RunSelectedTestAsync();
+
+    WorkspaceActionsViewModel? ICliqWorkbenchCommands.Actions => Actions;
 
     async Task ICliqShellCommandTarget.ExecuteAsync(
         CliqShellCommand command,
@@ -635,11 +324,7 @@ public sealed class CliqPackage : AsyncPackage, ICliqShellCommandTarget
         {
             _logger?.Write($"Cliq command '{command}' failed: {exception}");
             await JoinableTaskFactory.SwitchToMainThreadAsync();
-            MessageBox.Show(
-                exception.Message,
-                "Cliq command failed",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+            CliqMessageBox.ShowError(exception.Message, "Cliq command failed");
         }
     }
 
@@ -698,80 +383,5 @@ public sealed class CliqPackage : AsyncPackage, ICliqShellCommandTarget
         }
 
         await Task.CompletedTask;
-    }
-
-    private async Task RecordInDesktopAsync()
-    {
-        if (_session is null || Workbench is null)
-        {
-            return;
-        }
-
-        if (_desktopHandoff is { IsCompleted: false })
-        {
-            await JoinableTaskFactory.SwitchToMainThreadAsync(DisposalToken);
-            MessageBox.Show(
-                "Cliq is already waiting for the Desktop recording session to finish.",
-                "Cliq",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
-            return;
-        }
-
-        if (!await PrepareForPersistedActionAsync("record in Cliq Desktop"))
-        {
-            return;
-        }
-
-        var workspaceRoot = _session.WorkspaceRoot
-            ?? await _session.ResolveCurrentWorkspaceAsync(DisposalToken);
-        if (workspaceRoot is null)
-        {
-            throw new InvalidOperationException("Open or bind a Cliq workspace before recording.");
-        }
-
-        await JoinableTaskFactory.SwitchToMainThreadAsync(DisposalToken);
-        var options = (CliqOptionsPage)GetDialogPage(typeof(CliqOptionsPage));
-        var executable = CliqDesktopDiscovery.FindExecutable(options.DesktopExecutablePath);
-        if (executable is null)
-        {
-            MessageBox.Show(
-                "Cliq Desktop was not found. Configure Cliq.exe under Tools > Options > Cliq > General.",
-                "Cliq",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
-            return;
-        }
-
-        var coordinator = new DesktopHandoffCoordinator(
-            new VisualStudioWorkspaceLease(_session),
-            new ProcessDesktopApplicationLauncher());
-        try
-        {
-            _desktopHandoff = coordinator.HandoffAsync(
-                executable,
-                workspaceRoot,
-                message => _logger?.Write(message),
-                DisposalToken);
-            await _desktopHandoff;
-            await Workbench.InitializeAsync(DisposalToken);
-        }
-        catch (OperationCanceledException) when (DisposalToken.IsCancellationRequested)
-        {
-        }
-        catch (Exception exception)
-        {
-            _logger?.Write($"Cliq Desktop handoff failed: {exception}");
-            await JoinableTaskFactory.SwitchToMainThreadAsync(DisposalToken);
-            MessageBox.Show(
-                exception.Message,
-                "Cliq Desktop handoff failed",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
-        }
-        finally
-        {
-            _desktopHandoff = null;
-        }
     }
 }

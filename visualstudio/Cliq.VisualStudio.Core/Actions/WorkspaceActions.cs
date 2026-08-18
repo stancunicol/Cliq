@@ -351,39 +351,40 @@ namespace Cliq.VisualStudio.Core.Actions
                 cancellationToken).ConfigureAwait(false);
         }
 
-        private async Task<T?> RunAsync<T>(
+        private Task<T?> RunAsync<T>(
             string status,
             Func<CancellationToken, Task<T>> operation,
             CancellationToken cancellationToken)
-            where T : class
-        {
-            ThrowIfDisposed();
-            if (IsBusy)
-            {
-                throw new InvalidOperationException("Another Cliq action is already running.");
-            }
-
-            _operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            try
-            {
-                return await AsyncOperation.RunAsync<T>(
+            where T : class =>
+            RunLinkedAsync(
+                cancellationToken,
+                token => AsyncOperation.RunAsync<T>(
                     busy => IsBusy = busy,
                     s => StatusMessage = s,
                     e => ErrorMessage = e,
                     status,
-                    () => operation(_operation.Token)).ConfigureAwait(false);
-            }
-            finally
-            {
-                _operation.Dispose();
-                _operation = null;
-            }
-        }
+                    () => operation(token)));
 
-        private async Task<bool> RunAsync(
+        private Task<bool> RunAsync(
             string status,
             Func<CancellationToken, Task> operation,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken) =>
+            RunLinkedAsync(
+                cancellationToken,
+                token => AsyncOperation.RunAsync(
+                    busy => IsBusy = busy,
+                    s => StatusMessage = s,
+                    e => ErrorMessage = e,
+                    status,
+                    () => operation(token)));
+
+        // Shared by both RunAsync overloads: links cancellationToken to a fresh CTS stored in
+        // _operation (so Cancel() can stop whichever operation is currently running) and always
+        // tears it down afterward, regardless of which AsyncOperation.RunAsync overload the caller
+        // needs.
+        private async Task<TResult> RunLinkedAsync<TResult>(
+            CancellationToken cancellationToken,
+            Func<CancellationToken, Task<TResult>> runWithLinkedToken)
         {
             ThrowIfDisposed();
             if (IsBusy)
@@ -394,12 +395,7 @@ namespace Cliq.VisualStudio.Core.Actions
             _operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             try
             {
-                return await AsyncOperation.RunAsync(
-                    busy => IsBusy = busy,
-                    s => StatusMessage = s,
-                    e => ErrorMessage = e,
-                    status,
-                    () => operation(_operation.Token)).ConfigureAwait(false);
+                return await runWithLinkedToken(_operation.Token).ConfigureAwait(false);
             }
             finally
             {

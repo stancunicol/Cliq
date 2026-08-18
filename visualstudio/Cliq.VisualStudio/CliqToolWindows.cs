@@ -25,7 +25,8 @@ public sealed class CliqWorkbenchToolWindow : ToolWindowPane
             CliqPackage.Current?.Workbench ??
             new WorkbenchViewModel(
                 new DisconnectedWorkbenchStore(),
-                new MessageBoxWorkbenchPrompt()));
+                new MessageBoxWorkbenchPrompt()),
+            CliqPackage.Current);
     }
 }
 
@@ -139,29 +140,13 @@ internal sealed class MessageBoxWorkbenchPrompt : IWorkbenchPrompt
 {
     public Task<bool> ConfirmDiscardChangesAsync(
         string operation,
-        CancellationToken cancellationToken)
-    {
-        var result = MessageBox.Show(
-            $"You have unsaved Cliq changes. Discard them and {operation}?",
-            "Cliq",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning,
-            MessageBoxResult.No);
-        return Task.FromResult(result == MessageBoxResult.Yes);
-    }
+        CancellationToken cancellationToken) =>
+        Task.FromResult(CliqMessageBox.ConfirmYesNo($"You have unsaved Cliq changes. Discard them and {operation}?"));
 
     public Task<bool> ConfirmDeleteTestAsync(
         string testName,
-        CancellationToken cancellationToken)
-    {
-        var result = MessageBox.Show(
-            $"Delete test “{testName}”? This cannot be undone.",
-            "Cliq",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning,
-            MessageBoxResult.No);
-        return Task.FromResult(result == MessageBoxResult.Yes);
-    }
+        CancellationToken cancellationToken) =>
+        Task.FromResult(CliqMessageBox.ConfirmYesNo($"Delete test “{testName}”? This cannot be undone."));
 }
 
 [Guid("4F54B430-4DBF-4DBA-B56C-F922B5094B48")]

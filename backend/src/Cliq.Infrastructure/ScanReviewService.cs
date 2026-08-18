@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Cliq.Application;
 using Cliq.Domain;
@@ -10,11 +9,7 @@ public sealed partial class ScanReviewService(
     IWorkspaceRepository repository,
     IPageDiscovery discovery) : IScanReviewService, IDisposable
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
-    {
-        WriteIndented = true,
-        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
-    };
+    private static readonly JsonSerializerOptions JsonOptions = CliqJsonOptions.Indented;
 
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly AtomicFileWriter _atomicWriter = new();
@@ -26,8 +21,7 @@ public sealed partial class ScanReviewService(
         bool headless,
         CancellationToken cancellationToken)
     {
-        await _gate.WaitAsync(cancellationToken);
-        try
+        return await _gate.WithLockAsync(async () =>
         {
             var snapshot = await repository.GetSnapshotAsync(cancellationToken);
             var result = await discovery.ScanAsync(url, name, browser, headless, cancellationToken);
@@ -106,11 +100,7 @@ public sealed partial class ScanReviewService(
                 review,
                 result.DynamicElementSuggestions,
                 result.ScreenshotPath);
-        }
-        finally
-        {
-            _gate.Release();
-        }
+        }, cancellationToken);
     }
 
     public async Task<IReadOnlyList<ScanReview>> ListAsync(
@@ -118,8 +108,7 @@ public sealed partial class ScanReviewService(
         ScanReviewStatus? status,
         CancellationToken cancellationToken)
     {
-        await _gate.WaitAsync(cancellationToken);
-        try
+        return await _gate.WithLockAsync(async () =>
         {
             if (status is not null && !Enum.IsDefined(status.Value))
             {
@@ -131,25 +120,15 @@ public sealed partial class ScanReviewService(
                 .Where(review => pageId is null || review.PageId == pageId)
                 .Where(review => status is null || review.Status == status)
                 .OrderByDescending(review => review.CreatedAt)
-                .ToList();
-        }
-        finally
-        {
-            _gate.Release();
-        }
+                .ToList() as IReadOnlyList<ScanReview>;
+        }, cancellationToken);
     }
 
     public async Task<ScanReview> GetAsync(string reviewId, CancellationToken cancellationToken)
     {
-        await _gate.WaitAsync(cancellationToken);
-        try
-        {
-            return await ReadRequiredAsync(reviewId, cancellationToken);
-        }
-        finally
-        {
-            _gate.Release();
-        }
+        return await _gate.WithLockAsync(
+            () => ReadRequiredAsync(reviewId, cancellationToken),
+            cancellationToken);
     }
 
     public async Task<ScanReview> UpdateDecisionsAsync(
@@ -157,8 +136,7 @@ public sealed partial class ScanReviewService(
         IReadOnlyList<ScanReviewDecisionUpdate> updates,
         CancellationToken cancellationToken)
     {
-        await _gate.WaitAsync(cancellationToken);
-        try
+        return await _gate.WithLockAsync(async () =>
         {
             if (updates.Count == 0)
             {
@@ -210,19 +188,14 @@ public sealed partial class ScanReviewService(
             };
             await WriteAsync(updated, cancellationToken);
             return updated;
-        }
-        finally
-        {
-            _gate.Release();
-        }
+        }, cancellationToken);
     }
 
     public async Task<ScanReviewApplyResult> ApplyAsync(
         string reviewId,
         CancellationToken cancellationToken)
     {
-        await _gate.WaitAsync(cancellationToken);
-        try
+        return await _gate.WithLockAsync(async () =>
         {
             var review = await ReadRequiredAsync(reviewId, cancellationToken);
             EnsurePending(review);
@@ -309,17 +282,12 @@ public sealed partial class ScanReviewService(
             };
             await WriteAsync(applied, cancellationToken);
             return new ScanReviewApplyResult(applied, page);
-        }
-        finally
-        {
-            _gate.Release();
-        }
+        }, cancellationToken);
     }
 
     public async Task<ScanReview> DiscardAsync(string reviewId, CancellationToken cancellationToken)
     {
-        await _gate.WaitAsync(cancellationToken);
-        try
+        return await _gate.WithLockAsync(async () =>
         {
             var review = await ReadRequiredAsync(reviewId, cancellationToken);
             EnsurePending(review);
@@ -332,11 +300,7 @@ public sealed partial class ScanReviewService(
             };
             await WriteAsync(discarded, cancellationToken);
             return discarded;
-        }
-        finally
-        {
-            _gate.Release();
-        }
+        }, cancellationToken);
     }
 
     public void Dispose()

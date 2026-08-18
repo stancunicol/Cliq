@@ -1,5 +1,22 @@
 import { describe, expect, it } from 'vitest'
-import { testCaseSchema } from '../electron/ipc-schemas'
+import { pageSchema, testCaseSchema } from '../electron/ipc-schemas'
+
+function pageWithLocatorStrategy(strategy: string) {
+  return {
+    schemaVersion: 1,
+    id: 'login',
+    name: 'Login',
+    url: 'https://example.com/login',
+    elements: [{
+      id: 'username',
+      name: 'Username',
+      tag: 'input',
+      action: 'fill',
+      locator: { strategy, value: 'username' },
+    }],
+    updatedAt: new Date().toISOString(),
+  }
+}
 
 describe('IPC schemas', () => {
   it('accepts versioned test specifications', () => {
@@ -45,5 +62,20 @@ describe('IPC schemas', () => {
     expect(parsed.description).toBeUndefined()
     expect(parsed.steps[0].pageId).toBeUndefined()
     expect(parsed.steps[0].value).toBeUndefined()
+  })
+
+  it.each(['testId', 'name', 'css', 'xpath'] as const)(
+    'accepts "%s" as a locator strategy',
+    (strategy) => {
+      const parsed = pageSchema.safeParse(pageWithLocatorStrategy(strategy))
+
+      expect(parsed.success).toBe(true)
+    },
+  )
+
+  it('rejects "id" as a locator strategy - the backend LocatorStrategy enum never produces it', () => {
+    const parsed = pageSchema.safeParse(pageWithLocatorStrategy('id'))
+
+    expect(parsed.success).toBe(false)
   })
 })

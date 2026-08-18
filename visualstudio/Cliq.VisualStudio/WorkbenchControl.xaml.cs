@@ -20,11 +20,13 @@ internal enum WorkbenchSection
 public partial class WorkbenchControl : CliqThemedUserControl
 {
     private readonly WorkbenchViewModel _viewModel;
+    private readonly ICliqWorkbenchCommands? _commands;
     private bool _initialized;
 
-    public WorkbenchControl(WorkbenchViewModel viewModel)
+    internal WorkbenchControl(WorkbenchViewModel viewModel, ICliqWorkbenchCommands? commands = null)
     {
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
+        _commands = commands;
         InitializeComponent();
         DataContext = _viewModel;
         PreviewKeyDown += OnPreviewKeyDown;
@@ -91,49 +93,36 @@ public partial class WorkbenchControl : CliqThemedUserControl
         _viewModel.SelectedPage?.RemoveNotFoundElements();
     }
 
-    private void ElementsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        LocateElementButton.IsEnabled = ElementsGrid.SelectedItem is PageElementInspectorViewModel;
-    }
-
     private void ElementsGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
-    {
-        LocateSelectedElement();
-    }
-
-    private void LocateElement_Click(object sender, RoutedEventArgs e)
     {
         LocateSelectedElement();
     }
 
     private void RegeneratePage_Click(object sender, RoutedEventArgs e)
     {
-        var package = CliqPackage.Current;
-        if (package != null)
+        if (_commands != null)
         {
-            RunOperation(package.GenerateSelectedAsync);
+            RunOperation(_commands.GenerateSelectedAsync);
         }
     }
 
     private void RescanPage_Click(object sender, RoutedEventArgs e)
     {
-        var package = CliqPackage.Current;
-        if (package != null)
+        if (_commands != null)
         {
-            RunOperation(package.ScanPageAsync);
+            RunOperation(_commands.ScanPageAsync);
         }
     }
 
     private void OpenGeneratedFile_Click(object sender, RoutedEventArgs e)
     {
         var pageId = _viewModel.SelectedPage?.Id;
-        var package = CliqPackage.Current;
-        if (pageId is null || package is null)
+        if (pageId is null || _commands is null)
         {
             return;
         }
 
-        RunOperation(async () => { await package.OpenGeneratedPageObjectAsync(pageId); });
+        RunOperation(async () => { await _commands.OpenGeneratedPageObjectAsync(pageId); });
     }
 
     private void LocateSelectedElement()
@@ -144,7 +133,7 @@ public partial class WorkbenchControl : CliqThemedUserControl
             return;
         }
 
-        var actions = CliqPackage.Current?.Actions;
+        var actions = _commands?.Actions;
         if (actions is null)
         {
             return;
@@ -173,10 +162,9 @@ public partial class WorkbenchControl : CliqThemedUserControl
 
     private void RunTest_Click(object sender, RoutedEventArgs e)
     {
-        var package = CliqPackage.Current;
-        if (package != null)
+        if (_commands != null)
         {
-            RunOperation(package.RunSelectedTestAsync);
+            RunOperation(_commands.RunSelectedTestAsync);
         }
     }
 
@@ -261,13 +249,7 @@ public partial class WorkbenchControl : CliqThemedUserControl
     private void DeleteSecret_Click(object sender, RoutedEventArgs e)
     {
         if (_viewModel.SelectedSecret is not { } secret ||
-            MessageBox.Show(
-                Window.GetWindow(this),
-                $"Delete secret '{secret.Key}'? This cannot be undone.",
-                "Cliq",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning,
-                MessageBoxResult.No) != MessageBoxResult.Yes)
+            !CliqMessageBox.ConfirmYesNo(Window.GetWindow(this), $"Delete secret '{secret.Key}'? This cannot be undone."))
         {
             return;
         }

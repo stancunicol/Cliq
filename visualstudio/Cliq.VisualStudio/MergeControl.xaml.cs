@@ -1,5 +1,8 @@
 using System;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Media;
 using Cliq.VisualStudio.Core.Authoring;
 using Microsoft.VisualStudio.PlatformUI;
@@ -42,6 +45,33 @@ public partial class MergeControl : CliqThemedUserControl
         if (((FrameworkElement)sender).DataContext is WaitingListEntryViewModel entry)
         {
             RunOperation(() => _viewModel.DiscardAsync(entry));
+        }
+    }
+
+    // DataGrid has no built-in "click the selected row again to deselect it" behavior - selecting
+    // a row is what shows its RowDetails preview (RowDetailsVisibilityMode="VisibleWhenSelected"),
+    // so without this, a second click on an already-selected row does nothing and the preview stays
+    // open. Walks up from wherever the click landed; a ButtonBase ancestor (Include now/Discard)
+    // found before reaching the row means this was a button click, not a row click, so it's left
+    // alone rather than intercepted.
+    private void WaitingListGrid_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        var current = e.OriginalSource as DependencyObject;
+        while (current is not null and not DataGridRow)
+        {
+            if (current is ButtonBase)
+            {
+                return;
+            }
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        if (current is DataGridRow { IsSelected: true } row)
+        {
+            row.IsSelected = false;
+            WaitingListGrid.SelectedItem = null;
+            e.Handled = true;
         }
     }
 

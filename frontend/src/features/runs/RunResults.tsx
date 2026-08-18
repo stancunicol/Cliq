@@ -1,7 +1,7 @@
 import { Camera, Check, CircleAlert, LoaderCircle, Square, X } from 'lucide-react'
 import { useState } from 'react'
-import { screenshotService } from '../../services'
-import type { StepResult, TestCase, TestRun } from '../../types'
+import { loadScreenshotState, screenshotService } from '../../services'
+import type { ScreenshotState, StepResult, TestCase, TestRun } from '../../types'
 
 export function RunResults({
   run,
@@ -16,7 +16,6 @@ export function RunResults({
   activeStepId?: string
   onCancel(): void
 }) {
-  type ScreenshotState = { status: 'ready'; url: string } | { status: 'missing' } | { status: 'error'; message: string }
   const [screenshots, setScreenshots] = useState<Record<string, ScreenshotState>>({})
   const [openScreenshot, setOpenScreenshot] = useState<string>()
 
@@ -33,18 +32,8 @@ export function RunResults({
     }
     setOpenScreenshot(fileName)
     if (!(fileName in screenshots) && run) {
-      try {
-        const dataUrl = await screenshotService.get(run.id, fileName)
-        setScreenshots((current) => ({
-          ...current,
-          [fileName]: dataUrl ? { status: 'ready', url: dataUrl } : { status: 'missing' },
-        }))
-      } catch (cause) {
-        setScreenshots((current) => ({
-          ...current,
-          [fileName]: { status: 'error', message: cause instanceof Error ? cause.message : String(cause) },
-        }))
-      }
+      const state = await loadScreenshotState(() => screenshotService.get(run.id, fileName))
+      setScreenshots((current) => ({ ...current, [fileName]: state }))
     }
   }
 

@@ -331,21 +331,16 @@ namespace Cliq.VisualStudio.Core.Authoring
             ConflictReferences = Array.Empty<ScanReviewReference>();
         }
 
+        // Guarded by AsyncOperation.RunGuardedAsync so a second click while IsBusy is already true
+        // (the UI doesn't reliably disable every trigger fast enough) can't run two operations
+        // concurrently against the same scan review state.
         private async Task<bool> RunAsync(
             string status,
             Func<CancellationToken, Task<bool>> operation,
             CancellationToken cancellationToken)
         {
-            // Without this guard, a second click while IsBusy is already true (the UI doesn't
-            // reliably disable every trigger fast enough) would run two operations concurrently
-            // against the same scan review state.
-            if (IsBusy)
-            {
-                ErrorMessage = "Another Cliq action is already running.";
-                return false;
-            }
-
-            return await AsyncOperation.RunAsync<bool>(
+            return await AsyncOperation.RunGuardedAsync<bool>(
+                () => IsBusy,
                 busy => IsBusy = busy,
                 s => StatusMessage = s,
                 e => ErrorMessage = e,

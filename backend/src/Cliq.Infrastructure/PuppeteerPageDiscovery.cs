@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Cliq.Application;
 using Cliq.Domain;
 using Cliq.Infrastructure.Generation;
@@ -14,15 +13,6 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-    };
-
-    // Separate from JsonOptions above (which only deserializes the scanner's own JS output and
-    // is never read by a person): this report is meant to be opened and read, so it's indented
-    // and spells out the locator strategy name instead of its underlying enum ordinal.
-    private static readonly JsonSerializerOptions DiffReportJsonOptions = new(JsonSerializerDefaults.Web)
-    {
-        WriteIndented = true,
-        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
     };
 
     public async Task<PageScanResult> ScanAsync(
@@ -117,7 +107,7 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
         var directory = Path.Combine(root, ".cliq", "runs", "diffs");
         Directory.CreateDirectory(directory);
         var path = Path.Combine(directory, $"{pageId}_{scannedAt:yyyyMMddTHHmmssfffZ}.json");
-        await File.WriteAllTextAsync(path, JsonSerializer.Serialize(diff, DiffReportJsonOptions), cancellationToken);
+        await File.WriteAllTextAsync(path, JsonSerializer.Serialize(diff, CliqJsonOptions.Indented), cancellationToken);
 
         return diff;
     }
@@ -248,6 +238,16 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
             "Could not locate the repository root to find the Puppeteer scanner script. Set CLIQ_PUPPETEER_SCANNER_PATH.");
     }
 
+    // Shared by BuildElements and BuildDynamicElementSuggestions: appends "_2", "_3", ... the
+    // first time a sanitized name repeats, so two elements that sanitize to the same identifier
+    // (e.g. two buttons both named "Submit") still get distinct generated member names.
+    private static string DisambiguateName(Dictionary<string, int> usedNames, string name)
+    {
+        usedNames.TryGetValue(name, out var seen);
+        usedNames[name] = seen + 1;
+        return seen > 0 ? $"{name}_{seen + 1}" : name;
+    }
+
     internal static IReadOnlyList<PageElement> BuildElements(IReadOnlyList<RawElement> rawElements, string testIdAttribute)
     {
         var elements = new List<PageElement>();
@@ -275,14 +275,7 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
                 baseName = $"{el.Tag}_{i}";
             }
 
-            var name = IdentifierNaming.Sanitize(baseName, $"{el.Tag}_{i}");
-
-            usedNames.TryGetValue(name, out var seen);
-            usedNames[name] = seen + 1;
-            if (seen > 0)
-            {
-                name = $"{name}_{seen + 1}";
-            }
+            var name = DisambiguateName(usedNames, IdentifierNaming.Sanitize(baseName, $"{el.Tag}_{i}"));
 
             elements.Add(new PageElement(
                 $"{Slug(name)}-{i + 1}",
@@ -318,14 +311,7 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
                 baseName = $"{raw.Tag}_group_{i}";
             }
 
-            var name = IdentifierNaming.Sanitize(baseName, $"{raw.Tag}_group_{i}");
-
-            usedNames.TryGetValue(name, out var seen);
-            usedNames[name] = seen + 1;
-            if (seen > 0)
-            {
-                name = $"{name}_{seen + 1}";
-            }
+            var name = DisambiguateName(usedNames, IdentifierNaming.Sanitize(baseName, $"{raw.Tag}_group_{i}"));
 
             suggestions.Add(new DynamicElementSuggestion(
                 name,

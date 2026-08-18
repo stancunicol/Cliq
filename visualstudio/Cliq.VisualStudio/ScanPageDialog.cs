@@ -126,24 +126,14 @@ internal sealed class ScanPageDialog : CliqDialogWindow
         if (!Uri.TryCreate(PageUrl, UriKind.Absolute, out var uri) ||
             (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
         {
-            MessageBox.Show(
-                this,
-                "Enter an absolute HTTP or HTTPS URL.",
-                "Cliq",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
+            CliqMessageBox.ShowWarning(this, "Enter an absolute HTTP or HTTPS URL.");
             _url.Focus();
             return;
         }
 
         if (PageName.Length == 0)
         {
-            MessageBox.Show(
-                this,
-                "Enter a page name.",
-                "Cliq",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
+            CliqMessageBox.ShowWarning(this, "Enter a page name.");
             _name.Focus();
             return;
         }

@@ -26,6 +26,7 @@
             <Setter Property="BorderBrush" Value="{DynamicResource Cliq.Border}" />
             <Setter Property="Padding" Value="7,5" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Template" Value="{local:CliqTextBoxTemplate}" />
         </Style>
         <Style TargetType="ComboBox">
             <Setter Property="Background" Value="{DynamicResource Cliq.ComboBackground}" />
@@ -55,6 +56,7 @@
             <Setter Property="Padding" Value="10,5" />
             <Setter Property="Margin" Value="3,0" />
             <Setter Property="MinWidth" Value="54" />
+            <Setter Property="Template" Value="{local:CliqButtonTemplate}" />
         </Style>
         <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
             <Setter Property="Background" Value="{DynamicResource Cliq.Accent}" />
@@ -87,6 +89,7 @@
                         <Border x:Name="TabBorder"
                                 Padding="{TemplateBinding Padding}"
                                 Margin="0,0,1,0"
+                                CornerRadius="6,6,0,0"
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="1">
@@ -225,12 +228,34 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <TextBox Grid.Row="0"
-                             Margin="0,0,0,8"
-                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                             AutomationProperties.Name="Search Cliq tests and pages"
-                             ToolTip="Search tests and pages"
-                             VerticalContentAlignment="Center" />
+                    <Grid Grid.Row="0" Margin="0,0,0,8">
+                        <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                                 Padding="26,5,7,5"
+                                 AutomationProperties.Name="Search Cliq tests and pages"
+                                 ToolTip="Search tests and pages"
+                                 VerticalContentAlignment="Center" />
+                        <Canvas Width="14"
+                                Height="14"
+                                Margin="8,0,0,0"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Center"
+                                IsHitTestVisible="False">
+                            <Ellipse Width="9"
+                                     Height="9"
+                                     Canvas.Left="0"
+                                     Canvas.Top="0"
+                                     Stroke="{DynamicResource Cliq.MutedForeground}"
+                                     StrokeThickness="1.6" />
+                            <Line X1="8"
+                                  Y1="8"
+                                  X2="13.5"
+                                  Y2="13.5"
+                                  Stroke="{DynamicResource Cliq.MutedForeground}"
+                                  StrokeThickness="1.6"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round" />
+                        </Canvas>
+                    </Grid>
                     <TabControl Grid.Row="1"
                                 x:Name="NavigatorTabs"
                                 Background="{DynamicResource Cliq.SidebarBackground}"
@@ -378,23 +403,29 @@
                                     </StackPanel>
                                 </Grid>
 
-                                <DataGrid Grid.Row="2"
-                                          ItemsSource="{Binding Steps}"
-                                          SelectedItem="{Binding SelectedStep}"
-                                          AutoGenerateColumns="False"
-                                          CanUserAddRows="False"
-                                          IsReadOnly="True"
-                                          MinHeight="150"
-                                          MaxHeight="340"
-                                          AlternationCount="2"
-                                          AutomationProperties.Name="Test steps">
-                                    <DataGrid.Columns>
-                                        <DataGridCheckBoxColumn Header="On" Binding="{Binding Enabled}" Width="42" />
-                                        <DataGridTextColumn Header="Action" Binding="{Binding Action}" Width="120" />
-                                        <DataGridTextColumn Header="Label" Binding="{Binding Label}" Width="220" />
-                                        <DataGridTextColumn Header="Target" Binding="{Binding LocatorDisplay}" Width="360" />
-                                    </DataGrid.Columns>
-                                </DataGrid>
+                                <Border Grid.Row="2"
+                                        CornerRadius="7"
+                                        BorderThickness="1"
+                                        BorderBrush="{DynamicResource Cliq.Border}"
+                                        ClipToBounds="True">
+                                    <DataGrid ItemsSource="{Binding Steps}"
+                                              SelectedItem="{Binding SelectedStep}"
+                                              AutoGenerateColumns="False"
+                                              CanUserAddRows="False"
+                                              IsReadOnly="True"
+                                              MinHeight="150"
+                                              MaxHeight="340"
+                                              AlternationCount="2"
+                                              BorderThickness="0"
+                                              AutomationProperties.Name="Test steps">
+                                        <DataGrid.Columns>
+                                            <DataGridCheckBoxColumn Header="On" Binding="{Binding Enabled}" Width="42" />
+                                            <DataGridTextColumn Header="Action" Binding="{Binding Action}" Width="120" />
+                                            <DataGridTextColumn Header="Label" Binding="{Binding Label}" Width="220" />
+                                            <DataGridTextColumn Header="Target" Binding="{Binding LocatorDisplay}" Width="360" />
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </Border>
 
                                 <Border Grid.Row="3"
                                         Margin="0,14,0,0"
@@ -556,12 +587,6 @@
                                         Click="RemoveNotFoundElements_Click"
                                         ToolTip="Removes every element still flagged as not found on the last scan."
                                         AutomationProperties.Name="Remove not found elements" />
-                                <Button x:Name="LocateElementButton"
-                                        Content="Locate in Browser"
-                                        IsEnabled="False"
-                                        Click="LocateElement_Click"
-                                        ToolTip="Opens a visible browser on this page and highlights the selected element. The window stays open until you close it."
-                                        AutomationProperties.Name="Locate selected element in browser" />
                                 <Button Content="Regenerate"
                                         Click="RegeneratePage_Click"
                                         ToolTip="Regenerates this page's Page Object file only. Use Generate All to also refresh tests that reference it."
@@ -575,24 +600,29 @@
                                         ToolTip="Opens this page's generated Page Object .cs file, if it has been generated."
                                         AutomationProperties.Name="Open this page's generated file" />
                             </StackPanel>
-                            <DataGrid Grid.Row="3"
-                                      x:Name="ElementsGrid"
-                                      ItemsSource="{Binding Elements}"
-                                      AutoGenerateColumns="False"
-                                      IsReadOnly="True"
-                                      CanUserAddRows="False"
-                                      AlternationCount="2"
-                                      SelectionChanged="ElementsGrid_SelectionChanged"
-                                      MouseDoubleClick="ElementsGrid_MouseDoubleClick"
-                                      AutomationProperties.Name="Page elements">
-                                <DataGrid.Columns>
-                                    <DataGridTextColumn Header="Element" Binding="{Binding Name}" Width="*" />
-                                    <DataGridTextColumn Header="Tag" Binding="{Binding Tag}" Width="90" />
-                                    <DataGridTextColumn Header="Default action" Binding="{Binding Action}" Width="110" />
-                                    <DataGridTextColumn Header="Locator" Binding="{Binding Locator}" Width="2*" />
-                                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="150" />
-                                </DataGrid.Columns>
-                            </DataGrid>
+                            <Border Grid.Row="3"
+                                    CornerRadius="7"
+                                    BorderThickness="1"
+                                    BorderBrush="{DynamicResource Cliq.Border}"
+                                    ClipToBounds="True">
+                                <DataGrid x:Name="ElementsGrid"
+                                          ItemsSource="{Binding Elements}"
+                                          AutoGenerateColumns="False"
+                                          IsReadOnly="True"
+                                          CanUserAddRows="False"
+                                          AlternationCount="2"
+                                          BorderThickness="0"
+                                          MouseDoubleClick="ElementsGrid_MouseDoubleClick"
+                                          AutomationProperties.Name="Page elements">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Element" Binding="{Binding Name}" Width="*" />
+                                        <DataGridTextColumn Header="Tag" Binding="{Binding Tag}" Width="90" />
+                                        <DataGridTextColumn Header="Default action" Binding="{Binding Action}" Width="110" />
+                                        <DataGridTextColumn Header="Locator" Binding="{Binding Locator}" Width="2*" />
+                                        <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="150" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Border>
                         </Grid>
                     </Grid>
                 </TabItem>
@@ -848,19 +878,25 @@
                                            Margin="0,3,0,0" />
                             </StackPanel>
                         </DockPanel>
-                        <DataGrid Grid.Row="1"
-                                  ItemsSource="{Binding Secrets}"
-                                  SelectedItem="{Binding SelectedSecret}"
-                                  AutoGenerateColumns="False"
-                                  IsReadOnly="True"
-                                  CanUserAddRows="False"
-                                  AutomationProperties.Name="Workspace secrets">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="Key" Binding="{Binding Key}" Width="2*" />
-                                <DataGridTextColumn Header="Value" Binding="{Binding MaskedValue}" Width="*" />
-                                <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="130" />
-                            </DataGrid.Columns>
-                        </DataGrid>
+                        <Border Grid.Row="1"
+                                CornerRadius="7"
+                                BorderThickness="1"
+                                BorderBrush="{DynamicResource Cliq.Border}"
+                                ClipToBounds="True">
+                            <DataGrid ItemsSource="{Binding Secrets}"
+                                      SelectedItem="{Binding SelectedSecret}"
+                                      AutoGenerateColumns="False"
+                                      IsReadOnly="True"
+                                      CanUserAddRows="False"
+                                      BorderThickness="0"
+                                      AutomationProperties.Name="Workspace secrets">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Key" Binding="{Binding Key}" Width="2*" />
+                                    <DataGridTextColumn Header="Value" Binding="{Binding MaskedValue}" Width="*" />
+                                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="130" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Border>
                     </Grid>
                 </TabItem>
             </TabControl>

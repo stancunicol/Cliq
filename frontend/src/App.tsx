@@ -1,19 +1,19 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Camera, CirclePlay, Code2, LoaderCircle, ScanSearch } from 'lucide-react'
 import { BrowserPane } from './features/browser/BrowserPane'
+import { useBrowserBoundsSync } from './features/browser/useBrowserBoundsSync'
 import { GenerationWarningBanner } from './features/generation/GenerationWarningBanner'
 import { RunResults } from './features/runs/RunResults'
 import { DynamicElementSuggestionsBanner } from './features/scanning/DynamicElementSuggestionsBanner'
 import { LocatorDiffBanner } from './features/scanning/LocatorDiffBanner'
+import { useScanWorkflow } from './features/scanning/useScanWorkflow'
 import { TestEditor } from './features/tests/TestEditor'
 import { Sidebar } from './features/workspace/Sidebar'
-import { screenshotService, workspaceService } from './services'
+import { workspaceService } from './services'
 import type {
   BrowserState,
   CustomMethodRecoveryWarning,
   DynamicElement,
-  DynamicElementSuggestion,
-  LocatorDiffReport,
   TestCase,
   TestRun,
   WorkspaceSnapshot,
@@ -39,14 +39,6 @@ export function App() {
   const [activeStepId, setActiveStepId] = useState<string>()
   const [working, setWorking] = useState<string>()
   const [error, setError] = useState<string>()
-  const [locatorDiff, setLocatorDiff] = useState<LocatorDiffReport>()
-  const [dynamicElementSuggestions, setDynamicElementSuggestions] = useState<DynamicElementSuggestion[]>([])
-  const [suggestionsPageId, setSuggestionsPageId] = useState<string>()
-  const [scanScreenshot, setScanScreenshot] = useState<string>()
-  const [scanScreenshotOpen, setScanScreenshotOpen] = useState(false)
-  const [scanScreenshotState, setScanScreenshotState] = useState<
-    { status: 'ready'; url: string } | { status: 'missing' } | { status: 'error'; message: string }
-  >()
   const [generationWarnings, setGenerationWarnings] = useState<CustomMethodRecoveryWarning[]>([])
   const [pageName, setPageName] = useState('')
   const snapshotRef = useRef<WorkspaceSnapshot | undefined>(undefined)
@@ -123,29 +115,9 @@ export function App() {
     }
   }), [])
 
-  useLayoutEffect(() => {
-    const sync = () => {
-      const pane = document.querySelector('.browser-pane')?.getBoundingClientRect()
-      if (pane) {
-        void window.cliq?.browser.setBounds({
-          x: Math.round(pane.x),
-          y: Math.round(pane.y + 102),
-          width: Math.round(pane.width),
-          height: Math.max(0, Math.round(pane.height - 102)),
-        })
-      }
-    }
-    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(sync)
-    const pane = document.querySelector('.browser-pane')
-    if (pane) observer?.observe(pane)
-    window.addEventListener('resize', sync)
-    const frame = requestAnimationFrame(sync)
-    return () => {
-      observer?.disconnect()
-      window.removeEventListener('resize', sync)
-      cancelAnimationFrame(frame)
-    }
-  }, [snapshot])
+  useBrowserBoundsSync(snapshot)
+
+  const scanWorkflow = useScanWorkflow({ snapshot, updateSnapshot, setWorking, setError })
 
   async function openWorkspace() {
     try {
@@ -237,70 +209,6 @@ export function App() {
       updateSnapshot((current) => ({ ...current, pages: upsert(current.pages, saved) }))
     } catch (cause) {
       setError(message(cause))
-    }
-  }
-
-  async function scanPage() {
-    if (!snapshot || !url) return
-    setWorking('Scanning...')
-    setLocatorDiff(undefined)
-    setDynamicElementSuggestions([])
-    setScanScreenshot(undefined)
-    setScanScreenshotOpen(false)
-    setScanScreenshotState(undefined)
-    try {
-      const name = pageName.trim() || pageNameFor(url)
-      const { page, reconciliation, locatorDiff, dynamicElementSuggestions, screenshotPath } =
-        await workspaceService.scanPage(url, name, snapshot.project.defaultBrowser)
-      updateSnapshot({ ...snapshot, pages: upsert(snapshot.pages, page) })
-      setWorking(
-        reconciliation.isFirstScan
-          ? `Scanned: ${reconciliation.newCount} elements found`
-          : `Scanned: ${reconciliation.matchedCount} matched · ${reconciliation.newCount} new · ${reconciliation.missingCount} missing`,
-      )
-      setTimeout(() => setWorking(undefined), 3000)
-      setLocatorDiff(locatorDiff)
-      setDynamicElementSuggestions(dynamicElementSuggestions ?? [])
-      setSuggestionsPageId(page.id)
-      setScanScreenshot(screenshotPath)
-    } catch (cause) {
-      setError(message(cause))
-      setWorking(undefined)
-    }
-  }
-
-  async function toggleScanScreenshot() {
-    if (scanScreenshotOpen) {
-      setScanScreenshotOpen(false)
-      return
-    }
-    setScanScreenshotOpen(true)
-    if (!scanScreenshotState && scanScreenshot) {
-      try {
-        const dataUrl = await screenshotService.getDiscovery(scanScreenshot)
-        setScanScreenshotState(dataUrl ? { status: 'ready', url: dataUrl } : { status: 'missing' })
-      } catch (cause) {
-        setScanScreenshotState({ status: 'error', message: message(cause) })
-      }
-    }
-  }
-
-  async function acceptDynamicElementSuggestion(suggestion: DynamicElementSuggestion) {
-    if (!suggestionsPageId) return
-    const saved = await saveDynamicElement(suggestionsPageId, {
-      id: crypto.randomUUID(),
-      name: suggestion.name,
-      action: suggestion.action,
-      strategy: suggestion.strategy,
-      locatorTemplate: suggestion.locatorTemplate,
-      parameterType: 'int',
-    })
-    // Only drop it from the list once it's actually persisted - e.g. a name collision with an
-    // existing element (WorkspaceRepository.ValidateDynamicElements) fails the save and shows an
-    // error, but the suggestion should stay offered rather than silently vanish with no way to
-    // retry it short of re-scanning.
-    if (saved) {
-      setDynamicElementSuggestions((current) => current.filter((item) => item !== suggestion))
     }
   }
 
@@ -397,7 +305,10 @@ export function App() {
               placeholder="Page name"
               title={existingPageForUrl ? 'Renames the existing page object' : 'Name for the next scanned page'}
             />
-            <button onClick={() => void scanPage()} disabled={Boolean(working)}><ScanSearch />Scan</button>
+            <button
+              onClick={() => void scanWorkflow.scanPage(url, pageName.trim() || pageNameFor(url))}
+              disabled={Boolean(working)}
+            ><ScanSearch />Scan</button>
             <button onClick={() => void generate()} disabled={Boolean(working)}><Code2 />Generate</button>
             <button className="run" onClick={() => void runTest()} disabled={running || !selected}>
               {running ? <LoaderCircle className="spin" /> : <CirclePlay />}{running ? 'Running' : 'Run'}
@@ -406,25 +317,29 @@ export function App() {
         </header>
         {error && <button className="error-banner" onClick={() => setError(undefined)}>{error}</button>}
         {working && <div className="working-banner">{working}</div>}
-        {locatorDiff && <LocatorDiffBanner diff={locatorDiff} onDismiss={() => setLocatorDiff(undefined)} />}
+        {scanWorkflow.locatorDiff && (
+          <LocatorDiffBanner diff={scanWorkflow.locatorDiff} onDismiss={() => scanWorkflow.setLocatorDiff(undefined)} />
+        )}
         <DynamicElementSuggestionsBanner
-          suggestions={dynamicElementSuggestions}
-          onAccept={(suggestion) => void acceptDynamicElementSuggestion(suggestion)}
-          onDismiss={() => setDynamicElementSuggestions([])}
+          suggestions={scanWorkflow.dynamicElementSuggestions}
+          onAccept={(suggestion) => void scanWorkflow.acceptDynamicElementSuggestion(suggestion, saveDynamicElement)}
+          onDismiss={() => scanWorkflow.setDynamicElementSuggestions([])}
         />
-        {scanScreenshot && (
+        {scanWorkflow.scanScreenshot && (
           <button
-            className={`screenshot-toggle ${scanScreenshotOpen ? 'active' : ''}`}
-            onClick={() => void toggleScanScreenshot()}
+            className={`screenshot-toggle ${scanWorkflow.scanScreenshotOpen ? 'active' : ''}`}
+            onClick={() => void scanWorkflow.toggleScanScreenshot()}
           ><Camera />Scan screenshot</button>
         )}
-        {scanScreenshotOpen && (
+        {scanWorkflow.scanScreenshotOpen && (
           <div className="screenshot-panel">
-            {!scanScreenshotState && <LoaderCircle className="spin" />}
-            {scanScreenshotState?.status === 'ready' && <img src={scanScreenshotState.url} alt="Scan screenshot" />}
-            {scanScreenshotState?.status === 'missing' && <span>Screenshot is no longer available.</span>}
-            {scanScreenshotState?.status === 'error' && (
-              <span className="screenshot-error">Couldn't load screenshot: {scanScreenshotState.message}</span>
+            {!scanWorkflow.scanScreenshotState && <LoaderCircle className="spin" />}
+            {scanWorkflow.scanScreenshotState?.status === 'ready' && (
+              <img src={scanWorkflow.scanScreenshotState.url} alt="Scan screenshot" />
+            )}
+            {scanWorkflow.scanScreenshotState?.status === 'missing' && <span>Screenshot is no longer available.</span>}
+            {scanWorkflow.scanScreenshotState?.status === 'error' && (
+              <span className="screenshot-error">Couldn't load screenshot: {scanWorkflow.scanScreenshotState.message}</span>
             )}
           </div>
         )}

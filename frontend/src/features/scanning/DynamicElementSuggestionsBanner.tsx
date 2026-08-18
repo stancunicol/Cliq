@@ -1,5 +1,5 @@
-import { ChevronDown, ChevronUp, Plus, Sparkles, X } from 'lucide-react'
-import { useState } from 'react'
+import { Plus, Sparkles } from 'lucide-react'
+import { CollapsibleBanner } from '../../components/CollapsibleBanner'
 import type { DynamicElementSuggestion } from '../../types'
 
 const actionLabels: Record<DynamicElementSuggestion['action'], string> = {
@@ -21,35 +21,28 @@ export function DynamicElementSuggestionsBanner({
   onAccept(suggestion: DynamicElementSuggestion): void
   onDismiss(): void
 }) {
-  const [expanded, setExpanded] = useState(false)
   if (suggestions.length === 0) return null
 
   return (
-    <div className="dynamic-suggestions-banner">
-      <button className="dynamic-suggestions-summary" onClick={() => setExpanded((value) => !value)}>
-        <Sparkles />
-        <span>{suggestions.length} possible dynamic element{suggestions.length === 1 ? '' : 's'} found</span>
-        {expanded ? <ChevronUp /> : <ChevronDown />}
-      </button>
-      <button
-        className="dynamic-suggestions-dismiss"
-        aria-label="Dismiss dynamic element suggestions"
-        onClick={onDismiss}
-      ><X /></button>
-      {expanded && (
-        <ul className="dynamic-suggestions-list">
-          {suggestions.map((suggestion) => (
-            <li key={`${suggestion.name}-${suggestion.locatorTemplate}`}>
-              <strong>{suggestion.name}</strong>
-              <span>{actionLabels[suggestion.action]} · seen {suggestion.sampleCount}×</span>
-              <code>{suggestion.locatorTemplate}</code>
-              <button aria-label={`Add dynamic element ${suggestion.name}`} onClick={() => onAccept(suggestion)}>
-                <Plus />Add
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+    <CollapsibleBanner
+      tone="dynamic-suggestions"
+      icon={<Sparkles />}
+      summary={`${suggestions.length} possible dynamic element${suggestions.length === 1 ? '' : 's'} found`}
+      dismissLabel="Dismiss dynamic element suggestions"
+      onDismiss={onDismiss}
+    >
+      <ul className="dynamic-suggestions-list">
+        {suggestions.map((suggestion) => (
+          <li key={`${suggestion.name}-${suggestion.locatorTemplate}`}>
+            <strong>{suggestion.name}</strong>
+            <span>{actionLabels[suggestion.action]} · seen {suggestion.sampleCount}×</span>
+            <code>{suggestion.locatorTemplate}</code>
+            <button aria-label={`Add dynamic element ${suggestion.name}`} onClick={() => onAccept(suggestion)}>
+              <Plus />Add
+            </button>
+          </li>
+        ))}
+      </ul>
+    </CollapsibleBanner>
   )
 }

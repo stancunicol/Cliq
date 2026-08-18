@@ -16,6 +16,17 @@ internal abstract class CliqDialogWindow : Window
         ApplyTheme();
     }
 
+    /// <summary>Owns the current main window and shows <paramref name="dialog"/> modally -
+    /// collapses the "new XyzDialog(...) { Owner = Application.Current?.MainWindow };
+    /// dialog.ShowDialog()" shape repeated at every call site that opens one of these dialogs.
+    /// Any construction (setting properties, subscribing events) still happens on the caller's
+    /// own dialog instance before calling this - only the owning and showing is shared.</summary>
+    public static bool? ShowOwned(CliqDialogWindow dialog)
+    {
+        dialog.Owner = Application.Current?.MainWindow;
+        return dialog.ShowDialog();
+    }
+
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         VSColorTheme.ThemeChanged -= OnThemeChanged;
@@ -46,8 +57,12 @@ internal abstract class CliqDialogWindow : Window
             new Setter(Control.ForegroundProperty, foreground));
         Resources[typeof(CheckBox)] = StyleFor<CheckBox>(
             new Setter(Control.ForegroundProperty, foreground));
-        Resources[typeof(TextBox)] = InputStyle<TextBox>(inputBackground, foreground, border);
-        Resources[typeof(PasswordBox)] = InputStyle<PasswordBox>(inputBackground, foreground, border);
+        var textBoxStyle = InputStyle<TextBox>(inputBackground, foreground, border);
+        textBoxStyle.Setters.Add(new Setter(Control.TemplateProperty, CliqInputTemplate.Create(typeof(TextBox))));
+        Resources[typeof(TextBox)] = textBoxStyle;
+        var passwordBoxStyle = InputStyle<PasswordBox>(inputBackground, foreground, border);
+        passwordBoxStyle.Setters.Add(new Setter(Control.TemplateProperty, CliqInputTemplate.Create(typeof(PasswordBox))));
+        Resources[typeof(PasswordBox)] = passwordBoxStyle;
         var comboStyle = InputStyle<ComboBox>(comboBackground, comboForeground, border);
         comboStyle.Setters.Add(new Setter(ComboBox.TemplateProperty, CliqComboBoxTemplate.Create()));
         Resources[typeof(ComboBox)] = comboStyle;
@@ -55,7 +70,8 @@ internal abstract class CliqDialogWindow : Window
         Resources[typeof(Button)] = StyleFor<Button>(
             new Setter(Control.BackgroundProperty, buttonBackground),
             new Setter(Control.ForegroundProperty, foreground),
-            new Setter(Control.BorderBrushProperty, border));
+            new Setter(Control.BorderBrushProperty, border),
+            new Setter(Control.TemplateProperty, CliqButtonTemplate.Create()));
 
         OnThemeApplied();
     }

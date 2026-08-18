@@ -22,6 +22,7 @@ internal static class CliqComboBoxTemplate
         border.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(Control.BackgroundProperty));
         border.SetValue(Border.BorderBrushProperty, new TemplateBindingExtension(Control.BorderBrushProperty));
         border.SetValue(Border.BorderThicknessProperty, new TemplateBindingExtension(Control.BorderThicknessProperty));
+        border.SetValue(Border.CornerRadiusProperty, new CornerRadius(CliqButtonTemplate.DefaultCornerRadius));
 
         var grid = new FrameworkElementFactory(typeof(Grid));
         border.AppendChild(grid);
@@ -75,6 +76,7 @@ internal static class CliqComboBoxTemplate
         popupBorder.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(Control.BackgroundProperty));
         popupBorder.SetValue(Border.BorderBrushProperty, new TemplateBindingExtension(Control.BorderBrushProperty));
         popupBorder.SetValue(Border.BorderThicknessProperty, new Thickness(1));
+        popupBorder.SetValue(Border.CornerRadiusProperty, new CornerRadius(CliqButtonTemplate.DefaultCornerRadius));
         popupBorder.SetBinding(
             FrameworkElement.MinWidthProperty,
             new Binding(nameof(FrameworkElement.ActualWidth))

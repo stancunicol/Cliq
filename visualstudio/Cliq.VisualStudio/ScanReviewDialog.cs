@@ -94,7 +94,7 @@ internal sealed class ScanReviewDialog : CliqDialogWindow
         _conflictBorder = new Border
         {
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(3),
+            CornerRadius = new CornerRadius(CliqButtonTemplate.DefaultCornerRadius),
             Padding = new Thickness(10),
             Margin = new Thickness(0, 0, 0, 10),
             Visibility = Visibility.Collapsed
@@ -229,7 +229,7 @@ internal sealed class ScanReviewDialog : CliqDialogWindow
         var border = new Border
         {
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(3),
+            CornerRadius = new CornerRadius(CliqButtonTemplate.DefaultCornerRadius),
             Padding = new Thickness(10, 8, 10, 8),
             Margin = new Thickness(0, 0, 0, 6)
         };

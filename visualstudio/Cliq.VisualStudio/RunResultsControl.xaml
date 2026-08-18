@@ -19,6 +19,7 @@
             <Setter Property="BorderBrush" Value="{DynamicResource Cliq.Run.Border}" />
             <Setter Property="Padding" Value="10,5" />
             <Setter Property="Margin" Value="3,0" />
+            <Setter Property="Template" Value="{local:CliqButtonTemplate}" />
         </Style>
         <Style TargetType="DataGridColumnHeader">
             <Setter Property="Background" Value="{DynamicResource Cliq.Run.ToolbarBackground}" />
@@ -90,29 +91,34 @@
                 <RowDefinition Height="2*" MinHeight="120" />
             </Grid.RowDefinitions>
 
-            <DataGrid x:Name="StepsGrid"
-                      Margin="10"
-                      ItemsSource="{Binding Steps}"
-                      AutoGenerateColumns="False"
-                      CanUserAddRows="False"
-                      IsReadOnly="True"
-                      HeadersVisibility="Column"
-                      HorizontalScrollBarVisibility="Auto"
-                      VerticalScrollBarVisibility="Auto"
-                      Background="{DynamicResource Cliq.Run.Background}"
-                      Foreground="{DynamicResource Cliq.Run.Foreground}"
-                      BorderBrush="{DynamicResource Cliq.Run.Border}"
-                      RowBackground="{DynamicResource Cliq.Run.Background}"
-                      AlternatingRowBackground="{DynamicResource Cliq.Run.ToolbarBackground}"
-                      SelectionChanged="StepsGrid_SelectionChanged"
-                      AutomationProperties.Name="Run step timeline">
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="85" MinWidth="80" />
-                    <DataGridTextColumn Header="Step" Binding="{Binding Label}" Width="240" MinWidth="180" />
-                    <DataGridTextColumn Header="Duration" Binding="{Binding Duration}" Width="95" MinWidth="90" />
-                    <DataGridTextColumn Header="Breakdown" Binding="{Binding Timing}" Width="160" MinWidth="140" />
-                </DataGrid.Columns>
-            </DataGrid>
+            <Border Margin="10"
+                    CornerRadius="7"
+                    BorderThickness="1"
+                    BorderBrush="{DynamicResource Cliq.Run.Border}"
+                    ClipToBounds="True">
+                <DataGrid x:Name="StepsGrid"
+                          ItemsSource="{Binding Steps}"
+                          AutoGenerateColumns="False"
+                          CanUserAddRows="False"
+                          IsReadOnly="True"
+                          HeadersVisibility="Column"
+                          HorizontalScrollBarVisibility="Auto"
+                          VerticalScrollBarVisibility="Auto"
+                          Background="{DynamicResource Cliq.Run.Background}"
+                          Foreground="{DynamicResource Cliq.Run.Foreground}"
+                          BorderThickness="0"
+                          RowBackground="{DynamicResource Cliq.Run.Background}"
+                          AlternatingRowBackground="{DynamicResource Cliq.Run.ToolbarBackground}"
+                          SelectionChanged="StepsGrid_SelectionChanged"
+                          AutomationProperties.Name="Run step timeline">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="85" MinWidth="80" />
+                        <DataGridTextColumn Header="Step" Binding="{Binding Label}" Width="240" MinWidth="180" />
+                        <DataGridTextColumn Header="Duration" Binding="{Binding Duration}" Width="95" MinWidth="90" />
+                        <DataGridTextColumn Header="Breakdown" Binding="{Binding Timing}" Width="160" MinWidth="140" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Border>
 
             <GridSplitter Grid.Row="1"
                           HorizontalAlignment="Stretch"
@@ -154,6 +160,7 @@
                 <Border Grid.Row="3"
                         BorderBrush="{DynamicResource Cliq.Run.Border}"
                         BorderThickness="1"
+                        CornerRadius="7"
                         Background="{DynamicResource Cliq.Run.ToolbarBackground}">
                     <Grid>
                         <TextBlock Text="Select a failed step to inspect its screenshot."

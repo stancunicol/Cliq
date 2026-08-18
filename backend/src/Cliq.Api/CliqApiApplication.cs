@@ -35,8 +35,7 @@ internal static class CliqApiApplication
         configureServices?.Invoke(builder.Services);
 
         var app = builder.Build();
-        var eventJsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
-        eventJsonOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
+        var eventJsonOptions = CliqJsonOptions.Compact;
         var apiToken = app.Configuration["CLIQ_API_TOKEN"];
         if (string.IsNullOrWhiteSpace(apiToken))
         {

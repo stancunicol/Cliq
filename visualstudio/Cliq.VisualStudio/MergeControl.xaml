@@ -16,6 +16,7 @@
             <Setter Property="Background" Value="{DynamicResource Cliq.Merge.InputBackground}" />
             <Setter Property="Foreground" Value="{DynamicResource Cliq.Merge.Foreground}" />
             <Setter Property="BorderBrush" Value="{DynamicResource Cliq.Merge.Border}" />
+            <Setter Property="Template" Value="{local:CliqTextBoxTemplate}" />
         </Style>
         <Style TargetType="Button">
             <Setter Property="Background" Value="{DynamicResource Cliq.Merge.ButtonBackground}" />
@@ -23,6 +24,7 @@
             <Setter Property="BorderBrush" Value="{DynamicResource Cliq.Merge.Border}" />
             <Setter Property="Padding" Value="10,5" />
             <Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="Template" Value="{local:CliqButtonTemplate}" />
         </Style>
         <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
             <Setter Property="Background" Value="{DynamicResource Cliq.Merge.Accent}" />
@@ -51,6 +53,7 @@
                         <Border x:Name="TabBorder"
                                 Padding="{TemplateBinding Padding}"
                                 Margin="0,0,1,0"
+                                CornerRadius="6,6,0,0"
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{DynamicResource Cliq.Merge.Border}"
                                 BorderThickness="1">
@@ -200,47 +203,55 @@
                                    Foreground="{DynamicResource Cliq.Merge.MutedForeground}"
                                    VerticalAlignment="Center" />
                     </DockPanel>
-                    <DataGrid Grid.Row="1"
-                              ItemsSource="{Binding WaitingList}"
-                              AutoGenerateColumns="False"
-                              CanUserAddRows="False"
-                              IsReadOnly="True"
-                              AlternationCount="2"
-                              RowDetailsVisibilityMode="VisibleWhenSelected"
-                              AutomationProperties.Name="Waiting list">
-                        <DataGrid.RowDetailsTemplate>
-                            <DataTemplate>
-                                <TextBox Text="{Binding SourceText, Mode=OneWay}"
-                                         IsReadOnly="True"
-                                         FontFamily="Consolas"
-                                         AcceptsReturn="True"
-                                         TextWrapping="NoWrap"
-                                         MaxHeight="220"
-                                         Margin="4,4,4,10"
-                                         VerticalScrollBarVisibility="Auto"
-                                         HorizontalScrollBarVisibility="Auto"
-                                         AutomationProperties.Name="{Binding Signature}" />
-                            </DataTemplate>
-                        </DataGrid.RowDetailsTemplate>
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="Page" Binding="{Binding PageObjectName}" Width="*" />
-                            <DataGridTextColumn Header="Method" Binding="{Binding Signature}" Width="2*" />
-                            <DataGridTextColumn Header="Deferred at" Binding="{Binding DeferredAt}" Width="160" />
-                            <DataGridTemplateColumn Header="Actions" Width="210">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Orientation="Horizontal">
-                                            <Button Content="Include now"
-                                                    Click="IncludeNow_Click"
-                                                    IsEnabled="{Binding CanInclude}"
-                                                    ToolTip="This method still has a syntax error - fix it in the generated file and regenerate instead of including this stored snapshot." />
-                                            <Button Content="Discard" Click="Discard_Click" />
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                        </DataGrid.Columns>
-                    </DataGrid>
+                    <Border Grid.Row="1"
+                            CornerRadius="7"
+                            BorderThickness="1"
+                            BorderBrush="{DynamicResource Cliq.Merge.Border}"
+                            ClipToBounds="True">
+                        <DataGrid x:Name="WaitingListGrid"
+                                  ItemsSource="{Binding WaitingList}"
+                                  AutoGenerateColumns="False"
+                                  CanUserAddRows="False"
+                                  IsReadOnly="True"
+                                  AlternationCount="2"
+                                  BorderThickness="0"
+                                  RowDetailsVisibilityMode="VisibleWhenSelected"
+                                  PreviewMouseLeftButtonDown="WaitingListGrid_PreviewMouseLeftButtonDown"
+                                  AutomationProperties.Name="Waiting list">
+                            <DataGrid.RowDetailsTemplate>
+                                <DataTemplate>
+                                    <TextBox Text="{Binding SourceText, Mode=OneWay}"
+                                             IsReadOnly="True"
+                                             FontFamily="Consolas"
+                                             AcceptsReturn="True"
+                                             TextWrapping="NoWrap"
+                                             MaxHeight="220"
+                                             Margin="4,4,4,10"
+                                             VerticalScrollBarVisibility="Auto"
+                                             HorizontalScrollBarVisibility="Auto"
+                                             AutomationProperties.Name="{Binding Signature}" />
+                                </DataTemplate>
+                            </DataGrid.RowDetailsTemplate>
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Page" Binding="{Binding PageObjectName}" Width="*" />
+                                <DataGridTextColumn Header="Method" Binding="{Binding Signature}" Width="2*" />
+                                <DataGridTextColumn Header="Deferred at" Binding="{Binding DeferredAt}" Width="160" />
+                                <DataGridTemplateColumn Header="Actions" Width="210">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Button Content="Include now"
+                                                        Click="IncludeNow_Click"
+                                                        IsEnabled="{Binding CanInclude}"
+                                                        ToolTip="This method still has a syntax error - fix it in the generated file and regenerate instead of including this stored snapshot." />
+                                                <Button Content="Discard" Click="Discard_Click" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Border>
                 </Grid>
             </TabItem>
         </TabControl>

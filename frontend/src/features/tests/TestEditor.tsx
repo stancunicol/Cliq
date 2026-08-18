@@ -29,22 +29,19 @@ export function TestEditor({
   if (!test) {
     return <section className="editor empty"><h2>Create a test</h2><p>Scan a page, then add steps to build a workflow.</p></section>
   }
-  const updateStep = (id: string, patch: Partial<TestStep>) => onChange({
-    ...test,
-    steps: test.steps.map((step) => step.id === id ? { ...step, ...patch } : step),
-    updatedAt: new Date().toISOString(),
-  })
-  const addStep = () => onChange({
-    ...test,
-    steps: [...test.steps, {
-      id: crypto.randomUUID(),
-      action: 'navigate',
-      label: 'Navigate',
-      enabled: true,
-      url: 'https://example.com',
-    }],
-    updatedAt: new Date().toISOString(),
-  })
+  // Every step mutation goes through here so `updatedAt` can never be forgotten on a new mutation
+  // path - it stamps the whole TestCase, not just the touched step, matching how the backend
+  // treats a saved test.
+  const withSteps = (steps: TestStep[]): TestCase => ({ ...test, steps, updatedAt: new Date().toISOString() })
+  const updateStep = (id: string, patch: Partial<TestStep>) =>
+    onChange(withSteps(test.steps.map((step) => step.id === id ? { ...step, ...patch } : step)))
+  const addStep = () => onChange(withSteps([...test.steps, {
+    id: crypto.randomUUID(),
+    action: 'navigate',
+    label: 'Navigate',
+    enabled: true,
+    url: 'https://example.com',
+  }]))
   const elementFor = (step: TestStep) =>
     pages.find((page) => page.id === step.pageId)?.elements.find((element) => element.id === step.elementId)
   const dynamicElementFor = (step: TestStep) =>
@@ -304,19 +301,13 @@ export function TestEditor({
               <div className="step-actions">
                 <button
                   aria-label={`Duplicate step ${index + 1}`}
-                  onClick={() => onChange({
-                    ...test,
-                    steps: [...test.steps.slice(0, index + 1), { ...step, id: crypto.randomUUID() }, ...test.steps.slice(index + 1)],
-                    updatedAt: new Date().toISOString(),
-                  })}
+                  onClick={() => onChange(withSteps(
+                    [...test.steps.slice(0, index + 1), { ...step, id: crypto.randomUUID() }, ...test.steps.slice(index + 1)],
+                  ))}
                 ><Copy /></button>
                 <button
                   aria-label={`Delete step ${index + 1}`}
-                  onClick={() => onChange({
-                    ...test,
-                    steps: test.steps.filter((item) => item.id !== step.id),
-                    updatedAt: new Date().toISOString(),
-                  })}
+                  onClick={() => onChange(withSteps(test.steps.filter((item) => item.id !== step.id)))}
                 ><Trash2 /></button>
               </div>
             </article>
