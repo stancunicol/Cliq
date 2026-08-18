@@ -484,7 +484,7 @@ function Set-VsixManifestVersion {
     $updated = [Text.RegularExpressions.Regex]::Replace(
         (Get-Content -LiteralPath $manifestPath -Raw),
         '(<Identity\s+[^>]*?\bVersion=")[^"]*(")',
-        "`$1$Version`$2",
+        "`${1}$Version`${2}",
         [Text.RegularExpressions.RegexOptions]::Singleline)
     if ($updated.IndexOf("Version=`"$Version`"", [StringComparison]::Ordinal) -lt 0) {
         throw "Could not stamp version '$Version' into '$manifestPath'."
