@@ -27,6 +27,21 @@ public sealed class WorkbenchAuthoringTests
     }
 
     [Test]
+    public async Task SearchMatchesTestTags()
+    {
+        var store = new RecordingWorkbenchStore(CreateSnapshot());
+        var viewModel = new WorkbenchViewModel(store);
+
+        await viewModel.InitializeAsync();
+        viewModel.SearchText = "smoke";
+
+        Assert.That(viewModel.FilteredTests.Select(test => test.Name), Is.EqualTo(new[] { "Checkout" }));
+
+        viewModel.SearchText = "SMOKE";
+        Assert.That(viewModel.FilteredTests.Select(test => test.Name), Is.EqualTo(new[] { "Checkout" }));
+    }
+
+    [Test]
     public async Task SelectingTestsAndPagesIsMutuallyExclusive()
     {
         var viewModel = new WorkbenchViewModel(new RecordingWorkbenchStore(CreateSnapshot()));

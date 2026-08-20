@@ -82,7 +82,9 @@ public sealed class WorkbenchViewModel : BindableBase
     }
 
     public IEnumerable<TestEditorViewModel> FilteredTests =>
-        Tests.Where(test => MatchesSearch(test.Name));
+        Tests.Where(test =>
+            MatchesSearch(test.Name) ||
+            MatchesSearch(test.TagsText));
 
     public IEnumerable<PageEditorViewModel> FilteredPages =>
         Pages.Where(page =>
