@@ -582,6 +582,11 @@
                                        Margin="0,4,0,14"
                                        Foreground="{DynamicResource Cliq.MutedForeground}" />
                             <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBox Text="{Binding ElementFilter, UpdateSourceTrigger=PropertyChanged}"
+                                         Width="200"
+                                         Margin="0,0,8,0"
+                                         ToolTip="Filter elements by name, tag, or locator."
+                                         AutomationProperties.Name="Filter page elements" />
                                 <Button Content="Remove not found elements"
                                         IsEnabled="{Binding HasNotFoundElements}"
                                         Click="RemoveNotFoundElements_Click"
@@ -606,7 +611,7 @@
                                     BorderBrush="{DynamicResource Cliq.Border}"
                                     ClipToBounds="True">
                                 <DataGrid x:Name="ElementsGrid"
-                                          ItemsSource="{Binding Elements}"
+                                          ItemsSource="{Binding FilteredElements}"
                                           AutoGenerateColumns="False"
                                           IsReadOnly="True"
                                           CanUserAddRows="False"

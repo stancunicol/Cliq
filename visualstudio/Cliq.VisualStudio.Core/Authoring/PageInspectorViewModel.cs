@@ -10,6 +10,7 @@ public sealed class PageEditorViewModel : EditableViewModelBase
 {
     private PageDefinition _model;
     private string _name;
+    private string _elementFilter = string.Empty;
 
     public PageEditorViewModel(PageDefinition page)
     {
@@ -38,6 +39,21 @@ public sealed class PageEditorViewModel : EditableViewModelBase
     public string Url => _model.Url;
 
     public ObservableCollection<PageElementInspectorViewModel> Elements { get; }
+
+    public string ElementFilter
+    {
+        get => _elementFilter;
+        set
+        {
+            if (SetProperty(ref _elementFilter, value ?? string.Empty))
+            {
+                OnPropertyChanged(nameof(FilteredElements));
+            }
+        }
+    }
+
+    public IEnumerable<PageElementInspectorViewModel> FilteredElements =>
+        Elements.Where(MatchesFilter);
 
     public bool HasNotFoundElements => Elements.Any(element => element.NotFound);
 
@@ -71,7 +87,21 @@ public sealed class PageEditorViewModel : EditableViewModelBase
         OnPropertyChanged(nameof(DisplayName));
         OnPropertyChanged(nameof(ValidationSummary));
         OnPropertyChanged(nameof(HasNotFoundElements));
+        OnPropertyChanged(nameof(FilteredElements));
         IsDirty = false;
+    }
+
+    private bool MatchesFilter(PageElementInspectorViewModel element)
+    {
+        if (string.IsNullOrWhiteSpace(ElementFilter))
+        {
+            return true;
+        }
+
+        var filter = ElementFilter.Trim();
+        return element.Name.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0 ||
+               element.Tag.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0 ||
+               element.Locator.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     /// <summary>
@@ -93,6 +123,7 @@ public sealed class PageEditorViewModel : EditableViewModelBase
 
         MarkDirty();
         OnPropertyChanged(nameof(HasNotFoundElements));
+        OnPropertyChanged(nameof(FilteredElements));
     }
 }
 
