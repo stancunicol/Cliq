@@ -1,6 +1,7 @@
 <local:CliqThemedUserControl x:Class="Cliq.VisualStudio.RunResultsControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:domain="clr-namespace:Cliq.Domain;assembly=Cliq.Domain"
              xmlns:local="clr-namespace:Cliq.VisualStudio"
              MinWidth="360"
              MinHeight="280"
@@ -20,6 +21,27 @@
             <Setter Property="Padding" Value="10,5" />
             <Setter Property="Margin" Value="3,0" />
             <Setter Property="Template" Value="{local:CliqButtonTemplate}" />
+        </Style>
+        <Style TargetType="ComboBox">
+            <Setter Property="Background" Value="{DynamicResource Cliq.Run.ToolbarBackground}" />
+            <Setter Property="Foreground" Value="{DynamicResource Cliq.Run.Foreground}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Cliq.Run.Border}" />
+            <Setter Property="Padding" Value="5,3" />
+            <Setter Property="Template" Value="{local:CliqComboBoxTemplate}" />
+        </Style>
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="Background" Value="{DynamicResource Cliq.Run.ToolbarBackground}" />
+            <Setter Property="Foreground" Value="{DynamicResource Cliq.Run.Foreground}" />
+            <Style.Triggers>
+                <Trigger Property="IsHighlighted" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource Cliq.Run.Accent}" />
+                    <Setter Property="Foreground" Value="{DynamicResource Cliq.Run.SelectedForeground}" />
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource Cliq.Run.Accent}" />
+                    <Setter Property="Foreground" Value="{DynamicResource Cliq.Run.SelectedForeground}" />
+                </Trigger>
+            </Style.Triggers>
         </Style>
         <Style TargetType="DataGridColumnHeader">
             <Setter Property="Background" Value="{DynamicResource Cliq.Run.ToolbarBackground}" />
@@ -76,11 +98,20 @@
                                    Foreground="{DynamicResource Cliq.Run.MutedForeground}" />
                     </StackPanel>
                 </StackPanel>
-                <Button Grid.Column="1"
-                        Content="Cancel"
-                        Click="Cancel_Click"
-                        IsEnabled="{Binding IsRunning}"
-                        AutomationProperties.Name="Cancel Cliq run" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <ComboBox SelectedValue="{Binding SelectedBrowser}"
+                              SelectedValuePath="Tag"
+                              MinWidth="120"
+                              VerticalAlignment="Center"
+                              AutomationProperties.Name="Run browser">
+                        <ComboBoxItem Content="Chrome" Tag="{x:Static domain:BrowserKind.Chrome}" />
+                        <ComboBoxItem Content="Microsoft Edge" Tag="{x:Static domain:BrowserKind.Edge}" />
+                    </ComboBox>
+                    <Button Content="Cancel"
+                            Click="Cancel_Click"
+                            IsEnabled="{Binding IsRunning}"
+                            AutomationProperties.Name="Cancel Cliq run" />
+                </StackPanel>
             </Grid>
         </Border>
 

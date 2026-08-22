@@ -127,6 +127,7 @@ public sealed class RunResultsViewModel : BindableBase, IDisposable
     private string? _errorMessage;
     private byte[]? _screenshot;
     private string? _screenshotLabel;
+    private BrowserKind _selectedBrowser = BrowserKind.Chrome;
     private bool _disposed;
 
     public RunResultsViewModel(IRunStore store)
@@ -162,6 +163,12 @@ public sealed class RunResultsViewModel : BindableBase, IDisposable
     {
         get => _isRunning;
         private set => SetProperty(ref _isRunning, value);
+    }
+
+    public BrowserKind SelectedBrowser
+    {
+        get => _selectedBrowser;
+        set => SetProperty(ref _selectedBrowser, value);
     }
 
     public string? StatusMessage
