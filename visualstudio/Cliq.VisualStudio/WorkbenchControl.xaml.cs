@@ -155,6 +155,16 @@ public partial class WorkbenchControl : CliqThemedUserControl
         RunOperation(async () => { await _viewModel.DeleteSelectedTestAsync(); });
     }
 
+    private void DeletePage_Click(object sender, RoutedEventArgs e)
+    {
+        RunOperation(async () => { await _viewModel.DeleteSelectedPageAsync(); });
+    }
+
+    private void DuplicatePage_Click(object sender, RoutedEventArgs e)
+    {
+        RunOperation(async () => { await _viewModel.DuplicateSelectedPageAsync(); });
+    }
+
     private void SaveSelected_Click(object sender, RoutedEventArgs e)
     {
         RunOperation(async () => { await _viewModel.SaveSelectedAsync(); });

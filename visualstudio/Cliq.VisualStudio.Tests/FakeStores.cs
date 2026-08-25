@@ -91,4 +91,7 @@ internal class FakeWorkbenchStore : IWorkbenchStore
 
     public virtual Task<PageDefinition> SavePageAsync(PageDefinition page, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
+
+    public virtual Task DeletePageAsync(string pageId, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
 }

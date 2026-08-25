@@ -14,6 +14,21 @@ public interface IWorkbenchStore
     Task DeleteTestAsync(string testId, CancellationToken cancellationToken);
 
     Task<PageDefinition> SavePageAsync(PageDefinition page, CancellationToken cancellationToken);
+
+    Task DeletePageAsync(string pageId, CancellationToken cancellationToken);
+}
+
+public sealed class PageReferenceInfo
+{
+    public PageReferenceInfo(string testName, string stepLabel)
+    {
+        TestName = testName;
+        StepLabel = stepLabel;
+    }
+
+    public string TestName { get; }
+
+    public string StepLabel { get; }
 }
 
 public interface IWorkspaceConfigurationStore
@@ -56,6 +71,11 @@ public interface IWorkbenchPrompt
     Task<bool> ConfirmDiscardChangesAsync(string operation, CancellationToken cancellationToken);
 
     Task<bool> ConfirmDeleteTestAsync(string testName, CancellationToken cancellationToken);
+
+    Task<bool> ConfirmDeletePageAsync(
+        string pageName,
+        IReadOnlyList<PageReferenceInfo> references,
+        CancellationToken cancellationToken);
 }
 
 public sealed class PermissiveWorkbenchPrompt : IWorkbenchPrompt
@@ -66,6 +86,14 @@ public sealed class PermissiveWorkbenchPrompt : IWorkbenchPrompt
     }
 
     public Task<bool> ConfirmDeleteTestAsync(string testName, CancellationToken cancellationToken)
+    {
+        return Task.FromResult(true);
+    }
+
+    public Task<bool> ConfirmDeletePageAsync(
+        string pageName,
+        IReadOnlyList<PageReferenceInfo> references,
+        CancellationToken cancellationToken)
     {
         return Task.FromResult(true);
     }
