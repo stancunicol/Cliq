@@ -11,8 +11,12 @@ namespace Cliq.VisualStudio.Core.Authoring;
 
 public sealed class SettingsEditorViewModel : EditableViewModelBase
 {
+    // Must match WorkspaceRepository.Settings.cs's KnownIdentificationStrategies exactly - this
+    // was left stale (still listing the pre-2026-08-03 "testId, id, name" priority order) after
+    // the backend moved to "testId, xpath" only, which made every real settings.json fail this
+    // dialog's validation and silently block Save regardless of what else was being changed.
     public static readonly IReadOnlyList<string> SupportedStrategies =
-        new[] { "testId", "id", "name" };
+        new[] { "testId", "xpath" };
 
     private string _testIdAttribute;
     private string _ignorePatternsText;
@@ -23,6 +27,7 @@ public sealed class SettingsEditorViewModel : EditableViewModelBase
     private string _loadTimeoutText;
     private string _networkIdleGraceText;
     private bool _captureScanScreenshot;
+    private string _examplePageObjectFilePath;
     private string? _strategyToAdd;
 
     public SettingsEditorViewModel(CliqSettings settings)
@@ -40,6 +45,7 @@ public sealed class SettingsEditorViewModel : EditableViewModelBase
         _loadTimeoutText = settings.Scanning.LoadTimeoutMs.ToString(CultureInfo.InvariantCulture);
         _networkIdleGraceText = settings.Scanning.NetworkIdleGraceMs.ToString(CultureInfo.InvariantCulture);
         _captureScanScreenshot = settings.Scanning.CaptureScreenshot;
+        _examplePageObjectFilePath = settings.ExamplePageObjectFilePath ?? string.Empty;
         _strategyToAdd = AvailableStrategies.FirstOrDefault();
     }
 
@@ -111,6 +117,17 @@ public sealed class SettingsEditorViewModel : EditableViewModelBase
     {
         get => _captureScanScreenshot;
         set => SetEditable(ref _captureScanScreenshot, value);
+    }
+
+    // Path (relative to the workspace root) to an existing page object .cs file the user already
+    // has, see CliqSettings.ExamplePageObjectFilePath - when set, generation produces a shared
+    // BasePage.cs styled after it and every page inherits from that. Blank means none configured;
+    // no validation here beyond that, since an unreadable path just falls back to Cliq's own
+    // default naming at generation time rather than failing.
+    public string ExamplePageObjectFilePath
+    {
+        get => _examplePageObjectFilePath;
+        set => SetEditable(ref _examplePageObjectFilePath, value ?? string.Empty);
     }
 
     public override string ValidationSummary => string.Join(Environment.NewLine, Validate());
@@ -207,7 +224,8 @@ public sealed class SettingsEditorViewModel : EditableViewModelBase
             new ScanningSettings(
                 ParsePositiveInt(LoadTimeoutText),
                 ParsePositiveInt(NetworkIdleGraceText),
-                CaptureScanScreenshot));
+                CaptureScanScreenshot),
+            string.IsNullOrWhiteSpace(ExamplePageObjectFilePath) ? null : ExamplePageObjectFilePath.Trim());
     }
 
     public void AcceptChanges(CliqSettings settings)
@@ -229,6 +247,7 @@ public sealed class SettingsEditorViewModel : EditableViewModelBase
         _loadTimeoutText = settings.Scanning.LoadTimeoutMs.ToString(CultureInfo.InvariantCulture);
         _networkIdleGraceText = settings.Scanning.NetworkIdleGraceMs.ToString(CultureInfo.InvariantCulture);
         _captureScanScreenshot = settings.Scanning.CaptureScreenshot;
+        _examplePageObjectFilePath = settings.ExamplePageObjectFilePath ?? string.Empty;
         StrategyToAdd = AvailableStrategies.FirstOrDefault();
         OnPropertyChanged(string.Empty);
         IsDirty = false;

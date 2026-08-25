@@ -42,6 +42,8 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
 
         var settings = await repository.GetSettingsAsync(cancellationToken);
         var generationState = await LoadGenerationStateAsync(cancellationToken);
+        var examplePageStyle = await ResolveExamplePageStyleAsync(settings, cancellationToken);
+        var basePageFieldNames = examplePageStyle is not null ? BasePageFieldNames.FromStyle(examplePageStyle) : null;
 
         var artifacts = new List<GeneratedArtifact>();
         var warnings = new List<CustomMethodRecoveryWarning>();
@@ -60,6 +62,21 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
             PageObjectCodeGenerator.GenerateElementWrapperFile(project.Output.PageObjectsNamespace),
             cancellationToken);
         artifacts.Add(new GeneratedArtifact("wrapper", "ElementWrapper", wrapperPath, true));
+
+        if (examplePageStyle is not null)
+        {
+            await WriteBasePageAsync(
+                pageObjectDirectory,
+                project.Output.PageObjectsNamespace,
+                examplePageStyle,
+                settings.TestExecution.DefaultStepTimeoutMs,
+                customMethodResolutions,
+                customMethodDiscards,
+                artifacts,
+                warnings,
+                pendingMerges,
+                cancellationToken);
+        }
 
         var pageClassNames = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var page in pages)
@@ -203,7 +220,8 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
                 descriptors,
                 settings.TestExecution.DefaultStepTimeoutMs,
                 customMethods,
-                dynamicDescriptors);
+                dynamicDescriptors,
+                basePageFieldNames);
             await WriteAtomicTextAsync(generatedPath, pageCode, cancellationToken);
             artifacts.Add(new GeneratedArtifact("pageObject", className, generatedPath, true));
         }
@@ -252,6 +270,145 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
     }
 
     private string GenerationStatePath => Path.Combine(repository.RootPath!, ".cliq", "generation-state.json");
+
+    /// <summary>
+    /// Resolves <see cref="CliqSettings.ExamplePageObjectFilePath"/> into the naming style
+    /// <see cref="PageObjectCodeGenerator.GenerateBasePageFile"/>/<see cref="PageObjectCodeGenerator.Generate"/>
+    /// need, once per generation run (not per page - the answer is the same for every page).
+    /// Null only when no example is configured at all (today's self-contained generation,
+    /// unchanged) - once an example path is set, base-page mode is always on; an unreadable or
+    /// invalid example just means no style signal, falling back to
+    /// <see cref="ExamplePageStyle.Default"/> rather than blocking generation.
+    /// </summary>
+    private async Task<ExamplePageStyle?> ResolveExamplePageStyleAsync(CliqSettings settings, CancellationToken cancellationToken)
+    {
+        if (settings.ExamplePageObjectFilePath is null)
+        {
+            return null;
+        }
+
+        string examplePath;
+        try
+        {
+            examplePath = repository.GetContainedPath(settings.ExamplePageObjectFilePath);
+        }
+        catch (WorkspaceValidationException)
+        {
+            return ExamplePageStyle.Default;
+        }
+
+        if (!File.Exists(examplePath))
+        {
+            return ExamplePageStyle.Default;
+        }
+
+        var exampleSource = await File.ReadAllTextAsync(examplePath, cancellationToken);
+        return ExamplePageStyleReader.Read(exampleSource);
+    }
+
+    // BasePage.cs isn't tied to any real PageDefinition, but the custom-method merge subsystem
+    // (CustomMethodMergeCoordinator, the VS extension's merge UI) is keyed purely by an opaque
+    // "page id" string - this constant lets BasePage.cs flow through that exact same machinery as
+    // one more "page" instead of needing a parallel mechanism. GenerationRequestPlanner.Plan
+    // filters its own snapshot.Pages by requested ids with a plain Where, so an id matching no
+    // real page (this one) is silently dropped from that list rather than erroring, and
+    // customMethodResolutions/customMethodDiscards pass through GenerateAsync unfiltered either
+    // way - both confirmed by reading that code before relying on it here.
+    private const string BasePagePageId = "__cliq_base_page__";
+
+    /// <summary>
+    /// Writes <c>BasePage.cs</c>, running it through the identical recovery/decision flow the
+    /// per-page loop above applies to every generated page (same <see cref="CustomMethodExtractor"/>/
+    /// <see cref="CustomMethodSyntaxChecker"/> recovery, same "always ask" gate via
+    /// <see cref="_mergeCoordinator"/>) so hand-written <c>[CliqCustomMethod]</c> methods added to
+    /// it - things Cliq itself can never generate, like institution-specific helpers tied to the
+    /// user's own logger - survive regeneration exactly like they would on any other page.
+    /// </summary>
+    private async Task WriteBasePageAsync(
+        string pageObjectDirectory,
+        string pageObjectsNamespace,
+        ExamplePageStyle examplePageStyle,
+        int defaultStepTimeoutMs,
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? customMethodResolutions,
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? customMethodDiscards,
+        List<GeneratedArtifact> artifacts,
+        List<CustomMethodRecoveryWarning> warnings,
+        List<PendingCustomMethodMerge> pendingMerges,
+        CancellationToken cancellationToken)
+    {
+        var basePagePath = Path.Combine(pageObjectDirectory, "BasePage.cs");
+        var existingSource = File.Exists(basePagePath)
+            ? await File.ReadAllTextAsync(basePagePath, cancellationToken)
+            : null;
+
+        IReadOnlyList<string>? resolvedMethods = null;
+        var hasResolution = customMethodResolutions is not null &&
+            customMethodResolutions.TryGetValue(BasePagePageId, out resolvedMethods);
+        IReadOnlyList<string> discardedMethods =
+            customMethodDiscards is not null && customMethodDiscards.TryGetValue(BasePagePageId, out var discards)
+                ? discards
+                : [];
+
+        var fileIsBalanced = existingSource is null || CustomMethodExtractor.IsBalanced(existingSource);
+        var recovered = existingSource is null || !fileIsBalanced
+            ? []
+            : CustomMethodExtractor.Extract(existingSource);
+        var validated = recovered
+            .Where(method => CustomMethodSyntaxChecker.FindSyntaxErrors(method).Count == 0)
+            .ToList();
+
+        var expectedCount = existingSource is null
+            ? 0
+            : CustomMethodExtractor.CountMarkerOccurrences(existingSource);
+        var isConflicted = existingSource is not null && validated.Count < expectedCount;
+        var needsDecision = existingSource is not null && expectedCount > 0;
+
+        IReadOnlyList<string> customMethods;
+        if (needsDecision && hasResolution)
+        {
+            var candidates = await _mergeCoordinator.BuildMergedCandidatesAsync(BasePagePageId, existingSource!, cancellationToken);
+            await _mergeCoordinator.DeferUnresolvedAsync(
+                BasePagePageId, "BasePage", candidates, resolvedMethods!, discardedMethods, cancellationToken);
+            customMethods = resolvedMethods!;
+        }
+        else if (needsDecision)
+        {
+            // Same principle as the per-page loop: don't silently rewrite the file out from under
+            // a decision the user hasn't made yet - leave it exactly as it is and re-offer the
+            // same candidates on every repeat call until a resolution actually arrives.
+            if (isConflicted)
+            {
+                warnings.Add(new CustomMethodRecoveryWarning("BasePage", expectedCount, validated.Count, basePagePath));
+            }
+
+            var pending = await _mergeCoordinator.BuildPendingMergeAsync(BasePagePageId, "BasePage", existingSource!, cancellationToken);
+            if (pending is not null)
+            {
+                pendingMerges.Add(pending);
+            }
+
+            return;
+        }
+        else if (hasResolution)
+        {
+            // MergeViewModel.IncludeNowAsync pulling a single method back from the global waiting
+            // list onto a currently custom-method-free BasePage.cs - same waiting-list
+            // reconciliation as the per-page loop's equivalent branch.
+            var candidates = await _mergeCoordinator.BuildMergedCandidatesAsync(BasePagePageId, existingSource ?? string.Empty, cancellationToken);
+            await _mergeCoordinator.DeferUnresolvedAsync(
+                BasePagePageId, "BasePage", candidates, resolvedMethods!, discardedMethods, cancellationToken);
+            customMethods = resolvedMethods!;
+        }
+        else
+        {
+            customMethods = validated;
+        }
+
+        var basePageCode = PageObjectCodeGenerator.GenerateBasePageFile(
+            pageObjectsNamespace, examplePageStyle, defaultStepTimeoutMs, customMethods);
+        await WriteAtomicTextAsync(basePagePath, basePageCode, cancellationToken);
+        artifacts.Add(new GeneratedArtifact("basePage", "BasePage", basePagePath, true));
+    }
 
     internal static ElementDescriptor ToDescriptor(PageElement element, string testIdAttribute) =>
         new(

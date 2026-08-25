@@ -85,7 +85,13 @@ public sealed record CliqSettings(
     int SchemaVersion,
     ElementIdentificationSettings ElementIdentification,
     TestExecutionSettings TestExecution,
-    ScanningSettings Scanning)
+    ScanningSettings Scanning,
+    // Path (relative to the workspace root, same convention as OutputSettings.PageObjectsDirectory)
+    // to an existing page object .cs file the user already has. Read via ExamplePageStyleReader
+    // to pick up naming conventions (driver field/parameter) for the shared BasePage Cliq itself
+    // generates and every page then inherits from. Null means there is no such example, so
+    // generation keeps producing the current self-contained shape.
+    string? ExamplePageObjectFilePath = null)
 {
     public const int CurrentSchemaVersion = 1;
 }

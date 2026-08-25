@@ -2,6 +2,22 @@ using System.Text;
 
 namespace Cliq.Infrastructure.Generation;
 
+/// <summary>
+/// Field/parameter names a generated Page Object should use for its driver/wait access - either
+/// today's Cliq defaults (self-contained class, no shared base) or names mirrored from an
+/// example page object when <see cref="Cliq.Domain.CliqSettings.ExamplePageObjectFilePath"/> is
+/// set, in which case they're also what the shared, Cliq-generated <c>BasePage</c> class itself
+/// declares (see <see cref="PageObjectCodeGenerator.GenerateBasePageFile"/>) - every derived page
+/// then just uses the inherited fields under these same names instead of declaring its own.
+/// </summary>
+public sealed record BasePageFieldNames(string DriverParameterName, string DriverField, string WaitField)
+{
+    public static BasePageFieldNames FromStyle(ExamplePageStyle style) => new(
+        style.DriverParameterName,
+        style.DriverFieldName,
+        style.WaitFieldName ?? ExamplePageStyleReader.DeriveWaitFieldName(style.DriverFieldName));
+}
+
 public static class PageObjectCodeGenerator
 {
     /// <summary>Attribute name (without the "Attribute" suffix) a hand-written method must carry
@@ -21,8 +37,17 @@ public static class PageObjectCodeGenerator
         IReadOnlyList<string> customMethods,
         // Nullable/no-default-collection so every existing call site (mostly tests) keeps
         // compiling unchanged - see DynamicElementDescriptor.
-        IReadOnlyList<DynamicElementDescriptor>? dynamicElements = null)
+        IReadOnlyList<DynamicElementDescriptor>? dynamicElements = null,
+        // Non-null when CliqSettings.ExamplePageObjectFilePath is set: the class inherits from
+        // the shared, Cliq-generated `BasePage` (see GenerateBasePageFile) instead of being
+        // self-contained, and uses these field names (mirrored from the example) in place of the
+        // defaults below wherever it would otherwise reference its own driver/wait.
+        BasePageFieldNames? basePageFieldNames = null)
     {
+        var driverParam = basePageFieldNames?.DriverParameterName ?? "driver";
+        var driverField = basePageFieldNames?.DriverField ?? "_driver";
+        var waitField = basePageFieldNames?.WaitField ?? "_wait";
+
         var wrapped = elements.Where(element => IsWrapped(element.Kind)).ToList();
         var plain = elements.Where(element => !IsWrapped(element.Kind)).ToList();
         // Every kind except Radio has a fixed locator, knowable entirely at generation time, so
@@ -41,10 +66,18 @@ public static class PageObjectCodeGenerator
         sb.AppendLine();
         sb.AppendLine($"namespace {@namespace};");
         sb.AppendLine();
-        sb.AppendLine($"public sealed class {className}");
+        var inheritanceSuffix = basePageFieldNames is not null ? " : BasePage" : "";
+        sb.AppendLine($"public sealed class {className}{inheritanceSuffix}");
         sb.AppendLine("{");
-        sb.AppendLine("    private readonly IWebDriver _driver;");
-        sb.AppendLine("    private readonly WebDriverWait _wait;");
+
+        // In base-page mode these live on the shared BasePage instead (see
+        // GenerateBasePageFile) - every method below still reads/writes them, just through the
+        // inherited protected fields (same names, driverField/waitField) rather than local ones.
+        if (basePageFieldNames is null)
+        {
+            sb.AppendLine($"    private readonly IWebDriver {driverField};");
+            sb.AppendLine($"    private readonly WebDriverWait {waitField};");
+        }
 
         foreach (var element in staticLocatorElements)
         {
@@ -63,63 +96,92 @@ public static class PageObjectCodeGenerator
             sb.AppendLine($"    public {ElementWrapperClassName}<{WrapperDataType(element.Kind, element.DataType)}> {name} {{ get; }}");
         }
 
+        var baseConstructorCall = basePageFieldNames is not null ? $" : base({driverParam})" : "";
         sb.AppendLine();
-        sb.AppendLine($"    public {className}(IWebDriver driver)");
+        sb.AppendLine($"    public {className}(IWebDriver {driverParam}){baseConstructorCall}");
         sb.AppendLine("    {");
-        sb.AppendLine("        _driver = driver;");
-        sb.AppendLine($"        _wait = new WebDriverWait(driver, TimeSpan.FromMilliseconds({defaultStepTimeoutMs}));");
+        if (basePageFieldNames is null)
+        {
+            sb.AppendLine($"        {driverField} = {driverParam};");
+            sb.AppendLine($"        {waitField} = new WebDriverWait({driverParam}, TimeSpan.FromMilliseconds({defaultStepTimeoutMs}));");
+        }
 
         foreach (var element in wrapped)
         {
             sb.AppendLine();
-            AppendWrappedInit(sb, element);
+            AppendWrappedInit(sb, element, basePageFieldNames);
         }
 
         sb.AppendLine("    }");
 
-        sb.AppendLine();
-        sb.AppendLine("    // A transient overlay (an ad iframe, a tooltip, a toast) can sit on top of an");
-        sb.AppendLine("    // otherwise interactable element for a moment, which Selenium's real-mouse-click");
-        sb.AppendLine("    // simulation refuses to click through even though the element itself is fine. A");
-        sb.AppendLine("    // JS-dispatched click bypasses that check, so it's used only as a fallback.");
-        sb.AppendLine("    private void ClickWithFallback(IWebElement element)");
-        sb.AppendLine("    {");
-        sb.AppendLine("        try");
-        sb.AppendLine("        {");
-        sb.AppendLine("            element.Click();");
-        sb.AppendLine("        }");
-        sb.AppendLine("        catch (ElementClickInterceptedException)");
-        sb.AppendLine("        {");
-        sb.AppendLine("            ((IJavaScriptExecutor)_driver).ExecuteScript(\"arguments[0].click();\", element);");
-        sb.AppendLine("        }");
-        sb.AppendLine("    }");
+        if (basePageFieldNames is null)
+        {
+            sb.AppendLine();
+            sb.AppendLine("    // A transient overlay (an ad iframe, a tooltip, a toast) can sit on top of an");
+            sb.AppendLine("    // otherwise interactable element for a moment, which Selenium's real-mouse-click");
+            sb.AppendLine("    // simulation refuses to click through even though the element itself is fine. A");
+            sb.AppendLine("    // JS-dispatched click bypasses that check, so it's used only as a fallback.");
+            sb.AppendLine("    private void ClickWithFallback(IWebElement element)");
+            sb.AppendLine("    {");
+            sb.AppendLine("        try");
+            sb.AppendLine("        {");
+            sb.AppendLine("            element.Click();");
+            sb.AppendLine("        }");
+            sb.AppendLine("        catch (ElementClickInterceptedException)");
+            sb.AppendLine("        {");
+            sb.AppendLine($"            ((IJavaScriptExecutor){driverField}).ExecuteScript(\"arguments[0].click();\", element);");
+            sb.AppendLine("        }");
+            sb.AppendLine("    }");
+        }
 
         foreach (var element in plain)
         {
             sb.AppendLine();
-            AppendMethod(sb, element);
+            AppendMethod(sb, element, basePageFieldNames);
+        }
+
+        // A visibility check for every element with a fixed locator (Radio excluded, same
+        // reasoning as staticLocatorElements above - its locator isn't fixed) - lets a caller
+        // treat "not there" as a legitimate outcome instead of an exception, e.g. a conditionally
+        // shown banner or an optional field. Covers wrapped elements too, not just `plain`, since
+        // their static locator field exists regardless of which loop emits their primary member.
+        foreach (var element in staticLocatorElements)
+        {
+            sb.AppendLine();
+            AppendVisibilityCheck(sb, element, basePageFieldNames);
         }
 
         foreach (var element in dynamicElements ?? [])
         {
             sb.AppendLine();
-            AppendDynamicFactory(sb, element);
+            AppendDynamicFactory(sb, element, basePageFieldNames);
         }
 
-        if (customMethods.Count > 0)
-        {
-            sb.AppendLine();
-            sb.AppendLine("    // Added by hand - kept across regeneration because each method below carries");
-            sb.AppendLine($"    // the {CustomMethodAttributeName} attribute. Remove it to let a method be dropped.");
-            foreach (var method in customMethods)
-            {
-                sb.AppendLine();
-                sb.AppendLine(method);
-            }
-        }
+        AppendCustomMethods(sb, customMethods);
 
         sb.AppendLine("}");
         return sb.ToString();
+    }
+
+    /// <summary>Emits the hand-written methods a caller chose to carry over (see
+    /// <see cref="Generate"/>'s and <see cref="GenerateBasePageFile"/>'s own <c>customMethods</c>
+    /// parameters) with the comment explaining why they're there - shared so both call sites emit
+    /// the identical block instead of it being duplicated.</summary>
+    private static void AppendCustomMethods(StringBuilder sb, IReadOnlyList<string> customMethods)
+    {
+        if (customMethods.Count == 0)
+        {
+            return;
+        }
+
+        sb.AppendLine();
+        sb.AppendLine("    // Added by hand - kept across regeneration because each method below carries");
+        sb.AppendLine($"    // the {CustomMethodAttributeName} attribute. Remove it to let a method be dropped.");
+        foreach (var method in customMethods)
+        {
+            sb.AppendLine();
+            sb.AppendLine(method);
+        }
     }
 
     /// <summary>
@@ -172,6 +234,99 @@ public static class PageObjectCodeGenerator
         return sb.ToString();
     }
 
+    /// <summary>
+    /// The shared <c>BasePage</c> definition, generated once per namespace (not per page, same
+    /// reasoning as <see cref="GenerateAttributeFile"/>) - only produced when
+    /// <see cref="Cliq.Domain.CliqSettings.ExamplePageObjectFilePath"/> is set. Holds exactly what
+    /// every self-contained generated page would otherwise duplicate (driver/wait fields,
+    /// <c>ClickWithFallback</c>), under names mirrored from the example
+    /// (<paramref name="style"/>) rather than Cliq's own defaults. Deliberately always keeps
+    /// `WebDriverWait`-based lookup regardless of whether the example itself waits for elements -
+    /// see PageObjectCodeGenerator.Generate's basePageFieldNames remarks: only naming is a style
+    /// choice here, not this reliability behavior.
+    /// </summary>
+    public static string GenerateBasePageFile(
+        string @namespace,
+        ExamplePageStyle style,
+        int defaultStepTimeoutMs,
+        // Hand-written methods (marked [CliqCustomMethod]) recovered from the previously
+        // generated BasePage.cs - see WorkspaceCodeGeneration.GenerateAsync, which runs this file
+        // through the same recovery/decision flow as every per-page file before calling here.
+        // Empty by default so existing callers (tests) keep compiling unchanged.
+        IReadOnlyList<string>? customMethods = null)
+    {
+        var fieldNames = BasePageFieldNames.FromStyle(style);
+
+        var sb = new StringBuilder();
+        sb.AppendLine("using OpenQA.Selenium;");
+        sb.AppendLine("using OpenQA.Selenium.Interactions;");
+        sb.AppendLine("using OpenQA.Selenium.Support.UI;");
+        sb.AppendLine();
+        sb.AppendLine($"namespace {@namespace};");
+        sb.AppendLine();
+        sb.AppendLine("public abstract class BasePage");
+        sb.AppendLine("{");
+        sb.AppendLine($"    protected readonly IWebDriver {fieldNames.DriverField};");
+        sb.AppendLine($"    protected readonly WebDriverWait {fieldNames.WaitField};");
+        sb.AppendLine();
+        sb.AppendLine($"    protected BasePage(IWebDriver {fieldNames.DriverParameterName})");
+        sb.AppendLine("    {");
+        sb.AppendLine($"        {fieldNames.DriverField} = {fieldNames.DriverParameterName};");
+        sb.AppendLine($"        {fieldNames.WaitField} = new WebDriverWait({fieldNames.DriverParameterName}, TimeSpan.FromMilliseconds({defaultStepTimeoutMs}));");
+        sb.AppendLine("    }");
+        sb.AppendLine();
+        sb.AppendLine("    // A transient overlay (an ad iframe, a tooltip, a toast) can sit on top of an");
+        sb.AppendLine("    // otherwise interactable element for a moment, which Selenium's real-mouse-click");
+        sb.AppendLine("    // simulation refuses to click through even though the element itself is fine. A");
+        sb.AppendLine("    // JS-dispatched click bypasses that check, so it's used only as a fallback. Virtual");
+        sb.AppendLine("    // so a specific page can override it via a [CliqCustomMethod] method if it ever needs");
+        sb.AppendLine("    // different behavior - see WorkspaceCodeGeneration's BasePage.cs merge handling.");
+        sb.AppendLine("    protected virtual void ClickWithFallback(IWebElement element)");
+        sb.AppendLine("    {");
+        sb.AppendLine("        try");
+        sb.AppendLine("        {");
+        sb.AppendLine("            element.Click();");
+        sb.AppendLine("        }");
+        sb.AppendLine("        catch (ElementClickInterceptedException)");
+        sb.AppendLine("        {");
+        sb.AppendLine($"            ((IJavaScriptExecutor){fieldNames.DriverField}).ExecuteScript(\"arguments[0].click();\", element);");
+        sb.AppendLine("        }");
+        sb.AppendLine("    }");
+        sb.AppendLine();
+        sb.AppendLine("    protected virtual IWebElement Locate(By locator) =>");
+        sb.AppendLine($"        {fieldNames.WaitField}.Until(d => d.FindElement(locator));");
+        sb.AppendLine();
+        sb.AppendLine("    // Same lookup as Locate, but returns null on timeout instead of throwing - for a");
+        sb.AppendLine("    // caller that treats \"not there\" as a legitimate outcome rather than a failure.");
+        sb.AppendLine("    protected virtual IWebElement? TryLocate(By locator)");
+        sb.AppendLine("    {");
+        sb.AppendLine("        try");
+        sb.AppendLine("        {");
+        sb.AppendLine($"            return {fieldNames.WaitField}.Until(d => d.FindElement(locator));");
+        sb.AppendLine("        }");
+        sb.AppendLine("        catch (WebDriverTimeoutException)");
+        sb.AppendLine("        {");
+        sb.AppendLine("            return null;");
+        sb.AppendLine("        }");
+        sb.AppendLine("    }");
+        sb.AppendLine();
+        sb.AppendLine("    protected virtual void Hover(IWebElement element) =>");
+        sb.AppendLine($"        new Actions({fieldNames.DriverField}).MoveToElement(element).Perform();");
+        sb.AppendLine();
+        sb.AppendLine("    protected virtual void SetChecked(IWebElement element, bool isChecked)");
+        sb.AppendLine("    {");
+        sb.AppendLine("        if (element.Selected != isChecked)");
+        sb.AppendLine("        {");
+        sb.AppendLine("            ClickWithFallback(element);");
+        sb.AppendLine("        }");
+        sb.AppendLine("    }");
+
+        AppendCustomMethods(sb, customMethods ?? []);
+
+        sb.AppendLine("}");
+        return sb.ToString();
+    }
+
     private static bool IsWrapped(ElementActionKind kind) =>
         kind is ElementActionKind.Fill or ElementActionKind.Select or ElementActionKind.MultiSelect;
 
@@ -194,12 +349,12 @@ public static class PageObjectCodeGenerator
         sb.AppendLine($"    private static readonly By {name}Locator = {ByExpression(element)};");
     }
 
-    private static void AppendWrappedInit(StringBuilder sb, ElementDescriptor element)
+    private static void AppendWrappedInit(StringBuilder sb, ElementDescriptor element, BasePageFieldNames? basePageFieldNames)
     {
         var name = IdentifierNaming.ToPascalCase(element.SuggestedName);
         var locatorRef = $"{name}Locator";
         var dataType = WrapperDataType(element.Kind, element.DataType);
-        var body = WrapperBody(element.Kind, element.DataType, locatorRef);
+        var body = WrapperBody(element.Kind, element.DataType, locatorRef, basePageFieldNames);
 
         AppendWrapperConstruction(sb, "        ", $"{name} = ", dataType, body);
     }
@@ -239,9 +394,9 @@ public static class PageObjectCodeGenerator
 
     /// <summary>Upload/read body lines (without leading indentation - the caller supplies it) for
     /// a wrapped element's constructor initializer (static) or factory method (dynamic).</summary>
-    private static (string[] Upload, string[] Read) WrapperBody(ElementActionKind kind, string dataType, string locatorExpr)
+    private static (string[] Upload, string[] Read) WrapperBody(ElementActionKind kind, string dataType, string locatorExpr, BasePageFieldNames? basePageFieldNames)
     {
-        var locate = $"var element = _wait.Until(d => d.FindElement({locatorExpr}));";
+        var locate = $"var element = {LocateExpression(basePageFieldNames, locatorExpr)};";
         return (kind, dataType) switch
         {
             (ElementActionKind.Fill, "int") => (
@@ -271,35 +426,44 @@ public static class PageObjectCodeGenerator
         };
     }
 
-    private static void AppendMethod(StringBuilder sb, ElementDescriptor element)
+    private static void AppendMethod(StringBuilder sb, ElementDescriptor element, BasePageFieldNames? basePageFieldNames)
     {
         var name = IdentifierNaming.ToPascalCase(element.SuggestedName);
         var locatorRef = $"{name}Locator";
+        var driverField = basePageFieldNames?.DriverField ?? "_driver";
 
         switch (element.Kind)
         {
             case ElementActionKind.Click:
                 sb.AppendLine($"    public void Click{name}()");
                 sb.AppendLine("    {");
-                sb.AppendLine($"        var element = _wait.Until(d => d.FindElement({locatorRef}));");
+                sb.AppendLine($"        var element = {LocateExpression(basePageFieldNames, locatorRef)};");
                 sb.AppendLine("        ClickWithFallback(element);");
                 sb.AppendLine("    }");
                 sb.AppendLine();
                 sb.AppendLine($"    public void Hover{name}()");
                 sb.AppendLine("    {");
-                sb.AppendLine($"        var element = _wait.Until(d => d.FindElement({locatorRef}));");
-                sb.AppendLine("        new Actions(_driver).MoveToElement(element).Perform();");
+                sb.AppendLine($"        var element = {LocateExpression(basePageFieldNames, locatorRef)};");
+                sb.AppendLine($"        {HoverStatement(basePageFieldNames, driverField)}");
                 sb.AppendLine("    }");
                 break;
 
             case ElementActionKind.Check:
                 sb.AppendLine($"    public void Set{name}(bool isChecked)");
                 sb.AppendLine("    {");
-                sb.AppendLine($"        var element = _wait.Until(d => d.FindElement({locatorRef}));");
-                sb.AppendLine("        if (element.Selected != isChecked)");
-                sb.AppendLine("        {");
-                sb.AppendLine("            ClickWithFallback(element);");
-                sb.AppendLine("        }");
+                sb.AppendLine($"        var element = {LocateExpression(basePageFieldNames, locatorRef)};");
+                if (basePageFieldNames is not null)
+                {
+                    sb.AppendLine("        SetChecked(element, isChecked);");
+                }
+                else
+                {
+                    sb.AppendLine("        if (element.Selected != isChecked)");
+                    sb.AppendLine("        {");
+                    sb.AppendLine("            ClickWithFallback(element);");
+                    sb.AppendLine("        }");
+                }
+
                 sb.AppendLine("    }");
                 break;
 
@@ -318,7 +482,8 @@ public static class PageObjectCodeGenerator
                 sb.AppendLine($"    public void Select{name}(string value)");
                 sb.AppendLine("    {");
                 sb.AppendLine(@"        var escapedValue = value.Replace(""\\"", ""\\\\"").Replace(""'"", ""\\'"");");
-                sb.AppendLine($"        var element = _wait.Until(d => d.FindElement(By.CssSelector({radioPrefix} + escapedValue + \"']\")));");
+                var radioLocatorExpr = $"By.CssSelector({radioPrefix} + escapedValue + \"']\")";
+                sb.AppendLine($"        var element = {LocateExpression(basePageFieldNames, radioLocatorExpr)};");
                 sb.AppendLine("        ClickWithFallback(element);");
                 sb.AppendLine("    }");
                 break;
@@ -326,7 +491,7 @@ public static class PageObjectCodeGenerator
             case ElementActionKind.Assert:
                 sb.AppendLine($"    public string Get{name}Text()");
                 sb.AppendLine("    {");
-                sb.AppendLine($"        var element = _wait.Until(d => d.FindElement({locatorRef}));");
+                sb.AppendLine($"        var element = {LocateExpression(basePageFieldNames, locatorRef)};");
                 sb.AppendLine("        return element.Text;");
                 sb.AppendLine("    }");
                 break;
@@ -336,6 +501,57 @@ public static class PageObjectCodeGenerator
         }
     }
 
+    /// <summary>Emits an <c>Is{Name}Visible()</c> check for an element with a fixed locator - a
+    /// timeout means "not there" rather than a failure, so this never throws, unlike every other
+    /// generated member. In base-page mode this is just <c>TryLocate(x) is not null</c> (see
+    /// <see cref="PageObjectCodeGenerator.GenerateBasePageFile"/>'s own remarks on why it returns
+    /// null on timeout instead of throwing); self-contained mode inlines the same try/catch
+    /// locally since there's no shared base to hold it.</summary>
+    private static void AppendVisibilityCheck(StringBuilder sb, ElementDescriptor element, BasePageFieldNames? basePageFieldNames)
+    {
+        var name = IdentifierNaming.ToPascalCase(element.SuggestedName);
+        var locatorRef = $"{name}Locator";
+
+        sb.AppendLine($"    public bool Is{name}Visible()");
+        sb.AppendLine("    {");
+        if (basePageFieldNames is not null)
+        {
+            sb.AppendLine($"        return TryLocate({locatorRef}) is not null;");
+        }
+        else
+        {
+            sb.AppendLine("        try");
+            sb.AppendLine("        {");
+            sb.AppendLine($"            _wait.Until(d => d.FindElement({locatorRef}));");
+            sb.AppendLine("            return true;");
+            sb.AppendLine("        }");
+            sb.AppendLine("        catch (WebDriverTimeoutException)");
+            sb.AppendLine("        {");
+            sb.AppendLine("            return false;");
+            sb.AppendLine("        }");
+        }
+
+        sb.AppendLine("    }");
+    }
+
+    /// <summary>Right-hand-side expression for locating an element - <c>Locate(x)</c> when
+    /// generating against a shared <c>BasePage</c> (see GenerateBasePageFile), or the same inline
+    /// wait-and-find Cliq has always used otherwise. Shared by every call site that needs "find
+    /// this locator" text: <see cref="AppendMethod"/>, <see cref="AppendDynamicFactory"/>, and
+    /// <see cref="WrapperBody"/>.</summary>
+    private static string LocateExpression(BasePageFieldNames? basePageFieldNames, string locatorExpr) =>
+        basePageFieldNames is not null
+            ? $"Locate({locatorExpr})"
+            : $"_wait.Until(d => d.FindElement({locatorExpr}))";
+
+    /// <summary>Full statement for hovering an already-located <c>element</c> - calls the shared
+    /// <c>BasePage.Hover</c> when generating against one, or builds the <c>Actions</c> call inline
+    /// otherwise (today's self-contained shape).</summary>
+    private static string HoverStatement(BasePageFieldNames? basePageFieldNames, string driverField) =>
+        basePageFieldNames is not null
+            ? "Hover(element);"
+            : $"new Actions({driverField}).MoveToElement(element).Perform();";
+
     /// <summary>
     /// Emits a dynamic element's generated member: a parameterized factory instead of a fixed
     /// field/property, since its locator depends on the caller-supplied <c>param</c> and can't be
@@ -343,21 +559,24 @@ public static class PageObjectCodeGenerator
     /// elements, just returned from a method instead of exposed as a property; Click/Assert reuse
     /// the same plain-method shape, with <c>param</c> added as a leading parameter.
     /// </summary>
-    private static void AppendDynamicFactory(StringBuilder sb, DynamicElementDescriptor element)
+    private static void AppendDynamicFactory(StringBuilder sb, DynamicElementDescriptor element, BasePageFieldNames? basePageFieldNames)
     {
         var name = IdentifierNaming.ToPascalCase(element.SuggestedName);
         var paramType = element.ParameterType == "string" ? "string" : "int";
         var locatorExpr = InterpolatedByExpression(element);
+        var driverField = basePageFieldNames?.DriverField ?? "_driver";
 
         sb.AppendLine($"    // Locator ({StrategyLabel(element.Strategy)}, template): {SingleLine(element.LocatorTemplate)}");
 
         if (IsWrapped(element.Kind))
         {
             var dataType = WrapperDataType(element.Kind, element.DataType);
-            var body = WrapperBody(element.Kind, element.DataType, locatorExpr);
+            var body = WrapperBody(element.Kind, element.DataType, locatorExpr, basePageFieldNames);
 
             sb.AppendLine($"    public {ElementWrapperClassName}<{dataType}> {name}({paramType} param) =>");
             AppendWrapperConstruction(sb, "        ", string.Empty, dataType, body);
+            sb.AppendLine();
+            AppendDynamicVisibilityCheck(sb, name, paramType, locatorExpr, basePageFieldNames);
             return;
         }
 
@@ -366,21 +585,21 @@ public static class PageObjectCodeGenerator
             case ElementActionKind.Click:
                 sb.AppendLine($"    public void Click{name}({paramType} param)");
                 sb.AppendLine("    {");
-                sb.AppendLine($"        var element = _wait.Until(d => d.FindElement({locatorExpr}));");
+                sb.AppendLine($"        var element = {LocateExpression(basePageFieldNames, locatorExpr)};");
                 sb.AppendLine("        ClickWithFallback(element);");
                 sb.AppendLine("    }");
                 sb.AppendLine();
                 sb.AppendLine($"    public void Hover{name}({paramType} param)");
                 sb.AppendLine("    {");
-                sb.AppendLine($"        var element = _wait.Until(d => d.FindElement({locatorExpr}));");
-                sb.AppendLine("        new Actions(_driver).MoveToElement(element).Perform();");
+                sb.AppendLine($"        var element = {LocateExpression(basePageFieldNames, locatorExpr)};");
+                sb.AppendLine($"        {HoverStatement(basePageFieldNames, driverField)}");
                 sb.AppendLine("    }");
                 break;
 
             case ElementActionKind.Assert:
                 sb.AppendLine($"    public string Get{name}Text({paramType} param)");
                 sb.AppendLine("    {");
-                sb.AppendLine($"        var element = _wait.Until(d => d.FindElement({locatorExpr}));");
+                sb.AppendLine($"        var element = {LocateExpression(basePageFieldNames, locatorExpr)};");
                 sb.AppendLine("        return element.Text;");
                 sb.AppendLine("    }");
                 break;
@@ -389,6 +608,36 @@ public static class PageObjectCodeGenerator
                 throw new ArgumentOutOfRangeException(
                     nameof(element), $"Dynamic elements do not support {element.Kind}.");
         }
+
+        sb.AppendLine();
+        AppendDynamicVisibilityCheck(sb, name, paramType, locatorExpr, basePageFieldNames);
+    }
+
+    /// <summary>Dynamic-element counterpart to <see cref="AppendVisibilityCheck"/> - same
+    /// never-throws shape, with <c>param</c> added since the locator isn't fixed.</summary>
+    private static void AppendDynamicVisibilityCheck(
+        StringBuilder sb, string name, string paramType, string locatorExpr, BasePageFieldNames? basePageFieldNames)
+    {
+        sb.AppendLine($"    public bool Is{name}Visible({paramType} param)");
+        sb.AppendLine("    {");
+        if (basePageFieldNames is not null)
+        {
+            sb.AppendLine($"        return TryLocate({locatorExpr}) is not null;");
+        }
+        else
+        {
+            sb.AppendLine("        try");
+            sb.AppendLine("        {");
+            sb.AppendLine($"            _wait.Until(d => d.FindElement({locatorExpr}));");
+            sb.AppendLine("            return true;");
+            sb.AppendLine("        }");
+            sb.AppendLine("        catch (WebDriverTimeoutException)");
+            sb.AppendLine("        {");
+            sb.AppendLine("            return false;");
+            sb.AppendLine("        }");
+        }
+
+        sb.AppendLine("    }");
     }
 
     /// <summary>

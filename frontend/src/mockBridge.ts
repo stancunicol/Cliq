@@ -230,6 +230,7 @@ function mockSettings(): CliqSettings {
       networkIdleGraceMs: 3_000,
       captureScreenshot: true,
     },
+    examplePageObjectFilePath: null,
   }
 }
 

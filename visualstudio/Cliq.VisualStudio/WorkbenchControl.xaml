@@ -850,6 +850,17 @@
                                       IsChecked="{Binding CaptureScanScreenshot}"
                                       Foreground="{DynamicResource Cliq.Foreground}"
                                       Margin="0,10,0,0" />
+
+                            <TextBlock Text="Base page matching"
+                                       Style="{StaticResource SectionHeading}"
+                                       Margin="0,22,0,10" />
+                            <TextBlock Text="Path (relative to the workspace root) to an existing page object .cs file. When set, Cliq generates a shared BasePage.cs styled after it (driver/wait naming) and every generated page inherits from it."
+                                       TextWrapping="Wrap"
+                                       Margin="0,0,0,4"
+                                       Foreground="{DynamicResource Cliq.Foreground}" />
+                            <TextBox Text="{Binding ExamplePageObjectFilePath, UpdateSourceTrigger=PropertyChanged}"
+                                     AutomationProperties.Name="Example page object file path" />
+
                             <TextBlock Text="{Binding ValidationSummary}"
                                        Margin="0,12,0,0"
                                        Foreground="{DynamicResource Cliq.Error}"

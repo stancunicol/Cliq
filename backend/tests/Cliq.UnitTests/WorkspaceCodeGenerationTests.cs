@@ -1016,6 +1016,205 @@ public sealed class WorkspaceCodeGenerationTests
         return (snapshot, new WorkspaceCodeGeneration(repository), CreateLoginPage());
     }
 
+    // Mirrors the real test-fixtures/mock-project/ExistingPageObjects/LoginPage.cs fixture: a
+    // self-contained example (no base class of its own) that stores its driver as a plain
+    // `driver` field. Base-page mode doesn't require the example to already inherit from
+    // anything - Cliq generates its own BasePage regardless, styled after whatever naming the
+    // example does offer.
+    [Test]
+    public async Task GenerateAsync_ExampleConfigured_WritesBasePageAndGeneratedPageInheritsWithMirroredNames()
+    {
+        using var repository = new WorkspaceRepository();
+        var (_, generator, page) = await OpenLoginPageAsync(repository);
+        await File.WriteAllTextAsync(Path.Combine(_root, "ExamplePage.cs"), """
+            namespace Test;
+
+            public class ExamplePage
+            {
+                private readonly IWebDriver driver;
+
+                public ExamplePage(IWebDriver driver)
+                {
+                    this.driver = driver;
+                }
+            }
+            """);
+        await repository.SaveSettingsAsync(DefaultSettingsWithExample("ExamplePage.cs"), CancellationToken.None);
+
+        var result = await generator.GenerateAsync(
+            (await repository.GetSnapshotAsync(CancellationToken.None)).Project,
+            [page], [], _root, CancellationToken.None);
+
+        var basePageSource = File.ReadAllText(result.Artifacts.Single(item => item.Kind == "basePage").Path);
+        var pageObjectSource = File.ReadAllText(result.Artifacts.Single(item => item.Kind == "pageObject").Path);
+        Assert.Multiple(() =>
+        {
+            Assert.That(basePageSource, Does.Contain("protected readonly IWebDriver driver;"));
+            Assert.That(basePageSource, Does.Contain("protected readonly WebDriverWait wait;"));
+            Assert.That(pageObjectSource, Does.Contain("public sealed class LoginPage : BasePage"));
+            Assert.That(pageObjectSource, Does.Contain("public LoginPage(IWebDriver driver) : base(driver)"));
+            Assert.That(pageObjectSource, Does.Not.Contain("private readonly IWebDriver"));
+        });
+    }
+
+    [Test]
+    public async Task GenerateAsync_NoExampleConfigured_StaysSelfContainedWithNoBasePageArtifact()
+    {
+        using var repository = new WorkspaceRepository();
+        var (_, generator, page) = await OpenLoginPageAsync(repository);
+
+        var result = await generator.GenerateAsync(
+            (await repository.GetSnapshotAsync(CancellationToken.None)).Project,
+            [page], [], _root, CancellationToken.None);
+
+        var pageObjectSource = File.ReadAllText(result.Artifacts.Single(item => item.Kind == "pageObject").Path);
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Artifacts, Has.None.Matches<GeneratedArtifact>(artifact => artifact.Kind == "basePage"));
+            Assert.That(pageObjectSource, Does.Contain("public sealed class LoginPage\r\n").Or.Contain("public sealed class LoginPage\n"));
+            Assert.That(pageObjectSource, Does.Not.Contain(" : "));
+        });
+    }
+
+    // Mirrors GenerateAsync_ExistingCustomMethod_BlocksRegenerationUntilExplicitlyResolvedEvenWhenPerfectlyClean
+    // above, but for BasePage.cs - the same "always ask" policy applies to it too (see
+    // WorkspaceCodeGeneration.WriteBasePageAsync), so hand-written methods Cliq itself could never
+    // generate (institution-specific helpers tied to the user's own logger, say) survive
+    // regeneration exactly like a per-page custom method would.
+    [Test]
+    public async Task GenerateAsync_ExistingBasePageCustomMethod_BlocksRegenerationUntilResolvedThenCarriesItOver()
+    {
+        using var repository = new WorkspaceRepository();
+        var (_, generator, page) = await OpenLoginPageAsync(repository);
+        await File.WriteAllTextAsync(Path.Combine(_root, "ExamplePage.cs"), """
+            namespace Test;
+
+            public class ExamplePage
+            {
+                private readonly IWebDriver driver;
+
+                public ExamplePage(IWebDriver driver)
+                {
+                    this.driver = driver;
+                }
+            }
+            """);
+        await repository.SaveSettingsAsync(DefaultSettingsWithExample("ExamplePage.cs"), CancellationToken.None);
+
+        var first = await generator.GenerateAsync(
+            (await repository.GetSnapshotAsync(CancellationToken.None)).Project,
+            [page], [], _root, CancellationToken.None);
+        var basePagePath = first.Artifacts.Single(item => item.Kind == "basePage").Path;
+        var generatedBasePage = await File.ReadAllTextAsync(basePagePath);
+        const string handWrittenMethod = """
+                [CliqCustomMethod]
+                public void TakeScreenshot()
+                {
+                    DoSomethingInstitutionSpecific();
+                }
+
+            """;
+        var withHandWrittenMethod = InsertBeforeClassClose(generatedBasePage, handWrittenMethod);
+        await File.WriteAllTextAsync(basePagePath, withHandWrittenMethod);
+
+        var detection = await generator.GenerateAsync(
+            (await repository.GetSnapshotAsync(CancellationToken.None)).Project,
+            [page], [], _root, CancellationToken.None);
+        var afterDetection = await File.ReadAllTextAsync(basePagePath);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(detection.PendingMerges, Has.Count.EqualTo(1));
+            Assert.That(detection.PendingMerges[0].PageObjectName, Is.EqualTo("BasePage"));
+            Assert.That(afterDetection, Is.EqualTo(withHandWrittenMethod), "unresolved, so the file must stay untouched");
+            Assert.That(detection.Artifacts.Any(artifact => artifact.Kind == "basePage"), Is.False);
+        });
+
+        var keptCandidate = detection.PendingMerges[0].Candidates.Single();
+        var resolutions = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal)
+        {
+            [detection.PendingMerges[0].PageId] = [keptCandidate.SourceText],
+        };
+        var resolved = await generator.GenerateAsync(
+            (await repository.GetSnapshotAsync(CancellationToken.None)).Project,
+            [page], [], _root, CancellationToken.None, resolutions);
+        var regenerated = await File.ReadAllTextAsync(
+            resolved.Artifacts.Single(item => item.Kind == "basePage").Path);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(regenerated, Does.Contain("[CliqCustomMethod]"));
+            Assert.That(regenerated, Does.Contain("public void TakeScreenshot()"));
+            Assert.That(resolved.Warnings, Is.Empty);
+        });
+    }
+
+    [Test]
+    public async Task GenerateAsync_BasePageCustomMethodNotResolved_EndsUpInWaitingList()
+    {
+        using var repository = new WorkspaceRepository();
+        var (_, generator, page) = await OpenLoginPageAsync(repository);
+        await File.WriteAllTextAsync(Path.Combine(_root, "ExamplePage.cs"), """
+            namespace Test;
+
+            public class ExamplePage
+            {
+                private readonly IWebDriver driver;
+
+                public ExamplePage(IWebDriver driver)
+                {
+                    this.driver = driver;
+                }
+            }
+            """);
+        await repository.SaveSettingsAsync(DefaultSettingsWithExample("ExamplePage.cs"), CancellationToken.None);
+
+        var first = await generator.GenerateAsync(
+            (await repository.GetSnapshotAsync(CancellationToken.None)).Project,
+            [page], [], _root, CancellationToken.None);
+        var basePagePath = first.Artifacts.Single(item => item.Kind == "basePage").Path;
+        var generatedBasePage = await File.ReadAllTextAsync(basePagePath);
+        const string existingMethod = """
+
+                [CliqCustomMethod]
+                public void TakeScreenshot()
+                {
+                    DoSomethingInstitutionSpecific();
+                }
+
+            """;
+        await File.WriteAllTextAsync(basePagePath, InsertBeforeClassClose(generatedBasePage, existingMethod));
+
+        var detection = await generator.GenerateAsync(
+            (await repository.GetSnapshotAsync(CancellationToken.None)).Project,
+            [page], [], _root, CancellationToken.None);
+        var basePageId = detection.PendingMerges.Single().PageId;
+
+        var resolutions = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal)
+        {
+            [basePageId] = [], // carry nothing over, don't discard either -> deferred to the waiting list
+        };
+        await generator.GenerateAsync(
+            (await repository.GetSnapshotAsync(CancellationToken.None)).Project,
+            [page], [], _root, CancellationToken.None, resolutions);
+
+        var waitingList = await repository.ListPendingCustomMethodsAsync(CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(waitingList, Has.Count.EqualTo(1));
+            Assert.That(waitingList[0].SourceText, Does.Contain("TakeScreenshot"));
+            Assert.That(waitingList[0].PageId, Is.EqualTo(basePageId));
+        });
+    }
+
+    private static CliqSettings DefaultSettingsWithExample(string examplePageObjectFilePath) => new(
+        CliqSettings.CurrentSchemaVersion,
+        new ElementIdentificationSettings("data-testid", ["testId", "xpath"], []),
+        new TestExecutionSettings(10_000, 15_000, CaptureScreenshotOnFailure: false),
+        new ScanningSettings(30_000, 3_000, CaptureScreenshot: false),
+        ExamplePageObjectFilePath: examplePageObjectFilePath);
+
     // Inserts methodText just before the class's own closing brace (the last one in the file),
     // keeping that brace and everything after it - a regeneration-safe way to simulate a
     // hand-written custom method landing in an otherwise-valid generated file.
