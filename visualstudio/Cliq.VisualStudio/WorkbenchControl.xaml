@@ -820,6 +820,13 @@
                                       Foreground="{DynamicResource Cliq.Foreground}"
                                       Margin="0,10,0,0" />
 
+                            <StackPanel Margin="0,10,0,0">
+                                <TextBlock Text="Highlight pause (ms) - live runs only, 0 disables it"
+                                           Style="{StaticResource FieldLabel}" />
+                                <TextBox Text="{Binding HighlightPauseText, UpdateSourceTrigger=PropertyChanged}"
+                                         AutomationProperties.Name="Highlight pause" />
+                            </StackPanel>
+
                             <TextBlock Text="Scanning"
                                        Style="{StaticResource SectionHeading}"
                                        Margin="0,22,0,10" />
