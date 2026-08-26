@@ -200,6 +200,28 @@ function extractElements(config) {
     return parts.join('/');
   }
 
+  // The element's absolute /html/body/... path - the human-legible, exact address of this node in
+  // the document tree, computed as an indexed chain from documentElement down. Purely descriptive:
+  // unlike the relative xpaths above it is brittle (any wrapper insertion shifts every index below
+  // it), so it's surfaced in the generated // Locator comment for inspection/verification but never
+  // used as the actual Selenium locator - the relative locator stays the runtime one.
+  function absoluteXPath(el) {
+    const parts = [];
+    let node = el;
+    while (node && node.nodeType === Node.ELEMENT_NODE && node !== document) {
+      if (node === document.documentElement) {
+        parts.unshift('html[1]');
+        break;
+      }
+      const parent = node.parentElement;
+      const siblings = Array.from(parent.children).filter((sibling) => sibling.tagName === node.tagName);
+      const index = siblings.indexOf(node) + 1;
+      parts.unshift(`${node.tagName.toLowerCase()}[${index}]`);
+      node = parent;
+    }
+    return `/${parts.join('/')}`;
+  }
+
   // Last resort within the xpath tier: anchor on the nearest ancestor that has a non-volatile id,
   // rather than an absolute /html/body/... chain that breaks on any unrelated layout change. Reuses
   // the same isIgnoredId check as everything else, so a framework-regenerated ancestor id (a React
@@ -301,6 +323,7 @@ function extractElements(config) {
         kind,
         strategy: locator.strategy,
         locatorValue: locator.value,
+        absoluteXpath: absoluteXPath(el),
         groupName,
         testId: el.getAttribute(testIdAttribute),
         id: (el.id && !isIgnoredId(el.id)) ? el.id : null,

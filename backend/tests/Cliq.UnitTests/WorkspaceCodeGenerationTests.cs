@@ -1,5 +1,6 @@
 using Cliq.Domain;
 using Cliq.Infrastructure;
+using Generation = Cliq.Infrastructure.Generation;
 
 namespace Cliq.UnitTests;
 
@@ -986,6 +987,66 @@ public sealed class WorkspaceCodeGenerationTests
             Assert.That(waitingListAfterDiscard[0].SourceText, Does.Contain("AnotherBroken"));
             Assert.That(waitingListAfterDiscard.Any(entry => entry.SourceText.Contains("DropMe")), Is.False);
         });
+    }
+
+    [Test]
+    public async Task GenerateAsync_EditedLocatorNameInComment_RenamesTheGeneratedMember()
+    {
+        using var repository = new WorkspaceRepository();
+        var (snapshot, generator, page) = await OpenLoginPageAsync(repository);
+
+        var first = await generator.GenerateAsync(snapshot.Project, [page], [], _root, CancellationToken.None);
+        var pageObjectPath = first.Artifacts.Single(item => item.Kind == "pageObject").Path;
+        var generated = await File.ReadAllTextAsync(pageObjectPath);
+        // Simulate a user renaming the locator by editing its name in the // Locator comment.
+        var edited = generated.Replace("// Locator (css): Username = [data-testid=\"username\"]", "// Locator (css): Email = [data-testid=\"username\"]");
+        await File.WriteAllTextAsync(pageObjectPath, edited);
+
+        var second = await generator.GenerateAsync(snapshot.Project, [page], [], _root, CancellationToken.None);
+        var regenerated = await File.ReadAllTextAsync(
+            second.Artifacts.Single(item => item.Kind == "pageObject").Path);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(regenerated, Does.Contain("// Locator (css): Email = [data-testid=\"username\"]"));
+            Assert.That(regenerated, Does.Contain("private static readonly By EmailLocator = By.CssSelector(\"[data-testid=\\\"username\\\"]\");"));
+            Assert.That(regenerated, Does.Contain("public ElementWrapper<string> Email { get; }"));
+            Assert.That(regenerated, Does.Not.Contain("UsernameLocator"));
+        });
+    }
+
+    [Test]
+    public void ApplyLocatorCommentRenames_EditedName_OverridesSuggestedName()
+    {
+        var descriptors = new List<Generation.ElementDescriptor>
+        {
+            new("input", Generation.ElementActionKind.Fill, Generation.LocatorStrategy.CssSelector, "username", "username"),
+        };
+        var comments = new List<LocatorComment>
+        {
+            new("css", "Email", "username", IsTemplate: false),
+        };
+
+        var renamed = WorkspaceCodeGeneration.ApplyLocatorCommentRenames(descriptors, comments);
+
+        Assert.That(renamed.Single().SuggestedName, Is.EqualTo("email"));
+    }
+
+    [Test]
+    public void ApplyLocatorCommentRenames_NoCommentName_KeepsSuggestedName()
+    {
+        var descriptors = new List<Generation.ElementDescriptor>
+        {
+            new("input", Generation.ElementActionKind.Fill, Generation.LocatorStrategy.CssSelector, "username", "username"),
+        };
+        var comments = new List<LocatorComment>
+        {
+            new("css", null, "username", IsTemplate: false),
+        };
+
+        var renamed = WorkspaceCodeGeneration.ApplyLocatorCommentRenames(descriptors, comments);
+
+        Assert.That(renamed.Single().SuggestedName, Is.EqualTo("username"));
     }
 
     // Every custom-method-merge scenario in this file (rename, discard, defer, waiting-list,

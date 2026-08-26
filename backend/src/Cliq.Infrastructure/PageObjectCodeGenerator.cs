@@ -190,7 +190,14 @@ public static class PageObjectCodeGenerator
     private static void AppendStaticLocatorField(StringBuilder sb, ElementDescriptor element)
     {
         var name = IdentifierNaming.ToPascalCase(element.SuggestedName);
-        sb.AppendLine($"    // Locator ({StrategyLabel(element.Strategy)}): {SingleLine(element.LocatorValue)}");
+        // The comment carries the locator's generated name (editable by hand - see
+        // WorkspaceCodeGeneration's rename read-back) and, for an xpath element, its absolute
+        // /html/body/... path. The runtime locator is still the relative value (ByExpression) -
+        // an absolute path is too brittle to actually locate by, so it's comment-only.
+        var commentValue = element.Strategy == LocatorStrategy.XPath && !string.IsNullOrEmpty(element.AbsoluteXpath)
+            ? element.AbsoluteXpath!
+            : element.LocatorValue;
+        sb.AppendLine($"    // Locator ({StrategyLabel(element.Strategy)}): {name} = {SingleLine(commentValue)}");
         sb.AppendLine($"    private static readonly By {name}Locator = {ByExpression(element)};");
     }
 
@@ -313,7 +320,7 @@ public static class PageObjectCodeGenerator
                 // string literal uses; both the group name (escaped here, at generation time) and
                 // the runtime value (escaped inline, below) are CSS-escaped so an apostrophe in
                 // either can't break the selector.
-                sb.AppendLine($"    // Locator ({StrategyLabel(element.Strategy)}): {SingleLine(element.LocatorValue)}");
+                sb.AppendLine($"    // Locator ({StrategyLabel(element.Strategy)}): {IdentifierNaming.ToPascalCase(element.SuggestedName)} = {SingleLine(element.LocatorValue)}");
                 var radioPrefix = ToCSharpStringLiteral($"input[name='{CssEscapeSingleQuoted(element.LocatorValue)}'][value='");
                 sb.AppendLine($"    public void Select{name}(string value)");
                 sb.AppendLine("    {");
@@ -349,7 +356,7 @@ public static class PageObjectCodeGenerator
         var paramType = element.ParameterType == "string" ? "string" : "int";
         var locatorExpr = InterpolatedByExpression(element);
 
-        sb.AppendLine($"    // Locator ({StrategyLabel(element.Strategy)}, template): {SingleLine(element.LocatorTemplate)}");
+        sb.AppendLine($"    // Locator ({StrategyLabel(element.Strategy)}, template): {IdentifierNaming.ToPascalCase(element.SuggestedName)} = {SingleLine(element.LocatorTemplate)}");
 
         if (IsWrapped(element.Kind))
         {
