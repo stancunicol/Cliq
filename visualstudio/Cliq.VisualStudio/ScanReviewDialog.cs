@@ -34,6 +34,10 @@ internal sealed class ScanReviewDialog : CliqDialogWindow
     private readonly Button _acceptAllButton;
     private readonly Button _denyAllButton;
     private readonly Button _closeButton;
+    private Button? _acceptAllNewButton;
+    private Button? _denyAllNewButton;
+    private Button? _acceptAllMissingButton;
+    private Button? _denyAllMissingButton;
 
     public ScanReviewDialog(ScanReviewViewModel viewModel)
     {
@@ -69,24 +73,40 @@ internal sealed class ScanReviewDialog : CliqDialogWindow
         pageUrlText.SetResourceReference(TextBlock.ForegroundProperty, MutedForegroundKey);
         headerPanel.Children.Add(pageUrlText);
 
-        var summaryDock = new DockPanel { Margin = new Thickness(0, 0, 0, 4) };
-        var batchButtons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-        _acceptAllButton = new Button { Content = "Accept All", Margin = new Thickness(0, 0, 6, 0), Padding = new Thickness(8, 3, 8, 3) };
-        _acceptAllButton.Click += (_, _) => _viewModel.AcceptAll();
-        _denyAllButton = new Button { Content = "Deny All", Margin = new Thickness(0, 0, 0, 0), Padding = new Thickness(8, 3, 8, 3) };
-        _denyAllButton.Click += (_, _) => _viewModel.DenyAll();
-        batchButtons.Children.Add(_acceptAllButton);
-        batchButtons.Children.Add(_denyAllButton);
-        DockPanel.SetDock(batchButtons, Dock.Right);
-        summaryDock.Children.Add(batchButtons);
-
         _summaryText = new TextBlock
         {
             Text = GetSummaryString(),
-            VerticalAlignment = VerticalAlignment.Center
+            Margin = new Thickness(0, 0, 0, 8)
         };
-        summaryDock.Children.Add(_summaryText);
-        headerPanel.Children.Add(summaryDock);
+        headerPanel.Children.Add(_summaryText);
+
+        // A single row for every batch action - the scoped New/Missing pairs read left to right
+        // before the broadest Accept All/Deny All pair, so "act on a subset" and "act on
+        // everything" sit together instead of the scoped pairs being buried inside the scrolling
+        // item list where they'd disappear once the user scrolls past that section's header.
+        var batchRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        if (viewModel.NewItems.Count > 0)
+        {
+            _acceptAllNewButton = CreateBatchButton("Accept New", () => _viewModel.AcceptAllNew());
+            _denyAllNewButton = CreateBatchButton("Deny New", () => _viewModel.DenyAllNew());
+            batchRow.Children.Add(_acceptAllNewButton);
+            batchRow.Children.Add(_denyAllNewButton);
+        }
+
+        if (viewModel.MissingItems.Count > 0)
+        {
+            _acceptAllMissingButton = CreateBatchButton("Accept Missing", () => _viewModel.AcceptAllMissing());
+            _denyAllMissingButton = CreateBatchButton("Deny Missing", () => _viewModel.DenyAllMissing());
+            batchRow.Children.Add(_acceptAllMissingButton);
+            batchRow.Children.Add(_denyAllMissingButton);
+        }
+
+        _acceptAllButton = CreateBatchButton("Accept All", () => _viewModel.AcceptAll());
+        _denyAllButton = CreateBatchButton("Deny All", () => _viewModel.DenyAll(), lastInRow: true);
+        batchRow.Children.Add(_acceptAllButton);
+        batchRow.Children.Add(_denyAllButton);
+        headerPanel.Children.Add(batchRow);
+
         Grid.SetRow(headerPanel, 0);
         mainGrid.Children.Add(headerPanel);
 
@@ -222,6 +242,18 @@ internal sealed class ScanReviewDialog : CliqDialogWindow
         Resources[MutedForegroundKey] = muted;
 
         Resources[RowBorderKey] = Brush(EnvironmentColors.ToolWindowBorderColorKey);
+    }
+
+    private static Button CreateBatchButton(string label, Action onClick, bool lastInRow = false)
+    {
+        var button = new Button
+        {
+            Content = label,
+            Padding = new Thickness(8, 3, 8, 3),
+            Margin = new Thickness(0, 0, lastInRow ? 0 : 6, 0)
+        };
+        button.Click += (_, _) => onClick();
+        return button;
     }
 
     private UIElement CreateItemRow(ScanReviewItemViewModel item)
@@ -379,6 +411,17 @@ internal sealed class ScanReviewDialog : CliqDialogWindow
         _discardButton.IsEnabled = _viewModel.CanDiscard;
         _acceptAllButton.IsEnabled = _viewModel.IsNotBusy;
         _denyAllButton.IsEnabled = _viewModel.IsNotBusy;
+        if (_acceptAllNewButton is not null)
+        {
+            _acceptAllNewButton.IsEnabled = _viewModel.IsNotBusy;
+            _denyAllNewButton!.IsEnabled = _viewModel.IsNotBusy;
+        }
+
+        if (_acceptAllMissingButton is not null)
+        {
+            _acceptAllMissingButton.IsEnabled = _viewModel.IsNotBusy;
+            _denyAllMissingButton!.IsEnabled = _viewModel.IsNotBusy;
+        }
 
         if (_viewModel.HasConflict)
         {

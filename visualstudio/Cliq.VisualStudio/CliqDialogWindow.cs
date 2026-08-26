@@ -57,6 +57,8 @@ internal abstract class CliqDialogWindow : Window
             new Setter(Control.ForegroundProperty, foreground));
         Resources[typeof(CheckBox)] = StyleFor<CheckBox>(
             new Setter(Control.ForegroundProperty, foreground));
+        Resources[typeof(RadioButton)] = StyleFor<RadioButton>(
+            new Setter(Control.ForegroundProperty, foreground));
         var textBoxStyle = InputStyle<TextBox>(inputBackground, foreground, border);
         textBoxStyle.Setters.Add(new Setter(Control.TemplateProperty, CliqInputTemplate.Create(typeof(TextBox))));
         Resources[typeof(TextBox)] = textBoxStyle;
