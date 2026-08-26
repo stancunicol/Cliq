@@ -294,6 +294,26 @@ public sealed class WorkbenchAuthoringTests
     }
 
     [Test]
+    public void PageInspectorElementFilterMatchesNameTagAndLocator()
+    {
+        var page = CreateSnapshot().Pages[0];
+        var inspector = new PageEditorViewModel(page);
+
+        inspector.ElementFilter = "email";
+        Assert.That(inspector.FilteredElements.Select(element => element.Name), Is.EqualTo(new[] { "Email" }));
+
+        inspector.ElementFilter = "button";
+        Assert.That(inspector.FilteredElements.Select(element => element.Name), Is.EqualTo(new[] { "Submit" }));
+
+        inspector.ElementFilter = "#submit";
+        Assert.That(inspector.FilteredElements.Select(element => element.Name), Is.EqualTo(new[] { "Submit" }));
+
+        inspector.ElementFilter = "   ";
+        Assert.That(inspector.FilteredElements.Count(), Is.EqualTo(2));
+        Assert.That(inspector.IsDirty, Is.False);
+    }
+
+    [Test]
     public async Task RenamingSelectedPageTracksDirtyStateAndSaves()
     {
         var store = new RecordingWorkbenchStore(CreateSnapshot());
