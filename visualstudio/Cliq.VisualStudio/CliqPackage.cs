@@ -220,7 +220,10 @@ public sealed partial class CliqPackage : AsyncPackage, ICliqShellCommandTarget,
         var errorMessage = _actions?.ErrorMessage;
         if (!string.IsNullOrWhiteSpace(errorMessage))
         {
-            CliqMessageBox.ShowError(errorMessage);
+            // net472's string.IsNullOrWhiteSpace isn't annotated [NotNullWhen(false)], so the
+            // compiler can't narrow errorMessage from this check alone the way it would on a
+            // nullable-aware target framework.
+            CliqMessageBox.ShowError(errorMessage!);
         }
     }
 
