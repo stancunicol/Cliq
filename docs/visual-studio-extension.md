@@ -93,6 +93,24 @@ If the experimental instance needs to be reset, close it and run the Visual Stud
 - The Release VSIX passes `Build-Vsix.ps1 -Target Validate`.
 - Installation, upgrade, disablement, and uninstall complete without files being left locked.
 
+## Releasing
+
+Releases are driven by a semantic-version tag. Pushing `v0.2.0` to GitHub runs the
+`.github/workflows/release.yml` pipeline, which blocks until every stage passes:
+
+1. Restores, builds, and tests the self-contained `Cliq.Api` payload.
+2. Builds and validates the VSIX with the version taken from the tag, stamping the
+   `<Identity Version>` in `source.extension.vsixmanifest` (the tag is the single
+   source of truth; the checked-in manifest version is used for local development).
+3. Smoke-tests the exact packaged runtime with `Test-PackagedRuntime.ps1`
+   (scan, generate, run, failure screenshot, cancel, lease release).
+4. Creates a GitHub Release titled `Cliq for Visual Studio <version>` and attaches
+   `Cliq.VisualStudio-<version>.vsix` plus its SHA-256 checksum. The release notes
+   come from `RELEASE-NOTES.txt`.
+
+Use a three-part version tag such as `v0.2.0`; other tag formats are rejected. The
+VSIX remains unsigned, so Windows may require explicit approval on install.
+
 ## Preview limitations
 
 - Windows x64 only.

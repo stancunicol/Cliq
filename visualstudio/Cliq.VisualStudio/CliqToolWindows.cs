@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -77,6 +78,12 @@ internal sealed class DisconnectedWorkbenchStore : IWorkbenchStore, IWorkspaceCo
         return Task.CompletedTask;
     }
 
+    public Task DeletePageAsync(string pageId, CancellationToken cancellationToken)
+    {
+        _pages.Remove(pageId);
+        return Task.CompletedTask;
+    }
+
     public Task<CliqSettings> LoadSettingsAsync(CancellationToken cancellationToken)
     {
         return Task.FromResult(_settings);
@@ -147,6 +154,33 @@ internal sealed class MessageBoxWorkbenchPrompt : IWorkbenchPrompt
         string testName,
         CancellationToken cancellationToken) =>
         Task.FromResult(CliqMessageBox.ConfirmYesNo($"Delete test “{testName}”? This cannot be undone."));
+
+    public Task<bool> ConfirmDeletePageAsync(
+        string pageName,
+        IReadOnlyList<PageReferenceInfo> references,
+        CancellationToken cancellationToken)
+    {
+        string message;
+        if (references.Count == 0)
+        {
+            message = $"Delete page “{pageName}”? This cannot be undone.";
+        }
+        else
+        {
+            var stepCount = references.Count;
+            var testNames = references
+                .Select(reference => reference.TestName)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            var steps = string.Join(
+                Environment.NewLine,
+                references.Select(reference => $"{reference.TestName} › {reference.StepLabel}"));
+            message = $"Delete page “{pageName}”? This will break {stepCount} step{(stepCount == 1 ? string.Empty : "s")} across {testNames.Length} test{(testNames.Length == 1 ? string.Empty : "s")}:" +
+                      $"{Environment.NewLine}{steps}";
+        }
+
+        return Task.FromResult(CliqMessageBox.ConfirmYesNo(message));
+    }
 }
 
 [Guid("4F54B430-4DBF-4DBA-B56C-F922B5094B48")]

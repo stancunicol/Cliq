@@ -10,7 +10,10 @@ param(
 
     [string] $VsixPath,
 
-    [string] $CacheDirectory
+    [string] $CacheDirectory,
+
+    [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+$')]
+    [string] $Version
 )
 
 Set-StrictMode -Version Latest
@@ -25,6 +28,10 @@ $script:ExtensionProject = Join-Path $script:ExtensionProjectDirectory 'Cliq.Vis
 $script:BackendProject = Join-Path $script:RepositoryRoot 'backend\src\Cliq.Api\Cliq.Api.csproj'
 $script:ScannerSource = Join-Path $script:RepositoryRoot 'backend\tools\puppeteer-scanner'
 $script:Versions = Import-PowerShellDataFile (Join-Path $script:BuildDirectory 'Versions.psd1')
+
+if (-not [string]::IsNullOrWhiteSpace($Version)) {
+    $script:Versions.VsixVersion = $Version
+}
 
 if ([string]::IsNullOrWhiteSpace($PayloadDirectory)) {
     $PayloadDirectory = Join-Path $script:ExtensionProjectDirectory "obj\$Configuration\vsix-payload"
@@ -394,6 +401,17 @@ function Test-VsixArchive {
 
             $binaryText = $binaryEncoding.GetString($bytes)
             $unicodeText = [Text.Encoding]::Unicode.GetString($bytes)
+            if ($entry.FullName -ceq 'extension.vsixmanifest' -and
+                -not [string]::IsNullOrWhiteSpace($Version)) {
+                $manifestText = [Text.Encoding]::UTF8.GetString($bytes)
+                $expectedVersionPattern =
+                    '(?s)<Identity\s+[^>]*?\bVersion\s*=\s*["'']' +
+                    [regex]::Escape($Version) +
+                    '["'']'
+                if ($manifestText -notmatch $expectedVersionPattern) {
+                    throw "VSIX manifest Identity version does not match the requested version '$Version'."
+                }
+            }
             if ($entry.FullName -match '(?i)\.pkgdef$' -and
                 $unicodeText -match '(?i),\s*Menus\.ctmenu,\s*1') {
                 $hasCommandTableRegistration = $true
@@ -456,27 +474,61 @@ function Test-VsixArchive {
     }
 }
 
+function Set-VsixManifestVersion {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Version
+    )
+
+    $manifestPath = Join-Path $script:ExtensionProjectDirectory 'source.extension.vsixmanifest'
+    $updated = [Text.RegularExpressions.Regex]::Replace(
+        (Get-Content -LiteralPath $manifestPath -Raw),
+        '(<Identity\s+[^>]*?\bVersion=")[^"]*(")',
+        "`${1}$Version`${2}",
+        [Text.RegularExpressions.RegexOptions]::Singleline)
+    if ($updated.IndexOf("Version=`"$Version`"", [StringComparison]::Ordinal) -lt 0) {
+        throw "Could not stamp version '$Version' into '$manifestPath'."
+    }
+    [IO.File]::WriteAllText($manifestPath, $updated, (New-Object Text.UTF8Encoding($false)))
+    Write-Host "Stamped VSIX manifest version $Version."
+}
+
 function Build-Vsix {
     Stage-Payload
 
-    Write-Host "Building Cliq Visual Studio extension ($Configuration)..."
-    Invoke-NativeCommand -Command 'dotnet' -Arguments @(
-        'build',
-        $script:ExtensionProject,
-        '--configuration', $Configuration,
-        '-p:CliqPayloadPrepared=true',
-        '-p:ContinuousIntegrationBuild=true'
-    )
-
-    $candidate = Get-ChildItem -LiteralPath (Join-Path $script:ExtensionProjectDirectory "bin\$Configuration") -Recurse -File -Filter '*.vsix' |
-        Sort-Object LastWriteTimeUtc -Descending |
-        Select-Object -First 1
-    if ($null -eq $candidate) {
-        throw "The extension build did not produce a VSIX under 'visualstudio\Cliq.VisualStudio\bin\$Configuration'."
+    $manifestPath = Join-Path $script:ExtensionProjectDirectory 'source.extension.vsixmanifest'
+    $originalManifestBytes = $null
+    if (-not [string]::IsNullOrWhiteSpace($Version)) {
+        $originalManifestBytes = [IO.File]::ReadAllBytes($manifestPath)
+        Set-VsixManifestVersion -Version $Version
     }
 
-    Test-VsixArchive -ArchivePath $candidate.FullName
-    Write-Output $candidate.FullName
+    try {
+        Write-Host "Building Cliq Visual Studio extension ($Configuration)..."
+        Invoke-NativeCommand -Command 'dotnet' -Arguments @(
+            'build',
+            $script:ExtensionProject,
+            '--configuration', $Configuration,
+            '-p:CliqPayloadPrepared=true',
+            '-p:ContinuousIntegrationBuild=true'
+        )
+
+        $candidate = Get-ChildItem -LiteralPath (Join-Path $script:ExtensionProjectDirectory "bin\$Configuration") -Recurse -File -Filter '*.vsix' |
+            Sort-Object LastWriteTimeUtc -Descending |
+            Select-Object -First 1
+        if ($null -eq $candidate) {
+            throw "The extension build did not produce a VSIX under 'visualstudio\Cliq.VisualStudio\bin\$Configuration'."
+        }
+
+        Test-VsixArchive -ArchivePath $candidate.FullName
+        Write-Output $candidate.FullName
+    }
+    finally {
+        if ($null -ne $originalManifestBytes) {
+            [IO.File]::WriteAllBytes($manifestPath, $originalManifestBytes)
+            Write-Host "Restored the original VSIX manifest."
+        }
+    }
 }
 
 switch ($Target) {
