@@ -290,18 +290,34 @@
                             </Grid>
                         </TabItem>
                         <TabItem Header="Pages">
-                            <ListBox ItemsSource="{Binding FilteredPages}"
-                                     SelectedItem="{Binding SelectedPage}"
-                                     SelectionChanged="Pages_SelectionChanged"
-                                     DisplayMemberPath="Name"
-                                     AutomationProperties.Name="Cliq pages">
-                                <ListBox.ItemContainerStyle>
-                                    <Style TargetType="ListBoxItem"
-                                           BasedOn="{StaticResource {x:Type ListBoxItem}}">
-                                        <Setter Property="AutomationProperties.Name" Value="{Binding Name}" />
-                                    </Style>
-                                </ListBox.ItemContainerStyle>
-                            </ListBox>
+                            <Grid Background="{DynamicResource Cliq.SidebarBackground}">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <ListBox ItemsSource="{Binding FilteredPages}"
+                                         SelectedItem="{Binding SelectedPage}"
+                                         SelectionChanged="Pages_SelectionChanged"
+                                         DisplayMemberPath="Name"
+                                         AutomationProperties.Name="Cliq pages">
+                                    <ListBox.ItemContainerStyle>
+                                        <Style TargetType="ListBoxItem"
+                                               BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                                            <Setter Property="AutomationProperties.Name" Value="{Binding Name}" />
+                                        </Style>
+                                    </ListBox.ItemContainerStyle>
+                                </ListBox>
+                                <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,8,0,0">
+                                    <Button Content="Duplicate"
+                                            IsEnabled="{Binding HasSelectedPage}"
+                                            Click="DuplicatePage_Click"
+                                            AutomationProperties.Name="Duplicate selected page" />
+                                    <Button Content="Delete"
+                                            IsEnabled="{Binding HasSelectedPage}"
+                                            Click="DeletePage_Click"
+                                            AutomationProperties.Name="Delete selected page" />
+                                </StackPanel>
+                            </Grid>
                         </TabItem>
                     </TabControl>
                 </Grid>
