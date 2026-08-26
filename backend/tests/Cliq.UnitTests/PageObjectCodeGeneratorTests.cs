@@ -219,6 +219,126 @@ public class PageObjectCodeGeneratorTests
         });
     }
 
+    [Test]
+    public void Generate_WithBasePageFieldNames_AnnotatesEveryGeneratedMemberWithABasePageUsageComment()
+    {
+        var elements = new List<ElementDescriptor>
+        {
+            new("button", ElementActionKind.Click, LocatorStrategy.CssSelector, "#submit", "submit"),
+            new("input", ElementActionKind.Check, LocatorStrategy.CssSelector, "#agree", "agree"),
+            new("div", ElementActionKind.Assert, LocatorStrategy.CssSelector, "#banner", "banner"),
+        };
+        var fieldNames = new BasePageFieldNames("driver", "_driver", "_wait");
+
+        var code = PageObjectCodeGenerator.Generate("LoginPage", "Generated", elements, 10_000, [], basePageFieldNames: fieldNames);
+
+        Assert.Multiple(() =>
+        {
+            AssertImmediatelyPrecedes(code,
+                "    // BasePage generation: uses the inherited BasePage.Locate, ClickWithFallback.",
+                "    public void ClickSubmit()");
+            AssertImmediatelyPrecedes(code,
+                "    // BasePage generation: uses the inherited BasePage.Locate, Hover.",
+                "    public void HoverSubmit()");
+            AssertImmediatelyPrecedes(code,
+                "    // BasePage generation: uses the inherited BasePage.Locate, SetChecked.",
+                "    public void SetAgree(bool isChecked)");
+            AssertImmediatelyPrecedes(code,
+                "    // BasePage generation: uses the inherited BasePage.Locate.",
+                "    public string GetBannerText()");
+            AssertImmediatelyPrecedes(code,
+                "    // BasePage generation: uses the inherited BasePage.TryLocate.",
+                "    public bool IsSubmitVisible()");
+        });
+    }
+
+    [Test]
+    public void Generate_SelfContained_NeverEmitsBasePageUsageComments()
+    {
+        var elements = new List<ElementDescriptor>
+        {
+            new("button", ElementActionKind.Click, LocatorStrategy.CssSelector, "#submit", "submit"),
+            new("input", ElementActionKind.Check, LocatorStrategy.CssSelector, "#agree", "agree"),
+            new("div", ElementActionKind.Assert, LocatorStrategy.CssSelector, "#banner", "banner"),
+            new("input", ElementActionKind.Fill, LocatorStrategy.CssSelector, "#username", "username"),
+        };
+
+        var code = PageObjectCodeGenerator.Generate("LoginPage", "Generated", elements, 10_000, []);
+
+        Assert.That(code, Does.Not.Contain("BasePage generation:"));
+    }
+
+    [Test]
+    public void Generate_FillElement_WithBasePageFieldNames_AnnotatesThePropertyAndItsConstructorInit()
+    {
+        var elements = new List<ElementDescriptor>
+        {
+            new("input", ElementActionKind.Fill, LocatorStrategy.CssSelector, "#username", "username"),
+        };
+        var fieldNames = new BasePageFieldNames("driver", "_driver", "_wait");
+
+        var code = PageObjectCodeGenerator.Generate("LoginPage", "Generated", elements, 10_000, [], basePageFieldNames: fieldNames);
+
+        Assert.Multiple(() =>
+        {
+            AssertImmediatelyPrecedes(code,
+                "    // BasePage generation: uses the inherited BasePage.Locate.",
+                "    public ElementWrapper<string> Username { get; }");
+            AssertImmediatelyPrecedes(code,
+                "        // BasePage generation: uses the inherited BasePage.Locate.",
+                "        Username = new ElementWrapper<string>(");
+        });
+    }
+
+    [Test]
+    public void Generate_RadioElement_WithBasePageFieldNames_AnnotatesSelectMethodAfterTheLocatorComment()
+    {
+        var elements = new List<ElementDescriptor>
+        {
+            new("input", ElementActionKind.Radio, LocatorStrategy.Name, "plan", "plan"),
+        };
+        var fieldNames = new BasePageFieldNames("driver", "_driver", "_wait");
+
+        var code = PageObjectCodeGenerator.Generate("LoginPage", "Generated", elements, 10_000, [], basePageFieldNames: fieldNames);
+
+        Assert.That(code, Does.Contain(
+                "    // Locator (name): plan\r\n    // BasePage generation: uses the inherited BasePage.Locate, ClickWithFallback.\r\n    public void SelectPlan(string value)")
+            .Or.Contain(
+                "    // Locator (name): plan\n    // BasePage generation: uses the inherited BasePage.Locate, ClickWithFallback.\n    public void SelectPlan(string value)"));
+    }
+
+    [Test]
+    public void Generate_DynamicElement_WithBasePageFieldNames_AlsoGetsABasePageUsageComment()
+    {
+        var dynamicElements = new List<DynamicElementDescriptor>
+        {
+            new(ElementActionKind.Click, LocatorStrategy.XPath, "//tr[{param}]/td[2]/button", "rowButton"),
+        };
+        var fieldNames = new BasePageFieldNames("driver", "_driver", "_wait");
+
+        var code = PageObjectCodeGenerator.Generate("LoginPage", "Generated", [], 10_000, [], dynamicElements, fieldNames);
+
+        Assert.Multiple(() =>
+        {
+            AssertImmediatelyPrecedes(code,
+                "    // BasePage generation: uses the inherited BasePage.Locate, ClickWithFallback.",
+                "    public void ClickRowButton(int param)");
+            AssertImmediatelyPrecedes(code,
+                "    // BasePage generation: uses the inherited BasePage.TryLocate.",
+                "    public bool IsRowButtonVisible(int param)");
+        });
+    }
+
+    [Test]
+    public void GenerateBasePageFile_NeverEmitsBasePageUsageComments()
+    {
+        var style = new ExamplePageStyle("driver", "driver");
+
+        var code = PageObjectCodeGenerator.GenerateBasePageFile("Generated", style, 10_000);
+
+        Assert.That(code, Does.Not.Contain("BasePage generation:"));
+    }
+
     // Radio has no fixed locator (see AppendVisibilityCheck's remarks / staticLocatorElements in
     // Generate) so it's excluded, same as its own static-locator-field exclusion.
     [Test]
@@ -694,6 +814,15 @@ public class PageObjectCodeGeneratorTests
         var code = PageObjectCodeGenerator.Generate("Page", "Generated", [], 10_000, [], dynamicElements);
 
         Assert.That(code, Does.Contain("public string GetRowStatusText(int param)"));
+    }
+
+    // Cross-platform line-ending safe check that `nextLine` is the line immediately following
+    // `precedingLine` - same \r\n-or-\n tolerance as Generate_NoBasePageClassName_ClassIsSelfContained,
+    // used here to tie a BasePage-usage comment to the exact member it documents rather than just
+    // asserting both substrings exist somewhere in the file.
+    private static void AssertImmediatelyPrecedes(string code, string precedingLine, string nextLine)
+    {
+        Assert.That(code, Does.Contain($"{precedingLine}\r\n{nextLine}").Or.Contain($"{precedingLine}\n{nextLine}"));
     }
 
     private static int CountOccurrences(string text, string value)

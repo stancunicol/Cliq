@@ -93,6 +93,7 @@ public static class PageObjectCodeGenerator
         foreach (var element in wrapped)
         {
             var name = IdentifierNaming.ToPascalCase(element.SuggestedName);
+            AppendBasePageUsageComment(sb, basePageFieldNames, "    ", "Locate");
             sb.AppendLine($"    public {ElementWrapperClassName}<{WrapperDataType(element.Kind, element.DataType)}> {name} {{ get; }}");
         }
 
@@ -356,6 +357,7 @@ public static class PageObjectCodeGenerator
         var dataType = WrapperDataType(element.Kind, element.DataType);
         var body = WrapperBody(element.Kind, element.DataType, locatorRef, basePageFieldNames);
 
+        AppendBasePageUsageComment(sb, basePageFieldNames, "        ", "Locate");
         AppendWrapperConstruction(sb, "        ", $"{name} = ", dataType, body);
     }
 
@@ -435,12 +437,14 @@ public static class PageObjectCodeGenerator
         switch (element.Kind)
         {
             case ElementActionKind.Click:
+                AppendBasePageUsageComment(sb, basePageFieldNames, "    ", "Locate, ClickWithFallback");
                 sb.AppendLine($"    public void Click{name}()");
                 sb.AppendLine("    {");
                 sb.AppendLine($"        var element = {LocateExpression(basePageFieldNames, locatorRef)};");
                 sb.AppendLine("        ClickWithFallback(element);");
                 sb.AppendLine("    }");
                 sb.AppendLine();
+                AppendBasePageUsageComment(sb, basePageFieldNames, "    ", "Locate, Hover");
                 sb.AppendLine($"    public void Hover{name}()");
                 sb.AppendLine("    {");
                 sb.AppendLine($"        var element = {LocateExpression(basePageFieldNames, locatorRef)};");
@@ -449,6 +453,7 @@ public static class PageObjectCodeGenerator
                 break;
 
             case ElementActionKind.Check:
+                AppendBasePageUsageComment(sb, basePageFieldNames, "    ", "Locate, SetChecked");
                 sb.AppendLine($"    public void Set{name}(bool isChecked)");
                 sb.AppendLine("    {");
                 sb.AppendLine($"        var element = {LocateExpression(basePageFieldNames, locatorRef)};");
@@ -478,6 +483,7 @@ public static class PageObjectCodeGenerator
                 // the runtime value (escaped inline, below) are CSS-escaped so an apostrophe in
                 // either can't break the selector.
                 sb.AppendLine($"    // Locator ({StrategyLabel(element.Strategy)}): {SingleLine(element.LocatorValue)}");
+                AppendBasePageUsageComment(sb, basePageFieldNames, "    ", "Locate, ClickWithFallback");
                 var radioPrefix = ToCSharpStringLiteral($"input[name='{CssEscapeSingleQuoted(element.LocatorValue)}'][value='");
                 sb.AppendLine($"    public void Select{name}(string value)");
                 sb.AppendLine("    {");
@@ -489,6 +495,7 @@ public static class PageObjectCodeGenerator
                 break;
 
             case ElementActionKind.Assert:
+                AppendBasePageUsageComment(sb, basePageFieldNames, "    ", "Locate");
                 sb.AppendLine($"    public string Get{name}Text()");
                 sb.AppendLine("    {");
                 sb.AppendLine($"        var element = {LocateExpression(basePageFieldNames, locatorRef)};");
@@ -512,6 +519,7 @@ public static class PageObjectCodeGenerator
         var name = IdentifierNaming.ToPascalCase(element.SuggestedName);
         var locatorRef = $"{name}Locator";
 
+        AppendBasePageUsageComment(sb, basePageFieldNames, "    ", "TryLocate");
         sb.AppendLine($"    public bool Is{name}Visible()");
         sb.AppendLine("    {");
         if (basePageFieldNames is not null)
@@ -532,6 +540,22 @@ public static class PageObjectCodeGenerator
         }
 
         sb.AppendLine("    }");
+    }
+
+    /// <summary>One-line comment noting which inherited <c>BasePage</c> member(s) the
+    /// method/property emitted right after it relies on - emitted only in base-page mode
+    /// (<paramref name="basePageFieldNames"/> non-null), at every generated member, per request:
+    /// self-contained pages stay uncommented, matching their existing self-documenting-by-naming
+    /// style, since there's no inherited behavior there to call out. <paramref name="indent"/>
+    /// accounts for callers at different nesting depths (a class member at four spaces, a
+    /// constructor-body statement at eight).</summary>
+    private static void AppendBasePageUsageComment(
+        StringBuilder sb, BasePageFieldNames? basePageFieldNames, string indent, string members)
+    {
+        if (basePageFieldNames is not null)
+        {
+            sb.AppendLine($"{indent}// BasePage generation: uses the inherited BasePage.{members}.");
+        }
     }
 
     /// <summary>Right-hand-side expression for locating an element - <c>Locate(x)</c> when
@@ -573,6 +597,7 @@ public static class PageObjectCodeGenerator
             var dataType = WrapperDataType(element.Kind, element.DataType);
             var body = WrapperBody(element.Kind, element.DataType, locatorExpr, basePageFieldNames);
 
+            AppendBasePageUsageComment(sb, basePageFieldNames, "    ", "Locate");
             sb.AppendLine($"    public {ElementWrapperClassName}<{dataType}> {name}({paramType} param) =>");
             AppendWrapperConstruction(sb, "        ", string.Empty, dataType, body);
             sb.AppendLine();
@@ -583,12 +608,14 @@ public static class PageObjectCodeGenerator
         switch (element.Kind)
         {
             case ElementActionKind.Click:
+                AppendBasePageUsageComment(sb, basePageFieldNames, "    ", "Locate, ClickWithFallback");
                 sb.AppendLine($"    public void Click{name}({paramType} param)");
                 sb.AppendLine("    {");
                 sb.AppendLine($"        var element = {LocateExpression(basePageFieldNames, locatorExpr)};");
                 sb.AppendLine("        ClickWithFallback(element);");
                 sb.AppendLine("    }");
                 sb.AppendLine();
+                AppendBasePageUsageComment(sb, basePageFieldNames, "    ", "Locate, Hover");
                 sb.AppendLine($"    public void Hover{name}({paramType} param)");
                 sb.AppendLine("    {");
                 sb.AppendLine($"        var element = {LocateExpression(basePageFieldNames, locatorExpr)};");
@@ -597,6 +624,7 @@ public static class PageObjectCodeGenerator
                 break;
 
             case ElementActionKind.Assert:
+                AppendBasePageUsageComment(sb, basePageFieldNames, "    ", "Locate");
                 sb.AppendLine($"    public string Get{name}Text({paramType} param)");
                 sb.AppendLine("    {");
                 sb.AppendLine($"        var element = {LocateExpression(basePageFieldNames, locatorExpr)};");
@@ -618,6 +646,7 @@ public static class PageObjectCodeGenerator
     private static void AppendDynamicVisibilityCheck(
         StringBuilder sb, string name, string paramType, string locatorExpr, BasePageFieldNames? basePageFieldNames)
     {
+        AppendBasePageUsageComment(sb, basePageFieldNames, "    ", "TryLocate");
         sb.AppendLine($"    public bool Is{name}Visible({paramType} param)");
         sb.AppendLine("    {");
         if (basePageFieldNames is not null)

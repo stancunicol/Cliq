@@ -1054,6 +1054,11 @@ public sealed class WorkspaceCodeGenerationTests
             Assert.That(pageObjectSource, Does.Contain("public sealed class LoginPage : BasePage"));
             Assert.That(pageObjectSource, Does.Contain("public LoginPage(IWebDriver driver) : base(driver)"));
             Assert.That(pageObjectSource, Does.Not.Contain("private readonly IWebDriver"));
+            // Proves the BasePage-usage comment (see PageObjectCodeGeneratorTests for the
+            // exhaustive per-member coverage) is actually wired through the full orchestration
+            // path - settings resolution, style reading, field-name derivation - not just
+            // reachable via a direct PageObjectCodeGenerator.Generate call.
+            Assert.That(pageObjectSource, Does.Contain("// BasePage generation: uses the inherited BasePage.Locate."));
         });
     }
 
