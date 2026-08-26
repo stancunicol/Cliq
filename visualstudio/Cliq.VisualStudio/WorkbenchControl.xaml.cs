@@ -98,6 +98,14 @@ public partial class WorkbenchControl : CliqThemedUserControl
         LocateSelectedElement();
     }
 
+    private void CopyLocator_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem { CommandParameter: string locator } && !string.IsNullOrWhiteSpace(locator))
+        {
+            System.Windows.Clipboard.SetText(locator);
+        }
+    }
+
     private void RegeneratePage_Click(object sender, RoutedEventArgs e)
     {
         if (_commands != null)

@@ -536,7 +536,15 @@
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="{Binding LocatorDisplay}"
                                                            FontFamily="Consolas"
-                                                           TextWrapping="Wrap" />
+                                                           TextWrapping="Wrap">
+                                                    <TextBlock.ContextMenu>
+                                                        <ContextMenu>
+                                                            <MenuItem Header="Copy locator"
+                                                                      CommandParameter="{Binding LocatorDisplay}"
+                                                                      Click="CopyLocator_Click" />
+                                                        </ContextMenu>
+                                                    </TextBlock.ContextMenu>
+                                                </TextBlock>
                                                 <TextBlock Text="  ⚠ Not found on last scan"
                                                            Foreground="{DynamicResource Cliq.Warning}"
                                                            FontWeight="SemiBold"
@@ -614,6 +622,13 @@
                                           BorderThickness="0"
                                           MouseDoubleClick="ElementsGrid_MouseDoubleClick"
                                           AutomationProperties.Name="Page elements">
+                                    <DataGrid.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="Copy locator"
+                                                      CommandParameter="{Binding PlacementTarget.SelectedItem.Locator, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                      Click="CopyLocator_Click" />
+                                        </ContextMenu>
+                                    </DataGrid.ContextMenu>
                                     <DataGrid.Columns>
                                         <DataGridTextColumn Header="Element" Binding="{Binding Name}" Width="*" />
                                         <DataGridTextColumn Header="Tag" Binding="{Binding Tag}" Width="90" />
