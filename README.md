@@ -114,6 +114,14 @@ all - `SeleniumTestRunner` and generated tests were untouched by that change.
 The detailed runtime and security boundaries are documented in
 [`docs/architecture.md`](docs/architecture.md).
 
+### Documentation index
+
+- [`docs/architecture.md`](docs/architecture.md) — runtime, data, and security boundaries
+- [`docs/api.md`](docs/api.md) — complete reference for the authenticated HTTP/SSE sidecar API
+- [`docs/user-journey.md`](docs/user-journey.md) — end-to-end user journey
+- [`docs/visual-studio-extension.md`](docs/visual-studio-extension.md) — Visual Studio extension preview: build, install, and acceptance checklist
+- [`docs/visual-studio-extension-development.md`](docs/visual-studio-extension-development.md) — Visual Studio extension developer guide: internals, sidecar hosting, and testing
+
 ## Workspace format
 
 Opening a folder creates a `.cliq/` directory:

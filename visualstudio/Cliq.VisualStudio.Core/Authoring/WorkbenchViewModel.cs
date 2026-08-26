@@ -133,8 +133,11 @@ public sealed class WorkbenchViewModel : BindableBase
             }
 
             OnPropertyChanged(nameof(CanSaveSelected));
+            OnPropertyChanged(nameof(HasSelectedPage));
         }
     }
+
+    public bool HasSelectedPage => SelectedPage != null;
 
     public bool IsBusy
     {
@@ -230,6 +233,72 @@ public sealed class WorkbenchViewModel : BindableBase
                 RaiseCollectionState();
                 return true;
             });
+    }
+
+    public async Task<bool> DeleteSelectedPageAsync(CancellationToken cancellationToken = default)
+    {
+        var selected = SelectedPage;
+        if (selected == null)
+        {
+            return false;
+        }
+
+        var references = FindPageReferences(selected.Id);
+        if (!await _prompt.ConfirmDeletePageAsync(selected.DisplayName, references, cancellationToken))
+        {
+            return false;
+        }
+
+        return await RunExclusiveAsync(
+            async () =>
+            {
+                await _store.DeletePageAsync(selected.Id, cancellationToken);
+                var index = Pages.IndexOf(selected);
+                Unsubscribe(selected);
+                Pages.Remove(selected);
+                _pageModels = _pageModels.Where(page => page.Id != selected.Id).ToArray();
+                SelectedPage = Pages.Count == 0 ? null : Pages[Math.Min(index, Pages.Count - 1)];
+                StatusMessage = $"Deleted {selected.DisplayName}.";
+                RaiseCollectionState();
+                return true;
+            });
+    }
+
+    public async Task<bool> DuplicateSelectedPageAsync(CancellationToken cancellationToken = default)
+    {
+        return await RunExclusiveAsync(
+            async () =>
+            {
+                var selected = SelectedPage;
+                if (selected == null)
+                {
+                    return false;
+                }
+
+                var duplicate = selected.ToModel() with
+                {
+                    Id = Guid.NewGuid().ToString("N"),
+                    Name = $"{selected.DisplayName} copy",
+                    UpdatedAt = DateTimeOffset.UtcNow,
+                };
+                var saved = await _store.SavePageAsync(duplicate, cancellationToken);
+                var editor = CreatePageEditor(saved);
+                Pages.Add(editor);
+                _pageModels = _pageModels.Concat(new[] { saved }).ToArray();
+                SelectedPage = editor;
+                StatusMessage = $"Duplicated {saved.Name}.";
+                RaiseCollectionState();
+                return true;
+            });
+    }
+
+    private IReadOnlyList<PageReferenceInfo> FindPageReferences(string pageId)
+    {
+        return Tests
+            .SelectMany(test => test.Steps
+                .Where(step => step.PageId == pageId)
+                .Select(step => new PageReferenceInfo(test.DisplayName, step.Label)))
+            .ToArray();
     }
 
     public async Task<bool> SaveSelectedAsync(CancellationToken cancellationToken = default)

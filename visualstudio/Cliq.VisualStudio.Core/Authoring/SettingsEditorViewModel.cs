@@ -19,6 +19,7 @@ public sealed class SettingsEditorViewModel : EditableViewModelBase
     private string _defaultStepTimeoutText;
     private string _pageReadyTimeoutText;
     private bool _captureScreenshotOnFailure;
+    private string _highlightPauseText;
     private string _loadTimeoutText;
     private string _networkIdleGraceText;
     private bool _captureScanScreenshot;
@@ -35,6 +36,7 @@ public sealed class SettingsEditorViewModel : EditableViewModelBase
         _defaultStepTimeoutText = settings.TestExecution.DefaultStepTimeoutMs.ToString(CultureInfo.InvariantCulture);
         _pageReadyTimeoutText = settings.TestExecution.PageReadyTimeoutMs.ToString(CultureInfo.InvariantCulture);
         _captureScreenshotOnFailure = settings.TestExecution.CaptureScreenshotOnFailure;
+        _highlightPauseText = settings.TestExecution.HighlightPauseMs.ToString(CultureInfo.InvariantCulture);
         _loadTimeoutText = settings.Scanning.LoadTimeoutMs.ToString(CultureInfo.InvariantCulture);
         _networkIdleGraceText = settings.Scanning.NetworkIdleGraceMs.ToString(CultureInfo.InvariantCulture);
         _captureScanScreenshot = settings.Scanning.CaptureScreenshot;
@@ -83,6 +85,14 @@ public sealed class SettingsEditorViewModel : EditableViewModelBase
     {
         get => _captureScreenshotOnFailure;
         set => SetEditable(ref _captureScreenshotOnFailure, value);
+    }
+
+    // Unlike the other execution timeouts, 0 is a meaningful value here (no pause - see
+    // SeleniumTestRunner.Pause), so this is validated as non-negative rather than positive.
+    public string HighlightPauseText
+    {
+        get => _highlightPauseText;
+        set => SetEditable(ref _highlightPauseText, value ?? string.Empty);
     }
 
     public string LoadTimeoutText
@@ -138,6 +148,7 @@ public sealed class SettingsEditorViewModel : EditableViewModelBase
 
         ValidatePositiveInt(DefaultStepTimeoutText, "Default step timeout", errors);
         ValidatePositiveInt(PageReadyTimeoutText, "Page ready timeout", errors);
+        ValidateNonNegativeInt(HighlightPauseText, "Highlight pause", errors);
         ValidatePositiveInt(LoadTimeoutText, "Scan load timeout", errors);
         ValidatePositiveInt(NetworkIdleGraceText, "Network idle grace", errors);
         return errors;
@@ -191,7 +202,8 @@ public sealed class SettingsEditorViewModel : EditableViewModelBase
             new TestExecutionSettings(
                 ParsePositiveInt(DefaultStepTimeoutText),
                 ParsePositiveInt(PageReadyTimeoutText),
-                CaptureScreenshotOnFailure),
+                CaptureScreenshotOnFailure,
+                ParseNonNegativeInt(HighlightPauseText)),
             new ScanningSettings(
                 ParsePositiveInt(LoadTimeoutText),
                 ParsePositiveInt(NetworkIdleGraceText),
@@ -213,6 +225,7 @@ public sealed class SettingsEditorViewModel : EditableViewModelBase
         _defaultStepTimeoutText = settings.TestExecution.DefaultStepTimeoutMs.ToString(CultureInfo.InvariantCulture);
         _pageReadyTimeoutText = settings.TestExecution.PageReadyTimeoutMs.ToString(CultureInfo.InvariantCulture);
         _captureScreenshotOnFailure = settings.TestExecution.CaptureScreenshotOnFailure;
+        _highlightPauseText = settings.TestExecution.HighlightPauseMs.ToString(CultureInfo.InvariantCulture);
         _loadTimeoutText = settings.Scanning.LoadTimeoutMs.ToString(CultureInfo.InvariantCulture);
         _networkIdleGraceText = settings.Scanning.NetworkIdleGraceMs.ToString(CultureInfo.InvariantCulture);
         _captureScanScreenshot = settings.Scanning.CaptureScreenshot;
@@ -251,6 +264,22 @@ public sealed class SettingsEditorViewModel : EditableViewModelBase
     }
 
     private static int ParsePositiveInt(string value)
+    {
+        return int.Parse(value, NumberStyles.None, CultureInfo.InvariantCulture);
+    }
+
+    private static void ValidateNonNegativeInt(
+        string value,
+        string label,
+        ICollection<string> errors)
+    {
+        if (!int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out _))
+        {
+            errors.Add($"{label} must be a non-negative whole number.");
+        }
+    }
+
+    private static int ParseNonNegativeInt(string value)
     {
         return int.Parse(value, NumberStyles.None, CultureInfo.InvariantCulture);
     }
