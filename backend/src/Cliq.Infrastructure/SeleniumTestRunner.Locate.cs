@@ -76,7 +76,7 @@ public sealed partial class SeleniumTestRunner
     }
 
     private static readonly Regex LocatorCommentPattern = new(
-        @"^\s*//\s*Locator\s*\((?<label>\w+)(?:,\s*(?<template>template))?\)\s*:\s*(?<value>.+?)\s*$",
+        @"^\s*//\s*Locator\s*\((?<label>\w+)(?:,\s*(?<template>template))?\)\s*:\s*(?:(?<name>\w+)\s*=\s*)?(?<value>.+?)\s*$",
         RegexOptions.Compiled);
 
     public async Task LocateElementFromSourceAsync(
@@ -119,11 +119,33 @@ public sealed partial class SeleniumTestRunner
 
         var label = match.Groups["label"].Value;
         var value = match.Groups["value"].Value;
+        var name = match.Groups["name"].Success ? match.Groups["name"].Value : null;
         return page.Elements.FirstOrDefault(candidate =>
         {
             var descriptor = WorkspaceCodeGeneration.ToDescriptor(candidate, testIdAttribute);
-            return PageObjectCodeGenerator.StrategyLabel(descriptor.Strategy) == label
-                && PageObjectCodeGenerator.SingleLine(descriptor.LocatorValue) == value;
+            if (PageObjectCodeGenerator.StrategyLabel(descriptor.Strategy) != label)
+            {
+                return false;
+            }
+
+            // A comment carries the locator's generated name (new format) and either its absolute
+            // /html/body/... path (xpath elements) or its relative value (css/testId). Legacy
+            // name-less comments carry the relative value alone. Match on whichever the comment
+            // holds - name when present, then the absolute path, then the relative value - so both
+            // the current and older generated files keep resolving.
+            if (name is not null && string.Equals(
+                    IdentifierNaming.ToPascalCase(descriptor.SuggestedName), name, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            if (descriptor.AbsoluteXpath is not null
+                && PageObjectCodeGenerator.SingleLine(descriptor.AbsoluteXpath) == value)
+            {
+                return true;
+            }
+
+            return PageObjectCodeGenerator.SingleLine(descriptor.LocatorValue) == value;
         }) ?? throw new WorkspaceValidationException($"No element on page '{page.Name}' matches that locator.");
     }
 }

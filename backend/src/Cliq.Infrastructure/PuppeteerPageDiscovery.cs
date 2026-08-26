@@ -286,7 +286,8 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
                 el.AssertText,
                 DataType: ToDataType(el.Kind, el.InputType),
                 Multiple: el.Kind == "multiselect",
-                Checkbox: el.Kind == "check"));
+                Checkbox: el.Kind == "check",
+                AbsoluteXpath: el.AbsoluteXpath));
         }
 
         return elements;
@@ -393,6 +394,7 @@ public sealed class PuppeteerPageDiscovery(WorkspaceRepository repository) : IPa
         public string Kind { get; set; } = "";
         public string Strategy { get; set; } = "";
         public string LocatorValue { get; set; } = "";
+        public string? AbsoluteXpath { get; set; }
         public string? GroupName { get; set; }
         public string? TestId { get; set; }
         public string? Id { get; set; }

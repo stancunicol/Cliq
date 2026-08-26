@@ -28,7 +28,10 @@ public sealed record ElementDescriptor(
     string? GroupName = null,
     // Only meaningful for Fill - "string"/"int"/"DateTime". Select/MultiSelect decide their own
     // wrapper data type from Kind alone (see PageObjectCodeGenerator.WrapperDataType).
-    string DataType = "string");
+    string DataType = "string",
+    // The element's absolute /html/body/... path (from PageElement.AbsoluteXpath). Comment-only -
+    // shown in the // Locator comment, never used as the runtime locator.
+    string? AbsoluteXpath = null);
 
 /// <summary>
 /// A user-authored locator template for a repeating element - see

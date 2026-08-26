@@ -90,6 +90,41 @@ public sealed class SeleniumTestRunnerLocateFromSourceTests
             Throws.TypeOf<WorkspaceValidationException>());
     }
 
+    [Test]
+    public void ResolveElementFromComment_MatchesByNameWhenPresent()
+    {
+        var page = SinglePage();
+
+        var element = SeleniumTestRunner.ResolveElementFromComment(
+            page, "// Locator (css): Username = [data-testid=\"username\"]", "data-testid");
+
+        Assert.That(element.Id, Is.EqualTo("username"));
+    }
+
+    [Test]
+    public void ResolveElementFromComment_MatchesByAbsoluteXPath()
+    {
+        var page = new PageDefinition(
+            PageDefinition.CurrentSchemaVersion,
+            "login",
+            "Login",
+            "https://example.com/login",
+            [
+                new PageElement(
+                    "username", "username", "input", StepAction.Fill,
+                    new Locator(LocatorStrategy.XPath, "//input[@data-testid='username']"),
+                    AbsoluteXpath: "/html[1]/body[1]/div[2]/input[1]"),
+            ],
+            DateTimeOffset.UtcNow);
+
+        // Name deliberately doesn't match ("Renamed" != "Username") so only the absolute path can
+        // resolve it - exercising the absolute-xpath fallback rather than the name shortcut.
+        var element = SeleniumTestRunner.ResolveElementFromComment(
+            page, "// Locator (xpath): Renamed = /html[1]/body[1]/div[2]/input[1]", "data-testid");
+
+        Assert.That(element.Id, Is.EqualTo("username"));
+    }
+
     private static PageDefinition SinglePage() => new(
         PageDefinition.CurrentSchemaVersion,
         "login",
