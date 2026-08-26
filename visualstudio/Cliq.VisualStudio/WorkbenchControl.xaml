@@ -290,18 +290,34 @@
                             </Grid>
                         </TabItem>
                         <TabItem Header="Pages">
-                            <ListBox ItemsSource="{Binding FilteredPages}"
-                                     SelectedItem="{Binding SelectedPage}"
-                                     SelectionChanged="Pages_SelectionChanged"
-                                     DisplayMemberPath="Name"
-                                     AutomationProperties.Name="Cliq pages">
-                                <ListBox.ItemContainerStyle>
-                                    <Style TargetType="ListBoxItem"
-                                           BasedOn="{StaticResource {x:Type ListBoxItem}}">
-                                        <Setter Property="AutomationProperties.Name" Value="{Binding Name}" />
-                                    </Style>
-                                </ListBox.ItemContainerStyle>
-                            </ListBox>
+                            <Grid Background="{DynamicResource Cliq.SidebarBackground}">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <ListBox ItemsSource="{Binding FilteredPages}"
+                                         SelectedItem="{Binding SelectedPage}"
+                                         SelectionChanged="Pages_SelectionChanged"
+                                         DisplayMemberPath="Name"
+                                         AutomationProperties.Name="Cliq pages">
+                                    <ListBox.ItemContainerStyle>
+                                        <Style TargetType="ListBoxItem"
+                                               BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                                            <Setter Property="AutomationProperties.Name" Value="{Binding Name}" />
+                                        </Style>
+                                    </ListBox.ItemContainerStyle>
+                                </ListBox>
+                                <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,8,0,0">
+                                    <Button Content="Duplicate"
+                                            IsEnabled="{Binding HasSelectedPage}"
+                                            Click="DuplicatePage_Click"
+                                            AutomationProperties.Name="Duplicate selected page" />
+                                    <Button Content="Delete"
+                                            IsEnabled="{Binding HasSelectedPage}"
+                                            Click="DeletePage_Click"
+                                            AutomationProperties.Name="Delete selected page" />
+                                </StackPanel>
+                            </Grid>
                         </TabItem>
                     </TabControl>
                 </Grid>
@@ -536,7 +552,15 @@
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="{Binding LocatorDisplay}"
                                                            FontFamily="Consolas"
-                                                           TextWrapping="Wrap" />
+                                                           TextWrapping="Wrap">
+                                                    <TextBlock.ContextMenu>
+                                                        <ContextMenu>
+                                                            <MenuItem Header="Copy locator"
+                                                                      CommandParameter="{Binding LocatorDisplay}"
+                                                                      Click="CopyLocator_Click" />
+                                                        </ContextMenu>
+                                                    </TextBlock.ContextMenu>
+                                                </TextBlock>
                                                 <TextBlock Text="  ⚠ Not found on last scan"
                                                            Foreground="{DynamicResource Cliq.Warning}"
                                                            FontWeight="SemiBold"
@@ -619,6 +643,13 @@
                                           BorderThickness="0"
                                           MouseDoubleClick="ElementsGrid_MouseDoubleClick"
                                           AutomationProperties.Name="Page elements">
+                                    <DataGrid.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="Copy locator"
+                                                      CommandParameter="{Binding PlacementTarget.SelectedItem.Locator, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                      Click="CopyLocator_Click" />
+                                        </ContextMenu>
+                                    </DataGrid.ContextMenu>
                                     <DataGrid.Columns>
                                         <DataGridTextColumn Header="Element" Binding="{Binding Name}" Width="*" />
                                         <DataGridTextColumn Header="Tag" Binding="{Binding Tag}" Width="90" />
@@ -824,6 +855,13 @@
                                       IsChecked="{Binding CaptureScreenshotOnFailure}"
                                       Foreground="{DynamicResource Cliq.Foreground}"
                                       Margin="0,10,0,0" />
+
+                            <StackPanel Margin="0,10,0,0">
+                                <TextBlock Text="Highlight pause (ms) - live runs only, 0 disables it"
+                                           Style="{StaticResource FieldLabel}" />
+                                <TextBox Text="{Binding HighlightPauseText, UpdateSourceTrigger=PropertyChanged}"
+                                         AutomationProperties.Name="Highlight pause" />
+                            </StackPanel>
 
                             <TextBlock Text="Scanning"
                                        Style="{StaticResource SectionHeading}"

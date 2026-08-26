@@ -59,6 +59,9 @@ namespace Cliq.VisualStudio.Core.Api
                 page,
                 cancellationToken);
 
+        public Task DeletePageAsync(string id, CancellationToken cancellationToken) =>
+            SendNoContentAsync(HttpMethod.Delete, $"api/v1/pages/{Escape(id)}", null, cancellationToken);
+
         public Task<GeneratedPathResponse> GetGeneratedPageObjectPathAsync(string pageId, CancellationToken cancellationToken) =>
             SendJsonAsync<GeneratedPathResponse>(
                 HttpMethod.Get, $"api/v1/pages/{Escape(pageId)}/generated-path", null, cancellationToken);
