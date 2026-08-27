@@ -90,6 +90,12 @@ public sealed class WorkspaceConfigurationViewModelTests
         editor.RemoveStrategy("testId");
         editor.StrategyToAdd = "testId";
         editor.AddSelectedStrategy();
+        // "css" is a selectable, user-orderable strategy (not just the automatic structural
+        // fallback every element already falls back to) - exercised here via the same
+        // add/remove path as testId/xpath, through the real SupportedStrategies/AvailableStrategies
+        // plumbing rather than asserting the static list directly.
+        editor.StrategyToAdd = "css";
+        editor.AddSelectedStrategy();
         editor.IgnorePatternsText = "^ember\\d+$\r\n^react-";
         editor.CaptureScreenshotOnFailure = false;
         editor.CaptureScanScreenshot = true;
@@ -99,7 +105,7 @@ public sealed class WorkspaceConfigurationViewModelTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(model.ElementIdentification.StrategyOrder, Is.EqualTo(new[] { "xpath", "testId" }));
+            Assert.That(model.ElementIdentification.StrategyOrder, Is.EqualTo(new[] { "xpath", "testId", "css" }));
             Assert.That(model.ElementIdentification.IgnoreIdPatterns, Is.EqualTo(new[] { "^ember\\d+$", "^react-" }));
             Assert.That(model.TestExecution.CaptureScreenshotOnFailure, Is.False);
             Assert.That(model.Scanning.CaptureScreenshot, Is.True);

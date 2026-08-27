@@ -11,6 +11,7 @@ public sealed class WorkspaceRepositoryTests
 {
     private static readonly string[] DefaultStrategyOrder = ["testId", "xpath"];
     private static readonly string[] CustomStrategyOrder = ["xpath", "testId"];
+    private static readonly string[] CssStrategyOrder = ["testId", "css", "xpath"];
 
     private TempWorkspaceDirectory _workspace = null!;
     private string _root = null!;
@@ -518,6 +519,21 @@ public sealed class WorkspaceRepositoryTests
 
         Assert.ThrowsAsync<WorkspaceValidationException>(async () =>
             await repository.SaveSettingsAsync(settings, CancellationToken.None));
+    }
+
+    [Test]
+    public async Task SaveSettingsAsync_AcceptsCssAsAnOrderableStrategyNotJustTheAutomaticFallback()
+    {
+        using var repository = new WorkspaceRepository();
+        await repository.OpenAsync(_root, CancellationToken.None);
+        var settings = ValidSettings() with
+        {
+            ElementIdentification = new ElementIdentificationSettings("data-testid", CssStrategyOrder, []),
+        };
+
+        var saved = await repository.SaveSettingsAsync(settings, CancellationToken.None);
+
+        Assert.That(saved.ElementIdentification.StrategyOrder, Is.EqualTo(CssStrategyOrder));
     }
 
     [Test]

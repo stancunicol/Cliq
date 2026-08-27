@@ -11,7 +11,7 @@ export type StepAction =
   | 'assertUrl'
 export type RunStatus = 'queued' | 'running' | 'passed' | 'failed' | 'cancelled'
 
-export type IdentificationStrategy = 'testId' | 'xpath'
+export type IdentificationStrategy = 'testId' | 'xpath' | 'css'
 
 export interface ElementIdentificationSettings {
   testIdAttribute: string

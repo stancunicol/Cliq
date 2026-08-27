@@ -15,8 +15,11 @@ public sealed class SettingsEditorViewModel : EditableViewModelBase
     // was left stale (still listing the pre-2026-08-03 "testId, id, name" priority order) after
     // the backend moved to "testId, xpath" only, which made every real settings.json fail this
     // dialog's validation and silently block Save regardless of what else was being changed.
+    // "css" was added alongside "testId"/"xpath" as a selectable, user-orderable strategy rather
+    // than only the automatic structural fallback every element already falls back to - keep
+    // this list and KnownIdentificationStrategies in lockstep the same way.
     public static readonly IReadOnlyList<string> SupportedStrategies =
-        new[] { "testId", "xpath" };
+        new[] { "testId", "xpath", "css" };
 
     private string _testIdAttribute;
     private string _ignorePatternsText;

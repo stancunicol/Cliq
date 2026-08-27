@@ -35,7 +35,7 @@ public sealed partial class WorkspaceRepository
         return settings;
     }
 
-    private static readonly HashSet<string> KnownIdentificationStrategies = new(StringComparer.Ordinal) { "testId", "xpath" };
+    private static readonly HashSet<string> KnownIdentificationStrategies = new(StringComparer.Ordinal) { "testId", "xpath", "css" };
 
     private static void ValidateSettings(CliqSettings settings)
     {
@@ -54,7 +54,7 @@ public sealed partial class WorkspaceRepository
             if (!KnownIdentificationStrategies.Contains(strategy))
             {
                 throw new WorkspaceValidationException(
-                    $"elementIdentification.strategyOrder contains unknown strategy '{strategy}'. Expected one of: testId, xpath.");
+                    $"elementIdentification.strategyOrder contains unknown strategy '{strategy}'. Expected one of: testId, xpath, css.");
             }
         }
 
