@@ -121,6 +121,21 @@ public interface ITestRunner
         string locatorComment,
         BrowserKind browser,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Opens (or reuses, see <see cref="LocateElementAsync"/>'s session) a visible browser for
+    /// <paramref name="page"/>, installs a lightweight hover tracker in it, and yields the id of
+    /// whichever known element the mouse is currently over - a Chrome/Edge-DevTools-inspector
+    /// feel, driven from the live page instead of from source. Yields <c>null</c> whenever the
+    /// mouse moves off every known element (so a caller clears its own highlight), and only
+    /// yields again when the matched id actually changes - not on every poll tick. Runs until
+    /// <paramref name="cancellationToken"/> is canceled; never closes the underlying browser
+    /// window itself.
+    /// </summary>
+    IAsyncEnumerable<string?> StreamHoveredElementAsync(
+        PageDefinition page,
+        BrowserKind browser,
+        CancellationToken cancellationToken);
 }
 
 public interface ISecretStore

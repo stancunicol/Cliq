@@ -94,10 +94,27 @@ public sealed class PageEditorViewModel : EditableViewModelBase
         MarkDirty();
         OnPropertyChanged(nameof(HasNotFoundElements));
     }
+
+    /// <summary>
+    /// Reflects the live-highlight stream's current element (see
+    /// <c>WorkspaceActionsViewModel.HighlightedElementId</c>) onto this page's own element
+    /// list - at most one <see cref="PageElementInspectorViewModel.IsHoverHighlighted"/> is ever
+    /// true at a time. Cheap enough to call on every stream tick (typically a handful of elements
+    /// per page) without tracking which one was previously lit.
+    /// </summary>
+    public void SetHighlightedElement(string? elementId)
+    {
+        foreach (var element in Elements)
+        {
+            element.IsHoverHighlighted = elementId is not null && element.Model.Id == elementId;
+        }
+    }
 }
 
-public sealed class PageElementInspectorViewModel
+public sealed class PageElementInspectorViewModel : BindableBase
 {
+    private bool _isHoverHighlighted;
+
     public PageElementInspectorViewModel(PageElement element)
     {
         Model = element;
@@ -116,4 +133,13 @@ public sealed class PageElementInspectorViewModel
     public string Status => Model.NotFound ? "Not found on last scan" : "Available";
 
     public bool NotFound => Model.NotFound;
+
+    /// <summary>True while the live-highlight stream (see <see cref="PageEditorViewModel.SetHighlightedElement"/>)
+    /// reports the mouse as hovering this element in the already-open browser session - the
+    /// Page Inspector grid binds a row style trigger to this for the actual visual highlight.</summary>
+    public bool IsHoverHighlighted
+    {
+        get => _isHoverHighlighted;
+        set => SetProperty(ref _isHoverHighlighted, value);
+    }
 }

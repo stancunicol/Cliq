@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Cliq.Application;
 using Cliq.Domain;
 using Microsoft.AspNetCore.Mvc;
@@ -102,6 +103,36 @@ internal static class PageEndpoints
                 request.Browser ?? snapshot.Project.DefaultBrowser,
                 cancellationToken);
             return Results.NoContent();
+        });
+
+        api.MapGet("/pages/{id}/hover-stream", async (
+            string id,
+            BrowserKind? browser,
+            HttpContext context,
+            IWorkspaceRepository repository,
+            ITestRunner testRunner,
+            CancellationToken cancellationToken) =>
+        {
+            var page = await repository.GetPageAsync(id, cancellationToken);
+            if (page is null)
+            {
+                return Results.NotFound();
+            }
+
+            var snapshot = await repository.GetSnapshotAsync(cancellationToken);
+            context.Response.Headers.CacheControl = "no-cache";
+            context.Response.Headers.Connection = "keep-alive";
+            context.Response.ContentType = "text/event-stream";
+            await foreach (var elementId in testRunner.StreamHoveredElementAsync(
+                page, browser ?? snapshot.Project.DefaultBrowser, cancellationToken))
+            {
+                await context.Response.WriteAsync(
+                    $"event: hover\ndata: {JsonSerializer.Serialize(elementId)}\n\n",
+                    cancellationToken);
+                await context.Response.Body.FlushAsync(cancellationToken);
+            }
+
+            return Results.Empty;
         });
 
         api.MapPost("/pages/locate-from-source", async (

@@ -1,7 +1,9 @@
 using System;
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using Cliq.VisualStudio.Core.Actions;
 using Cliq.VisualStudio.Core.Authoring;
 using Microsoft.VisualStudio.PlatformUI;
 using Microsoft.VisualStudio.Shell;
@@ -22,6 +24,7 @@ public partial class WorkbenchControl : CliqThemedUserControl
     private readonly WorkbenchViewModel _viewModel;
     private readonly ICliqWorkbenchCommands? _commands;
     private bool _initialized;
+    private WorkspaceActionsViewModel? _hoverActions;
 
     internal WorkbenchControl(WorkbenchViewModel viewModel, ICliqWorkbenchCommands? commands = null)
     {
@@ -30,6 +33,7 @@ public partial class WorkbenchControl : CliqThemedUserControl
         InitializeComponent();
         DataContext = _viewModel;
         PreviewKeyDown += OnPreviewKeyDown;
+        Unloaded += WorkbenchControl_Unloaded;
     }
 
     protected override string DiagnosticTag => "Cliq/Workbench";
@@ -144,10 +148,81 @@ public partial class WorkbenchControl : CliqThemedUserControl
 
     private void Pages_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        // A live-highlight stream is bound to whichever page it was started for - switching pages
+        // makes it stale (it would keep reporting hovers for a page the grid no longer shows), so
+        // the toggle turns itself off rather than silently keeping a stream open for a page that's
+        // no longer visible. Unchecking raises LiveHighlightToggle_Unchecked, which does the
+        // actual StopLiveHighlight().
+        if (LiveHighlightToggle.IsChecked == true)
+        {
+            LiveHighlightToggle.IsChecked = false;
+        }
+
         if (_viewModel.SelectedPage != null)
         {
             SelectSection(WorkbenchSection.PageInspector);
         }
+    }
+
+    private void LiveHighlightToggle_Checked(object sender, RoutedEventArgs e)
+    {
+        var pageId = _viewModel.SelectedPage?.Id;
+        var actions = _commands?.Actions;
+        if (pageId is null || actions is null)
+        {
+            LiveHighlightToggle.IsChecked = false;
+            return;
+        }
+
+        SubscribeToHoverActions(actions);
+        actions.StartLiveHighlight(pageId, browser: null);
+    }
+
+    private void LiveHighlightToggle_Unchecked(object sender, RoutedEventArgs e) =>
+        _commands?.Actions?.StopLiveHighlight();
+
+    private void SubscribeToHoverActions(WorkspaceActionsViewModel actions)
+    {
+        if (ReferenceEquals(_hoverActions, actions))
+        {
+            return;
+        }
+
+        if (_hoverActions is not null)
+        {
+            _hoverActions.PropertyChanged -= HoverActions_PropertyChanged;
+        }
+
+        _hoverActions = actions;
+        actions.PropertyChanged += HoverActions_PropertyChanged;
+    }
+
+    private void HoverActions_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(WorkspaceActionsViewModel.HighlightedElementId))
+        {
+            _viewModel.SelectedPage?.SetHighlightedElement(_hoverActions?.HighlightedElementId);
+        }
+        else if (e.PropertyName == nameof(WorkspaceActionsViewModel.IsLiveHighlightActive)
+                 && _hoverActions?.IsLiveHighlightActive == false)
+        {
+            // The stream ended on its own (disconnect, error) rather than through the checkbox -
+            // reflect that back onto the toggle instead of leaving it checked with nothing
+            // actually running behind it.
+            LiveHighlightToggle.IsChecked = false;
+        }
+    }
+
+    private void WorkbenchControl_Unloaded(object sender, RoutedEventArgs e)
+    {
+        if (_hoverActions is null)
+        {
+            return;
+        }
+
+        _hoverActions.PropertyChanged -= HoverActions_PropertyChanged;
+        _hoverActions.StopLiveHighlight();
+        _hoverActions = null;
     }
 
     private void DeleteTest_Click(object sender, RoutedEventArgs e)

@@ -154,12 +154,102 @@ public sealed class WorkspaceActionsViewModelTests
         });
     }
 
+    [Test]
+    public async Task StartLiveHighlight_ReportsHoveredElementsAsTheStreamPushesThemAndStopClearsIt()
+    {
+        var store = new RecordingStore();
+        using var viewModel = new WorkspaceActionsViewModel(store);
+
+        viewModel.StartLiveHighlight("page-1", BrowserKind.Chrome);
+        await store.HoverStarted.Task;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.IsLiveHighlightActive, Is.True);
+            Assert.That(store.HoverStreamCall!.Value.PageId, Is.EqualTo("page-1"));
+            Assert.That(store.HoverStreamCall.Value.Browser, Is.EqualTo(BrowserKind.Chrome));
+        });
+
+        await store.InvokeHoverChangedAsync("element-1");
+        Assert.That(viewModel.HighlightedElementId, Is.EqualTo("element-1"));
+
+        await store.InvokeHoverChangedAsync(null);
+        Assert.That(viewModel.HighlightedElementId, Is.Null);
+
+        viewModel.StopLiveHighlight();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.IsLiveHighlightActive, Is.False);
+            Assert.That(viewModel.HighlightedElementId, Is.Null);
+        });
+    }
+
+    [Test]
+    public async Task StartLiveHighlight_ReplacesAnAlreadyRunningStreamForADifferentPage()
+    {
+        var store = new RecordingStore();
+        using var viewModel = new WorkspaceActionsViewModel(store);
+
+        viewModel.StartLiveHighlight("page-1", null);
+        await store.HoverStarted.Task;
+        await store.InvokeHoverChangedAsync("element-1");
+
+        store.Reset();
+        viewModel.StartLiveHighlight("page-2", null);
+        await store.HoverStarted.Task;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(store.HoverStreamCall!.Value.PageId, Is.EqualTo("page-2"));
+            Assert.That(viewModel.HighlightedElementId, Is.Null, "switching pages should clear the previous page's highlight");
+            Assert.That(viewModel.IsLiveHighlightActive, Is.True);
+        });
+    }
+
+    [Test]
+    public async Task StartLiveHighlight_WhenStreamDisconnects_ClearsHighlightAndReportsError()
+    {
+        var store = new RecordingStore { ThrowOnStream = new HoverStreamDisconnectedException("page-1") };
+        using var viewModel = new WorkspaceActionsViewModel(store);
+        var errorReported = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        viewModel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(viewModel.ErrorMessage) && viewModel.ErrorMessage is not null)
+            {
+                errorReported.TrySetResult(true);
+            }
+        };
+
+        viewModel.StartLiveHighlight("page-1", null);
+        await errorReported.Task;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.ErrorMessage, Does.Contain("disconnected"));
+            Assert.That(viewModel.HighlightedElementId, Is.Null);
+            Assert.That(viewModel.IsLiveHighlightActive, Is.False);
+        });
+    }
+
     private sealed class RecordingStore : FakeWorkspaceActionStore
     {
         public ScanPageRequest? ScanRequest { get; private set; }
         public GenerationRequest? GenerationRequest { get; private set; }
         public (string PageId, string ElementId, StartRunRequest Request)? LocateCall { get; private set; }
         public LocateFromSourceRequest? LocateFromSourceRequest { get; private set; }
+        public (string PageId, BrowserKind? Browser)? HoverStreamCall { get; private set; }
+        public Exception? ThrowOnStream { get; set; }
+        public TaskCompletionSource<bool> HoverStarted { get; private set; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private Func<string?, Task>? _onHoverChanged;
+
+        /// <summary>Resets the per-stream state a new StartLiveHighlight call needs (a fresh
+        /// "started" gate) without losing the recorded call history from a previous stream -
+        /// used by the "replaces an already-running stream" test.</summary>
+        public void Reset() => HoverStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task InvokeHoverChangedAsync(string? elementId) => _onHoverChanged!(elementId);
 
         public override Task<ScanPageResponse> ScanAsync(
             ScanPageRequest request,
@@ -239,6 +329,28 @@ public sealed class WorkspaceActionsViewModelTests
         {
             LocateFromSourceRequest = request;
             return Task.CompletedTask;
+        }
+
+        // Mirrors the real contract - runs until cancellationToken is canceled - by blocking on a
+        // never-completing delay linked to it, so StopLiveHighlight() cancelling the ViewModel's
+        // CancellationTokenSource is what actually ends this call, exactly like the real SSE read
+        // loop ending when the caller stops watching.
+        public override async Task StreamHoveredElementAsync(
+            string pageId,
+            BrowserKind? browser,
+            Func<string?, Task> onHoverChanged,
+            CancellationToken cancellationToken)
+        {
+            HoverStreamCall = (pageId, browser);
+            _onHoverChanged = onHoverChanged;
+            if (ThrowOnStream is { } exception)
+            {
+                HoverStarted.TrySetResult(true);
+                throw exception;
+            }
+
+            HoverStarted.TrySetResult(true);
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
         }
     }
 }

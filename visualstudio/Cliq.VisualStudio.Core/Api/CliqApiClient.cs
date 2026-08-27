@@ -137,6 +137,94 @@ namespace Cliq.VisualStudio.Core.Api
                 request,
                 cancellationToken);
 
+        /// <summary>
+        /// Same SSE line-parsing shape as <see cref="StreamRunEventsAsync"/>, simplified for a
+        /// stream with a single event name and no "done"/terminal event - it just runs until
+        /// <paramref name="cancellationToken"/> is canceled by the caller (turning the Page
+        /// Inspector's live-highlight toggle off) or the connection drops for any other reason,
+        /// which surfaces as <see cref="HoverStreamDisconnectedException"/> rather than a silent
+        /// return, so a caller can tell "I stopped this" apart from "this broke".
+        /// </summary>
+        public async Task StreamHoveredElementAsync(
+            string pageId,
+            BrowserKind? browser,
+            Func<string?, Task> onHoverChanged,
+            CancellationToken cancellationToken)
+        {
+            if (onHoverChanged == null)
+            {
+                throw new ArgumentNullException(nameof(onHoverChanged));
+            }
+
+            var query = browser.HasValue ? $"?browser={Uri.EscapeDataString(browser.Value.ToString())}" : string.Empty;
+            using (var request = CreateRequest(
+                HttpMethod.Get,
+                $"api/v1/pages/{Escape(pageId)}/hover-stream{query}",
+                null))
+            {
+                request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
+                using (var response = await _httpClient.SendAsync(
+                    request,
+                    HttpCompletionOption.ResponseHeadersRead,
+                    cancellationToken).ConfigureAwait(false))
+                {
+                    await EnsureSuccessAsync(response, cancellationToken).ConfigureAwait(false);
+                    using (var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false))
+                    using (var reader = new StreamReader(stream, Encoding.UTF8, true, 4096, false))
+                    {
+                        string? eventName = null;
+                        var data = new StringBuilder();
+                        while (true)
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+                            var readTask = reader.ReadLineAsync();
+                            var cancellationTask = Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                            var completedTask = await Task.WhenAny(
+                                readTask,
+                                cancellationTask).ConfigureAwait(false);
+                            if (completedTask == cancellationTask)
+                            {
+                                cancellationToken.ThrowIfCancellationRequested();
+                            }
+
+                            var line = await readTask.ConfigureAwait(false);
+                            if (line == null)
+                            {
+                                break;
+                            }
+
+                            if (line.Length == 0)
+                            {
+                                if (eventName == "hover")
+                                {
+                                    var elementId = JsonSerializer.Deserialize<string?>(data.ToString());
+                                    await onHoverChanged(elementId).ConfigureAwait(false);
+                                }
+
+                                eventName = null;
+                                data.Clear();
+                            }
+                            else if (line.StartsWith("event:", StringComparison.Ordinal))
+                            {
+                                eventName = line.Substring("event:".Length).Trim();
+                            }
+                            else if (line.StartsWith("data:", StringComparison.Ordinal))
+                            {
+                                if (data.Length > 0)
+                                {
+                                    data.Append('\n');
+                                }
+
+                                data.Append(line.Substring("data:".Length).TrimStart());
+                            }
+                        }
+                    }
+                }
+            }
+
+            throw new HoverStreamDisconnectedException(pageId);
+        }
+
         public Task<TestCase> GetTestAsync(string id, CancellationToken cancellationToken) =>
             SendJsonAsync<TestCase>(HttpMethod.Get, $"api/v1/tests/{Escape(id)}", null, cancellationToken);
 

@@ -59,6 +59,12 @@ namespace Cliq.VisualStudio.Core.Actions
         Task LocateElementFromSourceAsync(
             LocateFromSourceRequest request,
             CancellationToken cancellationToken);
+
+        Task StreamHoveredElementAsync(
+            string pageId,
+            BrowserKind? browser,
+            Func<string?, Task> onHoverChanged,
+            CancellationToken cancellationToken);
     }
 
     public sealed class ApiWorkspaceActionStore : IWorkspaceActionStore
@@ -143,15 +149,25 @@ namespace Cliq.VisualStudio.Core.Actions
             CancellationToken cancellationToken) =>
             await (await _session.GetClientAsync(cancellationToken).ConfigureAwait(false))
                 .LocateElementFromSourceAsync(request, cancellationToken).ConfigureAwait(false);
+
+        public async Task StreamHoveredElementAsync(
+            string pageId,
+            BrowserKind? browser,
+            Func<string?, Task> onHoverChanged,
+            CancellationToken cancellationToken) =>
+            await (await _session.GetClientAsync(cancellationToken).ConfigureAwait(false))
+                .StreamHoveredElementAsync(pageId, browser, onHoverChanged, cancellationToken).ConfigureAwait(false);
     }
 
     public sealed class WorkspaceActionsViewModel : BindableBase, IDisposable
     {
         private readonly IWorkspaceActionStore _store;
         private CancellationTokenSource? _operation;
+        private CancellationTokenSource? _hoverOperation;
         private bool _isBusy;
         private string? _statusMessage;
         private string? _errorMessage;
+        private string? _highlightedElementId;
         private IReadOnlyList<GeneratedArtifact> _artifacts = Array.Empty<GeneratedArtifact>();
         private bool _disposed;
 
@@ -317,6 +333,92 @@ namespace Cliq.VisualStudio.Core.Actions
                 },
                 cancellationToken);
 
+        /// <summary>
+        /// The element id the live-highlight stream last reported as hovered on <paramref
+        /// name="pageId"/> in <see cref="StartLiveHighlight"/>, or null when nothing (or nothing
+        /// Cliq knows about) is currently hovered. A caller (the Page Inspector) reflects this
+        /// onto its own <c>PageEditorViewModel.SetHighlightedElement</c> - this view model has no
+        /// knowledge of the Workbench's page collection, only of the stream itself.
+        /// </summary>
+        public string? HighlightedElementId
+        {
+            get => _highlightedElementId;
+            private set => SetProperty(ref _highlightedElementId, value);
+        }
+
+        /// <summary>Whether a live-highlight stream is currently running - deliberately tracked
+        /// independently of <see cref="IsBusy"/>: unlike every other action here (one request,
+        /// one response, done), this one runs indefinitely until <see cref="StopLiveHighlight"/>
+        /// is called, so it must not occupy the single-action-at-a-time slot <see cref="RunAsync{T}(string,Func{CancellationToken,Task{T}},CancellationToken)"/>
+        /// enforces - a scan or generate started while highlighting is live should work exactly as
+        /// if it weren't.</summary>
+        public bool IsLiveHighlightActive => _hoverOperation is not null;
+
+        /// <summary>
+        /// Starts (replacing any already running for a different page) a live-highlight stream for
+        /// <paramref name="pageId"/> - a DevTools-inspector feel where hovering an element in the
+        /// already-open browser window updates <see cref="HighlightedElementId"/> in real time.
+        /// Fire-and-forget by design: the caller observes progress through property-changed
+        /// notifications on <see cref="HighlightedElementId"/>/<see cref="IsLiveHighlightActive"/>/
+        /// <see cref="ErrorMessage"/>, not through the returned task.
+        /// </summary>
+        public void StartLiveHighlight(string pageId, BrowserKind? browser)
+        {
+            ThrowIfDisposed();
+            StopLiveHighlight();
+            var cts = new CancellationTokenSource();
+            _hoverOperation = cts;
+            OnPropertyChanged(nameof(IsLiveHighlightActive));
+            _ = RunLiveHighlightLoopAsync(pageId, browser, cts.Token);
+        }
+
+        public void StopLiveHighlight()
+        {
+            if (_hoverOperation is null)
+            {
+                return;
+            }
+
+            _hoverOperation.Cancel();
+            _hoverOperation.Dispose();
+            _hoverOperation = null;
+            HighlightedElementId = null;
+            OnPropertyChanged(nameof(IsLiveHighlightActive));
+        }
+
+        private async Task RunLiveHighlightLoopAsync(string pageId, BrowserKind? browser, CancellationToken cancellationToken)
+        {
+            try
+            {
+                await _store.StreamHoveredElementAsync(
+                    pageId,
+                    browser,
+                    elementId =>
+                    {
+                        HighlightedElementId = elementId;
+                        return Task.CompletedTask;
+                    },
+                    cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                // The expected way this loop ends - StopLiveHighlight() already cleared state.
+            }
+            catch (Exception ex) when (ex is HoverStreamDisconnectedException or CliqApiException)
+            {
+                // The session/connection is gone, not just "nothing hovered" - clear the
+                // highlight and let ErrorMessage explain why, same as every other action's
+                // failure path, rather than leaving a stale highlight glowing indefinitely.
+                ErrorMessage = ex is HoverStreamDisconnectedException
+                    ? "Live highlight disconnected."
+                    : ex.Message;
+                HighlightedElementId = null;
+                _hoverOperation?.Dispose();
+                _hoverOperation = null;
+                OnPropertyChanged(nameof(IsLiveHighlightActive));
+            }
+        }
+
         public void Cancel() => _operation?.Cancel();
 
         public void Dispose()
@@ -330,6 +432,9 @@ namespace Cliq.VisualStudio.Core.Actions
             _operation?.Cancel();
             _operation?.Dispose();
             _operation = null;
+            _hoverOperation?.Cancel();
+            _hoverOperation?.Dispose();
+            _hoverOperation = null;
         }
 
         private async Task<GenerationResult?> GenerateAsync(

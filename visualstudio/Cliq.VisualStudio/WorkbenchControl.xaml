@@ -599,6 +599,15 @@
                                         Click="OpenGeneratedFile_Click"
                                         ToolTip="Opens this page's generated Page Object .cs file, if it has been generated."
                                         AutomationProperties.Name="Open this page's generated file" />
+                                <CheckBox x:Name="LiveHighlightToggle"
+                                          Content="Live highlight"
+                                          VerticalAlignment="Center"
+                                          Margin="10,0,0,0"
+                                          Foreground="{DynamicResource Cliq.Foreground}"
+                                          Checked="LiveHighlightToggle_Checked"
+                                          Unchecked="LiveHighlightToggle_Unchecked"
+                                          ToolTip="Hover an element in the already-open browser window (see Locate in Browser) to highlight the matching row here, like a DevTools inspector. Opens or reuses that window."
+                                          AutomationProperties.Name="Live highlight" />
                             </StackPanel>
                             <Border Grid.Row="3"
                                     CornerRadius="7"
@@ -614,6 +623,23 @@
                                           BorderThickness="0"
                                           MouseDoubleClick="ElementsGrid_MouseDoubleClick"
                                           AutomationProperties.Name="Page elements">
+                                    <DataGrid.RowStyle>
+                                        <Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
+                                            <Style.Triggers>
+                                                <!-- Distinct from the IsSelected trigger on the base DataGridRow style
+                                                     (still wins if both apply, since it's declared after) - a hovered
+                                                     element and a selected one are different facts and shouldn't look
+                                                     identical. #2979FF matches ScreenshotCapture.AddHighlight's own
+                                                     "Cliq" highlight color, so the same element visibly glows the same
+                                                     color in both the live browser and this grid. -->
+                                                <DataTrigger Binding="{Binding IsHoverHighlighted}" Value="True">
+                                                    <Setter Property="Background" Value="#332979FF" />
+                                                    <Setter Property="BorderBrush" Value="#2979FF" />
+                                                    <Setter Property="BorderThickness" Value="0,1,0,1" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </DataGrid.RowStyle>
                                     <DataGrid.Columns>
                                         <DataGridTextColumn Header="Element" Binding="{Binding Name}" Width="*" />
                                         <DataGridTextColumn Header="Tag" Binding="{Binding Tag}" Width="90" />
