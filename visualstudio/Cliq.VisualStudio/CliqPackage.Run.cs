@@ -43,8 +43,12 @@ public sealed partial class CliqPackage
             0,
             create: true,
             DisposalToken);
-        var browser = Workbench.Project?.DefaultBrowser ?? BrowserKind.Chrome;
-        await RunResults.StartAsync(test, browser, DisposalToken);
+        if (RunResults.SelectedBrowser == BrowserKind.Chrome)
+        {
+            RunResults.SelectedBrowser = Workbench.Project?.DefaultBrowser ?? BrowserKind.Chrome;
+        }
+
+        await RunResults.StartAsync(test, RunResults.SelectedBrowser, DisposalToken);
     }
 
     internal async Task CancelRunAsync()

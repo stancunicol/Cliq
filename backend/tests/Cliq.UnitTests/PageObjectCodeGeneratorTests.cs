@@ -404,18 +404,35 @@ public class PageObjectCodeGeneratorTests
         const string fullXPath = "//label[contains(normalize-space(string(.)), \"Username\")]/following::input[1]";
         var elements = new List<ElementDescriptor>
         {
-            new("input", ElementActionKind.Fill, LocatorStrategy.XPath, fullXPath, "username"),
+            new("input", ElementActionKind.Fill, LocatorStrategy.XPath, fullXPath, "username", AbsoluteXpath: "/html[1]/body[1]/div[2]/input[1]"),
         };
 
         var code = PageObjectCodeGenerator.Generate("LoginPage", "Generated", elements, 10_000, []);
-        var commentIndex = code.IndexOf($"// Locator (xpath): {fullXPath}", StringComparison.Ordinal);
+        var commentIndex = code.IndexOf("// Locator (xpath): Username = /html[1]/body[1]/div[2]/input[1]", StringComparison.Ordinal);
         var initIndex = code.IndexOf("Username = new ElementWrapper<string>(", StringComparison.Ordinal);
 
         Assert.Multiple(() =>
         {
             Assert.That(commentIndex, Is.GreaterThanOrEqualTo(0), "expected the full xpath in a comment above the wrapper init");
             Assert.That(commentIndex, Is.LessThan(initIndex), "the comment should precede the wrapper init it documents");
+            // The generated name is part of the comment, and the runtime locator still uses the
+            // relative xpath (the absolute path is descriptive only).
+            Assert.That(code, Does.Contain("private static readonly By UsernameLocator = By.XPath(\"//label[contains(normalize-space(string(.)), \\\"Username\\\")]/following::input[1]\");"));
         });
+    }
+
+    [Test]
+    public void Generate_XPathElement_WithoutAbsolutePath_FallsBackToRelativeValueInComment()
+    {
+        const string fullXPath = "//button[@type='submit']";
+        var elements = new List<ElementDescriptor>
+        {
+            new("button", ElementActionKind.Click, LocatorStrategy.XPath, fullXPath, "submit"),
+        };
+
+        var code = PageObjectCodeGenerator.Generate("Page", "Generated", elements, 10_000, []);
+
+        Assert.That(code, Does.Contain("// Locator (xpath): Submit = //button[@type='submit']"));
     }
 
     [Test]
@@ -570,7 +587,7 @@ public class PageObjectCodeGeneratorTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(code, Does.Contain("// Locator (css): submit"));
+            Assert.That(code, Does.Contain("// Locator (css): Submit = submit"));
             Assert.That(code, Does.Contain("private static readonly By SubmitLocator = By.CssSelector(\"submit\");"));
             // Exactly one By.CssSelector("submit") anywhere in the file - the field - not one per method.
             Assert.That(
@@ -771,7 +788,7 @@ public class PageObjectCodeGeneratorTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(code, Does.Contain("// Locator (xpath, template): //table/tbody/tr[{param}]/td[1]/button"));
+            Assert.That(code, Does.Contain("// Locator (xpath, template): RowButton = //table/tbody/tr[{param}]/td[1]/button"));
             Assert.That(code, Does.Contain("public void ClickRowButton(int param)"));
             Assert.That(code, Does.Contain("public void HoverRowButton(int param)"));
             Assert.That(code, Does.Contain("By.XPath($\"//table/tbody/tr[{param}]/td[1]/button\")"));

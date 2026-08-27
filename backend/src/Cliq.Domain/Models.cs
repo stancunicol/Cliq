@@ -139,7 +139,11 @@ public sealed record PageElement(
     // Only meaningful for Click (a checkbox was scanned) - StepAction has no dedicated Check
     // value either (a checkbox's Action is StepAction.Click, same as a button), so this is the
     // only place that survives to tell them apart after the scan.
-    bool Checkbox = false);
+    bool Checkbox = false,
+    // The element's absolute /html/body/... path as computed by the scanner. Descriptive only -
+    // it ends up in the generated // Locator comment but is never the actual Selenium locator,
+    // which keeps using the relative <see cref="Locator.Value"/>.
+    string? AbsoluteXpath = null);
 
 public sealed record ScanReconciliationReport(
     int MatchedCount,

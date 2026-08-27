@@ -27,6 +27,21 @@ public sealed class WorkbenchAuthoringTests
     }
 
     [Test]
+    public async Task SearchMatchesTestTags()
+    {
+        var store = new RecordingWorkbenchStore(CreateSnapshot());
+        var viewModel = new WorkbenchViewModel(store);
+
+        await viewModel.InitializeAsync();
+        viewModel.SearchText = "smoke";
+
+        Assert.That(viewModel.FilteredTests.Select(test => test.Name), Is.EqualTo(new[] { "Checkout" }));
+
+        viewModel.SearchText = "SMOKE";
+        Assert.That(viewModel.FilteredTests.Select(test => test.Name), Is.EqualTo(new[] { "Checkout" }));
+    }
+
+    [Test]
     public async Task SelectingTestsAndPagesIsMutuallyExclusive()
     {
         var viewModel = new WorkbenchViewModel(new RecordingWorkbenchStore(CreateSnapshot()));
@@ -315,6 +330,26 @@ public sealed class WorkbenchAuthoringTests
     }
 
     [Test]
+    public void PageInspectorElementFilterMatchesNameTagAndLocator()
+    {
+        var page = CreateSnapshot().Pages[0];
+        var inspector = new PageEditorViewModel(page);
+
+        inspector.ElementFilter = "email";
+        Assert.That(inspector.FilteredElements.Select(element => element.Name), Is.EqualTo(new[] { "Email" }));
+
+        inspector.ElementFilter = "button";
+        Assert.That(inspector.FilteredElements.Select(element => element.Name), Is.EqualTo(new[] { "Submit" }));
+
+        inspector.ElementFilter = "#submit";
+        Assert.That(inspector.FilteredElements.Select(element => element.Name), Is.EqualTo(new[] { "Submit" }));
+
+        inspector.ElementFilter = "   ";
+        Assert.That(inspector.FilteredElements.Count(), Is.EqualTo(2));
+        Assert.That(inspector.IsDirty, Is.False);
+    }
+
+    [Test]
     public async Task RenamingSelectedPageTracksDirtyStateAndSaves()
     {
         var store = new RecordingWorkbenchStore(CreateSnapshot());
@@ -341,6 +376,105 @@ public sealed class WorkbenchAuthoringTests
             Assert.That(store.SavedPages[0].Name, Is.EqualTo("Renamed checkout page"));
             Assert.That(viewModel.SelectedPage.IsDirty, Is.False);
             Assert.That(viewModel.IsDirty, Is.False);
+        });
+    }
+
+    [Test]
+    public async Task SelectingPagesEnablesHasSelectedPage()
+    {
+        var viewModel = new WorkbenchViewModel(new RecordingWorkbenchStore(CreateSnapshot()));
+        await viewModel.InitializeAsync();
+
+        Assert.That(viewModel.HasSelectedPage, Is.False);
+
+        viewModel.SelectedPage = viewModel.Pages[0];
+        Assert.That(viewModel.HasSelectedPage, Is.True);
+
+        viewModel.SelectedPage = null;
+        Assert.That(viewModel.HasSelectedPage, Is.False);
+    }
+
+    [Test]
+    public async Task DeletingSelectedPageRemovesItAndReportsIt()
+    {
+        var store = new RecordingWorkbenchStore(CreateSnapshot());
+        var viewModel = new WorkbenchViewModel(store);
+        await viewModel.InitializeAsync();
+
+        viewModel.SelectedPage = viewModel.Pages[0];
+
+        Assert.That(await viewModel.DeleteSelectedPageAsync(), Is.True);
+        Assert.Multiple(() =>
+        {
+            Assert.That(store.DeletedPageIds, Is.EqualTo(new[] { "checkout-page" }));
+            Assert.That(viewModel.Pages, Is.Empty);
+            Assert.That(viewModel.SelectedPage, Is.Null);
+            Assert.That(viewModel.StatusMessage, Is.EqualTo("Deleted Checkout page."));
+        });
+    }
+
+    [Test]
+    public async Task DeletingPageWarnsAboutReferencingTests()
+    {
+        var store = new RecordingWorkbenchStore(CreateSnapshot());
+        var prompt = new RecordingPrompt { DeletePageResult = false };
+        var viewModel = new WorkbenchViewModel(store, prompt);
+        await viewModel.InitializeAsync();
+
+        viewModel.SelectedPage = viewModel.Pages[0];
+
+        Assert.That(await viewModel.DeleteSelectedPageAsync(), Is.False);
+        Assert.Multiple(() =>
+        {
+            Assert.That(store.DeletedPageIds, Is.Empty);
+            Assert.That(viewModel.Pages, Has.Count.EqualTo(1));
+            Assert.That(prompt.LastDeletePageReferences!.Select(reference => reference.TestName),
+                Is.EqualTo(new[] { "Checkout" }));
+            Assert.That(prompt.LastDeletePageReferences.Select(reference => reference.StepLabel),
+                Is.EqualTo(new[] { "Enter email" }));
+        });
+    }
+
+    [Test]
+    public async Task DuplicatingSelectedPageCreatesCopyAndSaves()
+    {
+        var store = new RecordingWorkbenchStore(CreateSnapshot());
+        var viewModel = new WorkbenchViewModel(store);
+        await viewModel.InitializeAsync();
+
+        viewModel.SelectedPage = viewModel.Pages[0];
+
+        Assert.That(await viewModel.DuplicateSelectedPageAsync(), Is.True);
+        Assert.Multiple(() =>
+        {
+            Assert.That(store.SavedPages, Has.Count.EqualTo(1));
+            Assert.That(store.SavedPages[0].Id, Is.Not.EqualTo("checkout-page"));
+            Assert.That(store.SavedPages[0].Name, Is.EqualTo("Checkout page copy"));
+            Assert.That(store.SavedPages[0].Elements, Has.Count.EqualTo(2));
+            Assert.That(viewModel.Pages, Has.Count.EqualTo(2));
+            Assert.That(viewModel.SelectedPage, Is.SameAs(viewModel.Pages[1]));
+            Assert.That(viewModel.StatusMessage, Is.EqualTo("Duplicated Checkout page copy."));
+        });
+    }
+
+    [Test]
+    public async Task DuplicatingThenDeletingDuplicateLeavesOriginal()
+    {
+        var store = new RecordingWorkbenchStore(CreateSnapshot());
+        var viewModel = new WorkbenchViewModel(store);
+        await viewModel.InitializeAsync();
+
+        viewModel.SelectedPage = viewModel.Pages[0];
+        await viewModel.DuplicateSelectedPageAsync();
+        var copyId = viewModel.SelectedPage!.Id;
+
+        Assert.That(await viewModel.DeleteSelectedPageAsync(), Is.True);
+        Assert.Multiple(() =>
+        {
+            Assert.That(store.DeletedPageIds, Is.EqualTo(new[] { copyId }));
+            Assert.That(viewModel.Pages, Has.Count.EqualTo(1));
+            Assert.That(viewModel.Pages[0].Id, Is.EqualTo("checkout-page"));
+            Assert.That(viewModel.SelectedPage, Is.SameAs(viewModel.Pages[0]));
         });
     }
 
@@ -426,6 +560,8 @@ public sealed class WorkbenchAuthoringTests
 
         public List<PageDefinition> SavedPages { get; } = new();
 
+        public List<string> DeletedPageIds { get; } = new();
+
         public override Task<WorkspaceSnapshot> LoadAsync(CancellationToken cancellationToken)
         {
             LoadCalls++;
@@ -449,6 +585,12 @@ public sealed class WorkbenchAuthoringTests
             SavedPages.Add(page);
             return Task.FromResult(page);
         }
+
+        public override Task DeletePageAsync(string pageId, CancellationToken cancellationToken)
+        {
+            DeletedPageIds.Add(pageId);
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class RecordingPrompt : IWorkbenchPrompt
@@ -456,6 +598,10 @@ public sealed class WorkbenchAuthoringTests
         public bool DiscardResult { get; set; } = true;
 
         public int DiscardCalls { get; private set; }
+
+        public bool DeletePageResult { get; set; } = true;
+
+        public IReadOnlyList<PageReferenceInfo>? LastDeletePageReferences { get; private set; }
 
         public Task<bool> ConfirmDiscardChangesAsync(
             string operation,
@@ -470,6 +616,15 @@ public sealed class WorkbenchAuthoringTests
             CancellationToken cancellationToken)
         {
             return Task.FromResult(true);
+        }
+
+        public Task<bool> ConfirmDeletePageAsync(
+            string pageName,
+            IReadOnlyList<PageReferenceInfo> references,
+            CancellationToken cancellationToken)
+        {
+            LastDeletePageReferences = references;
+            return Task.FromResult(DeletePageResult);
         }
     }
 }

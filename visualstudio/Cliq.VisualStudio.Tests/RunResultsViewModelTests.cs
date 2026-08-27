@@ -97,6 +97,29 @@ public sealed class RunResultsViewModelTests
             Throws.TypeOf<InvalidOperationException>());
     }
 
+    [Test]
+    public void SelectedBrowserDefaultsToChromeAndIsSettable()
+    {
+        var viewModel = new RunResultsViewModel(new FakeRunStore());
+
+        Assert.That(viewModel.SelectedBrowser, Is.EqualTo(BrowserKind.Chrome));
+
+        viewModel.SelectedBrowser = BrowserKind.Edge;
+        Assert.That(viewModel.SelectedBrowser, Is.EqualTo(BrowserKind.Edge));
+    }
+
+    [Test]
+    public async Task StartAsyncUsesSelectedBrowser()
+    {
+        var store = new FakeRunStore();
+        var viewModel = new RunResultsViewModel(store);
+        viewModel.SelectedBrowser = BrowserKind.Edge;
+
+        await viewModel.StartAsync(TestWithTwoSteps(), viewModel.SelectedBrowser);
+
+        Assert.That(store.LastBrowser, Is.EqualTo(BrowserKind.Edge));
+    }
+
     private static TestCase TestWithTwoSteps() =>
         new(
             1,
@@ -119,12 +142,14 @@ public sealed class RunResultsViewModelTests
             new(TaskCreationOptions.RunContinuationsAsynchronously);
         public string? CancelledRunId { get; private set; }
         public int GetCount { get; private set; }
+        public BrowserKind? LastBrowser { get; private set; }
 
         public Task<TestRun> StartAsync(
             string testId,
             BrowserKind browser,
             CancellationToken cancellationToken)
         {
+            LastBrowser = browser;
             Started.TrySetResult(true);
             return Task.FromResult(Run(RunStatus.Queued, Array.Empty<StepResult>()));
         }

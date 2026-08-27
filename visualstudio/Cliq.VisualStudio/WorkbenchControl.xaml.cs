@@ -103,6 +103,14 @@ public partial class WorkbenchControl : CliqThemedUserControl
         LocateSelectedElement();
     }
 
+    private void CopyLocator_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem { CommandParameter: string locator } && !string.IsNullOrWhiteSpace(locator))
+        {
+            System.Windows.Clipboard.SetText(locator);
+        }
+    }
+
     private void RegeneratePage_Click(object sender, RoutedEventArgs e)
     {
         if (_commands != null)
@@ -264,6 +272,16 @@ public partial class WorkbenchControl : CliqThemedUserControl
     private void DeleteTest_Click(object sender, RoutedEventArgs e)
     {
         RunOperation(async () => { await _viewModel.DeleteSelectedTestAsync(); });
+    }
+
+    private void DeletePage_Click(object sender, RoutedEventArgs e)
+    {
+        RunOperation(async () => { await _viewModel.DeleteSelectedPageAsync(); });
+    }
+
+    private void DuplicatePage_Click(object sender, RoutedEventArgs e)
+    {
+        RunOperation(async () => { await _viewModel.DuplicateSelectedPageAsync(); });
     }
 
     private void SaveSelected_Click(object sender, RoutedEventArgs e)

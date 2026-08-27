@@ -109,7 +109,7 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
                 generationState[page.Id] = className;
             }
 
-            var descriptors = page.Elements
+            IReadOnlyList<ElementDescriptor> descriptors = page.Elements
                 .Select(element => ToDescriptor(element, settings.ElementIdentification.TestIdAttribute))
                 .ToList();
             var dynamicDescriptors = (page.DynamicElements ?? [])
@@ -119,6 +119,14 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
             var existingSource = File.Exists(generatedPath)
                 ? await File.ReadAllTextAsync(generatedPath, cancellationToken)
                 : null;
+
+            // A locator's name is editable directly in its // Locator comment (see
+            // LocatorCommentExtractor) - read any such edit back out of the existing file and
+            // apply it before generation, so a hand-renamed member survives the next regenerate.
+            if (existingSource is not null)
+            {
+                descriptors = ApplyLocatorCommentRenames(descriptors, LocatorCommentExtractor.Extract(existingSource));
+            }
 
             IReadOnlyList<string>? resolvedMethods = null;
             var hasResolutionForPage = customMethodResolutions is not null &&
@@ -410,6 +418,47 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
         artifacts.Add(new GeneratedArtifact("basePage", "BasePage", basePagePath, true));
     }
 
+    /// Applies a user's hand-edit of a locator's name (typed into its <c>// Locator</c> comment in
+    /// the generated file - see <see cref="LocatorCommentExtractor"/>) back onto the freshly
+    /// computed descriptors before generation. A comment is matched to a descriptor by its locator
+    /// value (the same key <see cref="SeleniumTestRunner.Locate"/>'s parser uses), then the
+    /// descriptor's <see cref="ElementDescriptor.SuggestedName"/> is overridden with the comment's
+    /// name when it differs. If the edited name isn't a usable identifier it's ignored (the scanned
+    /// name wins) rather than producing broken code.
+    /// </summary>
+    internal static IReadOnlyList<ElementDescriptor> ApplyLocatorCommentRenames(
+        IReadOnlyList<ElementDescriptor> descriptors,
+        IReadOnlyList<LocatorComment> comments)
+    {
+        return descriptors
+            .Select(descriptor =>
+            {
+                var comment = comments.FirstOrDefault(candidate =>
+                    !candidate.IsTemplate
+                    && MatchesDescriptor(candidate, descriptor));
+                if (comment.Name is null)
+                {
+                    return descriptor;
+                }
+
+                var editedName = IdentifierNaming.Sanitize(comment.Name, descriptor.SuggestedName);
+                var currentName = IdentifierNaming.Sanitize(descriptor.SuggestedName, "element");
+                return string.Equals(editedName, currentName, StringComparison.Ordinal) || string.IsNullOrEmpty(editedName)
+                    ? descriptor
+                    : descriptor with { SuggestedName = editedName };
+            })
+            .ToList();
+    }
+
+    private static bool MatchesDescriptor(LocatorComment comment, ElementDescriptor descriptor) =>
+        // The comment's value is the absolute /html/body/... path for an xpath element (see
+        // PageObjectCodeGenerator.AppendStaticLocatorField) and the relative value otherwise, so
+        // match against whichever the descriptor carries.
+        (descriptor.AbsoluteXpath is not null
+         && string.Equals(PageObjectCodeGenerator.SingleLine(descriptor.AbsoluteXpath), comment.Value, StringComparison.Ordinal))
+        || string.Equals(
+            PageObjectCodeGenerator.SingleLine(descriptor.LocatorValue), comment.Value, StringComparison.Ordinal);
+
     internal static ElementDescriptor ToDescriptor(PageElement element, string testIdAttribute) =>
         new(
             element.Tag,
@@ -448,7 +497,8 @@ public sealed class WorkspaceCodeGeneration(WorkspaceRepository repository) : IC
                 : element.Locator.Value,
             element.Name,
             element.ExpectedText,
-            DataType: element.DataType);
+            DataType: element.DataType,
+            AbsoluteXpath: element.AbsoluteXpath);
 
     private static DynamicElementDescriptor ToDynamicDescriptor(DynamicElement element, string testIdAttribute) =>
         new(
