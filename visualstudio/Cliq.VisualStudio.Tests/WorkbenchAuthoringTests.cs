@@ -278,6 +278,39 @@ public sealed class WorkbenchAuthoringTests
         });
     }
 
+    // Covers the Page Inspector side of live-highlight (see WorkspaceActionsViewModel's own
+    // StartLiveHighlight/HighlightedElementId tests for the streaming half) - the piece that was
+    // still untested after that feature landed: does the right row (and only that row) end up
+    // highlighted as the reported element id changes.
+    [Test]
+    public void SetHighlightedElement_HighlightsExactlyTheMatchingElementAndClearsOthers()
+    {
+        var page = CreateSnapshot().Pages[0];
+        var inspector = new PageEditorViewModel(page);
+        var first = inspector.Elements[0];
+        var second = inspector.Elements[1];
+
+        inspector.SetHighlightedElement(first.Model.Id);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(first.IsHoverHighlighted, Is.True);
+            Assert.That(second.IsHoverHighlighted, Is.False);
+        });
+
+        inspector.SetHighlightedElement(second.Model.Id);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(first.IsHoverHighlighted, Is.False, "highlighting a different element should clear the previous one");
+            Assert.That(second.IsHoverHighlighted, Is.True);
+        });
+
+        inspector.SetHighlightedElement(null);
+
+        Assert.That(inspector.Elements.Any(element => element.IsHoverHighlighted), Is.False);
+    }
+
     [Test]
     public async Task RenamingSelectedPageTracksDirtyStateAndSaves()
     {

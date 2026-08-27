@@ -11,15 +11,12 @@ namespace Cliq.VisualStudio.Core.Authoring;
 
 public sealed class SettingsEditorViewModel : EditableViewModelBase
 {
-    // Must match WorkspaceRepository.Settings.cs's KnownIdentificationStrategies exactly - this
-    // was left stale (still listing the pre-2026-08-03 "testId, id, name" priority order) after
-    // the backend moved to "testId, xpath" only, which made every real settings.json fail this
-    // dialog's validation and silently block Save regardless of what else was being changed.
-    // "css" was added alongside "testId"/"xpath" as a selectable, user-orderable strategy rather
-    // than only the automatic structural fallback every element already falls back to - keep
-    // this list and KnownIdentificationStrategies in lockstep the same way.
-    public static readonly IReadOnlyList<string> SupportedStrategies =
-        new[] { "testId", "xpath", "css" };
+    // Cliq.Domain.IdentificationStrategies.All is the single source of truth, shared with
+    // WorkspaceRepository.Settings.cs's own validation - a hardcoded copy here once went stale
+    // (still listing the pre-2026-08-03 "testId, id, name" priority order after the backend moved
+    // to "testId, xpath" only) and silently blocked Save for every real settings.json, since
+    // Cliq.Domain is already referenced by both sides.
+    public static readonly IReadOnlyList<string> SupportedStrategies = IdentificationStrategies.All;
 
     private string _testIdAttribute;
     private string _ignorePatternsText;

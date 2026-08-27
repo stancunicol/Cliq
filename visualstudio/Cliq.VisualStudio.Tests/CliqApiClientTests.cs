@@ -317,6 +317,50 @@ public sealed class CliqApiClientTests
         Assert.That(exception!.RunId, Is.EqualTo("r1"));
     }
 
+    // Complements RunEvents_ParsesStepAndDoneWithCamelCaseEnums/DisconnectBeforeDone above: those
+    // exercise ReadEventStreamAsync via the "done"/terminal path, this exercises it via the
+    // never-terminal path (see StreamHoveredElementAsync's own remarks) - the actual wire-level
+    // SSE parsing for hover was previously only exercised indirectly, through a fake at the
+    // IWorkspaceActionStore layer that bypasses CliqApiClient entirely.
+    [Test]
+    public async Task HoverStream_SendsPageAndBrowserAndParsesHoverEventsUntilDisconnected()
+    {
+        HttpRequestMessage? captured = null;
+        const string events = """
+            event: hover
+            data: "element-1"
+
+            event: hover
+            data: null
+
+            """;
+        var client = CreateClient(new StubHttpHandler(request =>
+        {
+            captured = request;
+            return Task.FromResult(EventStream(events));
+        }));
+        var received = new List<string?>();
+
+        var exception = Assert.ThrowsAsync<HoverStreamDisconnectedException>(
+            async () => await client.StreamHoveredElementAsync(
+                "page-1",
+                BrowserKind.Chrome,
+                elementId =>
+                {
+                    received.Add(elementId);
+                    return Task.CompletedTask;
+                },
+                CancellationToken.None));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(captured!.RequestUri!.AbsolutePath, Is.EqualTo("/api/v1/pages/page-1/hover-stream"));
+            Assert.That(captured.RequestUri!.Query, Does.Contain("browser=Chrome"));
+            Assert.That(exception!.PageId, Is.EqualTo("page-1"));
+            Assert.That(received, Is.EqualTo(new string?[] { "element-1", null }));
+        });
+    }
+
     [Test]
     public void RequestCancellation_IsPropagated()
     {

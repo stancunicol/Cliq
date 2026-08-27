@@ -35,7 +35,10 @@ public sealed partial class WorkspaceRepository
         return settings;
     }
 
-    private static readonly HashSet<string> KnownIdentificationStrategies = new(StringComparer.Ordinal) { "testId", "xpath", "css" };
+    // Cliq.Domain.IdentificationStrategies.All is the single source of truth this validates
+    // against - see its own remarks for why (the pre-2026-08-03 and "css" drifts).
+    private static readonly HashSet<string> KnownIdentificationStrategies =
+        new(IdentificationStrategies.All, StringComparer.Ordinal);
 
     private static void ValidateSettings(CliqSettings settings)
     {
@@ -54,7 +57,8 @@ public sealed partial class WorkspaceRepository
             if (!KnownIdentificationStrategies.Contains(strategy))
             {
                 throw new WorkspaceValidationException(
-                    $"elementIdentification.strategyOrder contains unknown strategy '{strategy}'. Expected one of: testId, xpath, css.");
+                    $"elementIdentification.strategyOrder contains unknown strategy '{strategy}'. " +
+                    $"Expected one of: {string.Join(", ", IdentificationStrategies.All)}.");
             }
         }
 
