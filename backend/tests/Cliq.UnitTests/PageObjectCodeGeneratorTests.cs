@@ -145,6 +145,24 @@ public class PageObjectCodeGeneratorTests
         });
     }
 
+    // Regression guard for a real bug: CustomMethodExtractor.CountMarkerOccurrences is a plain,
+    // comment-blind substring scan for the literal "[CliqCustomMethod]" text, used as a
+    // cross-check against the brace-aware extractor (see WorkspaceCodeGeneration.WriteBasePageAsync).
+    // A generator-authored comment that spelled the marker as real bracketed attribute syntax
+    // (explaining that a page COULD override ClickWithFallback with one) used to inflate that
+    // count on every single generated BasePage.cs, even with zero real custom methods present -
+    // permanently tripping the "needs your decision" conflict path with nothing real behind it
+    // for the merge UI to ever show, so BasePage.cs could never regenerate again.
+    [Test]
+    public void GenerateBasePageFile_NeverSpellsTheMarkerAsLiteralBracketedTextOutsideARealCustomMethod()
+    {
+        var style = new ExamplePageStyle("driver", "driver");
+
+        var code = PageObjectCodeGenerator.GenerateBasePageFile("Generated", style, 10_000);
+
+        Assert.That(code, Does.Not.Contain($"[{PageObjectCodeGenerator.CustomMethodAttributeName}]"));
+    }
+
     [Test]
     public void GenerateBasePageFile_WithCustomMethods_EmitsThemWithTheSameMarkerCommentAsGenerate()
     {

@@ -45,7 +45,22 @@ public readonly struct CliqCommandState
 
 public static class CliqShellContext
 {
-    public static CliqCommandState Evaluate(CliqShellCommand command, IdeContextSnapshot context)
+    /// <summary>
+    /// <paramref name="hasSelectedTest"/>/<paramref name="hasSelectedPage"/> report whether the
+    /// Workbench (not the IDE document/selection <paramref name="context"/> otherwise carries)
+    /// currently has an explicit test/page selection - the same signal
+    /// CliqPackage.RunSelectedTestAsync/GenerateSelectedAsync fall back to at execute time when
+    /// the active document isn't a Cliq test/page itself. Both default to false so every other
+    /// command's evaluation (and every existing caller) is unaffected; only RunSelectedTest/
+    /// GenerateSelected read them, so their toolbar/menu entries are enabled exactly when there is
+    /// something real to act on - not merely because a workspace happens to be bound - matching
+    /// execute-time behavior instead of only failing with a message after the click.
+    /// </summary>
+    public static CliqCommandState Evaluate(
+        CliqShellCommand command,
+        IdeContextSnapshot context,
+        bool hasSelectedTest = false,
+        bool hasSelectedPage = false)
     {
         if (context is null)
         {
@@ -75,11 +90,16 @@ public static class CliqShellContext
                     ? CliqCommandState.Available()
                     : CliqCommandState.Disabled();
             case CliqShellCommand.RunSelectedTest:
-                return hasWorkspaceScope
+                // Mirrors RunSelectedTestAsync's own resolution exactly: the active document must
+                // be a Cliq test, or the Workbench needs an explicit test selection - nothing else
+                // gives it a test to run.
+                return hasWorkspaceScope && (isTest || hasSelectedTest)
                     ? CliqCommandState.Available()
                     : CliqCommandState.Disabled();
             case CliqShellCommand.GenerateSelected:
-                return hasWorkspaceScope
+                // Mirrors GenerateSelectedAsync's own resolution: the active document is a Cliq
+                // test/page, or the Workbench has an explicit test or page selection.
+                return hasWorkspaceScope && (isCliqDocument || hasSelectedTest || hasSelectedPage)
                     ? CliqCommandState.Available()
                     : CliqCommandState.Disabled();
             case CliqShellCommand.GenerateAll:

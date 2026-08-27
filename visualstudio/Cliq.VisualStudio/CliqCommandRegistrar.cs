@@ -15,6 +15,14 @@ internal interface ICliqShellCommandTarget
         CliqShellCommand command,
         IdeContextSnapshot context,
         CancellationToken cancellationToken);
+
+    /// <summary>Whether the Workbench currently has an explicit test/page selection - read by
+    /// <see cref="CliqCommandRegistrar.QueryStatus"/> so RunSelectedTest/GenerateSelected show as
+    /// enabled exactly when there is something real to act on, matching what
+    /// RunSelectedTestAsync/GenerateSelectedAsync themselves fall back to at execute time.</summary>
+    bool HasSelectedTest { get; }
+
+    bool HasSelectedPage { get; }
 }
 
 internal sealed class CliqCommandRegistrar
@@ -86,7 +94,8 @@ internal sealed class CliqCommandRegistrar
             return;
         }
 
-        var state = CliqShellContext.Evaluate(command, _context.Capture());
+        var state = CliqShellContext.Evaluate(
+            command, _context.Capture(), _target.HasSelectedTest, _target.HasSelectedPage);
         menuCommand.Visible = state.Visible;
         menuCommand.Enabled = state.Enabled;
         if (!string.IsNullOrWhiteSpace(state.Text))

@@ -54,6 +54,10 @@ public sealed partial class CliqPackage : AsyncPackage, ICliqShellCommandTarget,
 
     internal MergeViewModel? Merge { get; private set; }
 
+    public bool HasSelectedTest => Workbench?.SelectedTest is not null;
+
+    public bool HasSelectedPage => Workbench?.SelectedPage is not null;
+
     protected override async Task InitializeAsync(
         CancellationToken cancellationToken,
         IProgress<ServiceProgressData> progress)

@@ -587,10 +587,11 @@
                                         Click="RemoveNotFoundElements_Click"
                                         ToolTip="Removes every element still flagged as not found on the last scan."
                                         AutomationProperties.Name="Remove not found elements" />
-                                <Button Content="Regenerate"
+                                <Button x:Name="RegeneratePageButton"
+                                        Content="Regenerate"
                                         Click="RegeneratePage_Click"
                                         ToolTip="Regenerates this page's Page Object file only. Use Generate All to also refresh tests that reference it."
-                                        AutomationProperties.Name="Regenerate this page's artifacts" />
+                                        AutomationProperties.Name="Generate or regenerate this page's artifacts" />
                                 <Button Content="Rescan"
                                         Click="RescanPage_Click"
                                         ToolTip="Re-scans this page's live URL with the installed browser and reconciles its elements."
@@ -599,15 +600,12 @@
                                         Click="OpenGeneratedFile_Click"
                                         ToolTip="Opens this page's generated Page Object .cs file, if it has been generated."
                                         AutomationProperties.Name="Open this page's generated file" />
-                                <CheckBox x:Name="LiveHighlightToggle"
-                                          Content="Live highlight"
-                                          VerticalAlignment="Center"
-                                          Margin="10,0,0,0"
-                                          Foreground="{DynamicResource Cliq.Foreground}"
-                                          Checked="LiveHighlightToggle_Checked"
-                                          Unchecked="LiveHighlightToggle_Unchecked"
-                                          ToolTip="Hover an element in the already-open browser window (see Locate in Browser) to highlight the matching row here, like a DevTools inspector. Opens or reuses that window."
-                                          AutomationProperties.Name="Live highlight" />
+                                <Button x:Name="LiveHighlightButton"
+                                        Content="Start Live Highlight"
+                                        Margin="10,0,0,0"
+                                        Click="LiveHighlightButton_Click"
+                                        ToolTip="Hover an element in the already-open browser window (see Locate in Browser) to highlight the matching row here, like a DevTools inspector. Opens or reuses that window."
+                                        AutomationProperties.Name="Live highlight" />
                             </StackPanel>
                             <Border Grid.Row="3"
                                     CornerRadius="7"
@@ -787,6 +785,10 @@
                             <TextBlock Text="Strategy order"
                                        Style="{StaticResource FieldLabel}"
                                        Margin="0,14,0,4" />
+                            <TextBlock Text="Each element is identified by trying the strategies below in order, top to bottom - the first one that produces a valid locator for that element wins."
+                                       TextWrapping="Wrap"
+                                       Margin="0,0,0,4"
+                                       Foreground="{DynamicResource Cliq.Foreground}" />
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="330" />

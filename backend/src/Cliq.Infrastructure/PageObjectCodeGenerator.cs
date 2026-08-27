@@ -275,13 +275,23 @@ public static class PageObjectCodeGenerator
         sb.AppendLine($"        {fieldNames.DriverField} = {fieldNames.DriverParameterName};");
         sb.AppendLine($"        {fieldNames.WaitField} = new WebDriverWait({fieldNames.DriverParameterName}, TimeSpan.FromMilliseconds({defaultStepTimeoutMs}));");
         sb.AppendLine("    }");
+        // This comment block must never spell the marker as the literal bracketed attribute text
+        // ("[" + CustomMethodAttributeName + "]") - CustomMethodExtractor.CountMarkerOccurrences is
+        // a plain, comment-blind substring scan for exactly that text, used as a cross-check
+        // against the brace-aware extractor. A mention of it as real attribute syntax here would
+        // inflate that count on every single generated BasePage.cs (this comment is unconditional),
+        // permanently tripping WorkspaceCodeGeneration's "needs your decision" conflict path with
+        // nothing real behind it for the merge UI to ever show - i.e. BasePage.cs could never
+        // regenerate again. Referring to the attribute by name without the brackets (as below) is
+        // safe.
         sb.AppendLine();
         sb.AppendLine("    // A transient overlay (an ad iframe, a tooltip, a toast) can sit on top of an");
         sb.AppendLine("    // otherwise interactable element for a moment, which Selenium's real-mouse-click");
         sb.AppendLine("    // simulation refuses to click through even though the element itself is fine. A");
         sb.AppendLine("    // JS-dispatched click bypasses that check, so it's used only as a fallback. Virtual");
-        sb.AppendLine("    // so a specific page can override it via a [CliqCustomMethod] method if it ever needs");
-        sb.AppendLine("    // different behavior - see WorkspaceCodeGeneration's BasePage.cs merge handling.");
+        sb.AppendLine("    // so a specific page can override it with a hand-written, CliqCustomMethod-tagged");
+        sb.AppendLine("    // method if it ever needs different behavior - see WorkspaceCodeGeneration's");
+        sb.AppendLine("    // BasePage.cs merge handling.");
         sb.AppendLine("    protected virtual void ClickWithFallback(IWebElement element)");
         sb.AppendLine("    {");
         sb.AppendLine("        try");

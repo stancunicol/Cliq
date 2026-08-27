@@ -32,7 +32,9 @@ public sealed class WorkbenchAuthoringTests
         var viewModel = new WorkbenchViewModel(new RecordingWorkbenchStore(CreateSnapshot()));
         await viewModel.InitializeAsync();
 
-        Assert.That(viewModel.SelectedTest, Is.Not.Null);
+        // Neither is auto-selected on a fresh load (see WorkbenchViewModel's own remarks on why) -
+        // this test's real subject, exercised below, is that picking one always clears the other.
+        Assert.That(viewModel.SelectedTest, Is.Null);
         Assert.That(viewModel.SelectedPage, Is.Null);
 
         viewModel.SelectedPage = viewModel.Pages[0];
@@ -214,7 +216,8 @@ public sealed class WorkbenchAuthoringTests
         var prompt = new RecordingPrompt { DiscardResult = false };
         var viewModel = new WorkbenchViewModel(store, prompt);
         await viewModel.InitializeAsync();
-        viewModel.SelectedTest!.Name = "Changed locally";
+        viewModel.SelectedTest = viewModel.Tests[0];
+        viewModel.SelectedTest.Name = "Changed locally";
 
         Assert.That(await viewModel.ReloadAsync(), Is.False);
         Assert.Multiple(() =>
