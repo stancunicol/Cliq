@@ -54,6 +54,10 @@ public sealed partial class CliqPackage : AsyncPackage, ICliqShellCommandTarget,
 
     internal MergeViewModel? Merge { get; private set; }
 
+    public bool HasSelectedTest => Workbench?.SelectedTest is not null;
+
+    public bool HasSelectedPage => Workbench?.SelectedPage is not null;
+
     protected override async Task InitializeAsync(
         CancellationToken cancellationToken,
         IProgress<ServiceProgressData> progress)
@@ -220,7 +224,10 @@ public sealed partial class CliqPackage : AsyncPackage, ICliqShellCommandTarget,
         var errorMessage = _actions?.ErrorMessage;
         if (!string.IsNullOrWhiteSpace(errorMessage))
         {
-            CliqMessageBox.ShowError(errorMessage);
+            // net472's string.IsNullOrWhiteSpace isn't annotated [NotNullWhen(false)], so the
+            // compiler can't narrow errorMessage from this check alone the way it would on a
+            // nullable-aware target framework.
+            CliqMessageBox.ShowError(errorMessage!);
         }
     }
 

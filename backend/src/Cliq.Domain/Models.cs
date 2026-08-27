@@ -67,6 +67,26 @@ public sealed record ElementIdentificationSettings(
     IReadOnlyList<string> StrategyOrder,
     IReadOnlyList<string> IgnoreIdPatterns);
 
+/// <summary>
+/// The single source of truth for which strings are valid entries in
+/// <see cref="ElementIdentificationSettings.StrategyOrder"/> - both
+/// <c>WorkspaceRepository.Settings.cs</c>'s save-time validation (backend) and
+/// <c>SettingsEditorViewModel.SupportedStrategies</c> (Visual Studio extension) read this same
+/// list instead of each hardcoding its own copy. The two independent copies drifted once already
+/// (the extension's list was left listing a pre-2026-08-03 "testId, id, name" order after the
+/// backend moved to "testId, xpath", silently blocking every real settings.json's Save) and would
+/// have drifted again just now when "css" was added, had this not been unified - <c>Cliq.Domain</c>
+/// is already referenced by both, so there was no reason for the list itself not to live here too.
+/// </summary>
+public static class IdentificationStrategies
+{
+    public const string TestId = "testId";
+    public const string XPath = "xpath";
+    public const string Css = "css";
+
+    public static readonly IReadOnlyList<string> All = [TestId, XPath, Css];
+}
+
 public sealed record TestExecutionSettings(
     int DefaultStepTimeoutMs,
     int PageReadyTimeoutMs,
@@ -85,7 +105,13 @@ public sealed record CliqSettings(
     int SchemaVersion,
     ElementIdentificationSettings ElementIdentification,
     TestExecutionSettings TestExecution,
-    ScanningSettings Scanning)
+    ScanningSettings Scanning,
+    // Path (relative to the workspace root, same convention as OutputSettings.PageObjectsDirectory)
+    // to an existing page object .cs file the user already has. Read via ExamplePageStyleReader
+    // to pick up naming conventions (driver field/parameter) for the shared BasePage Cliq itself
+    // generates and every page then inherits from. Null means there is no such example, so
+    // generation keeps producing the current self-contained shape.
+    string? ExamplePageObjectFilePath = null)
 {
     public const int CurrentSchemaVersion = 1;
 }

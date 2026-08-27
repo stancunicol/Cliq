@@ -81,24 +81,9 @@ public sealed partial class CliqPackage
 
     internal async Task OpenGeneratedPageObjectAsync(string pageId)
     {
-        if (_session is null)
+        var path = await ResolveGeneratedPageObjectPathAsync(pageId);
+        if (path is null)
         {
-            return;
-        }
-
-        string path;
-        try
-        {
-            var client = await _session.GetClientAsync(DisposalToken);
-            path = (await client.GetGeneratedPageObjectPathAsync(pageId, DisposalToken)).Path;
-        }
-        catch (OperationCanceledException) when (DisposalToken.IsCancellationRequested)
-        {
-            return;
-        }
-        catch (Exception exception)
-        {
-            _logger?.Write($"Failed to resolve the generated file path: {exception}");
             return;
         }
 
@@ -110,5 +95,34 @@ public sealed partial class CliqPackage
         }
 
         OpenGeneratedFile(path);
+    }
+
+    public async Task<bool> HasGeneratedPageObjectAsync(string pageId)
+    {
+        var path = await ResolveGeneratedPageObjectPathAsync(pageId);
+        return path is not null && System.IO.File.Exists(path);
+    }
+
+    private async Task<string?> ResolveGeneratedPageObjectPathAsync(string pageId)
+    {
+        if (_session is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var client = await _session.GetClientAsync(DisposalToken);
+            return (await client.GetGeneratedPageObjectPathAsync(pageId, DisposalToken)).Path;
+        }
+        catch (OperationCanceledException) when (DisposalToken.IsCancellationRequested)
+        {
+            return null;
+        }
+        catch (Exception exception)
+        {
+            _logger?.Write($"Failed to resolve the generated file path: {exception}");
+            return null;
+        }
     }
 }

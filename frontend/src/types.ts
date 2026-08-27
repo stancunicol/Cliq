@@ -11,7 +11,7 @@ export type StepAction =
   | 'assertUrl'
 export type RunStatus = 'queued' | 'running' | 'passed' | 'failed' | 'cancelled'
 
-export type IdentificationStrategy = 'testId' | 'xpath'
+export type IdentificationStrategy = 'testId' | 'xpath' | 'css'
 
 export interface ElementIdentificationSettings {
   testIdAttribute: string
@@ -39,6 +39,11 @@ export interface CliqSettings {
   elementIdentification: ElementIdentificationSettings
   testExecution: TestExecutionSettings
   scanning: ScanningSettings
+  /** Path (relative to the workspace root) to an existing page object .cs file the user already
+   * has. When set, Cliq generates its own shared BasePage.cs (driver/wait field naming mirrored
+   * from the example) and every generated page inherits from it. Null means no such example -
+   * generation stays self-contained, as before. */
+  examplePageObjectFilePath: string | null
 }
 
 export interface OutputSettings {

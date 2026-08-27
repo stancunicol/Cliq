@@ -138,8 +138,12 @@ public sealed class CliqShellContextTests
             selectedItem: Path.Combine(_project, "CheckoutTests.cs"),
             selectionKind: IdeSelectionKind.File);
 
-        var run = CliqShellContext.Evaluate(CliqShellCommand.RunSelectedTest, context);
-        var generate = CliqShellContext.Evaluate(CliqShellCommand.GenerateSelected, context);
+        // The active document is an ordinary file, not a Cliq test/page - these stay enabled
+        // here only because the Workbench itself reports an explicit selection, exactly like
+        // clicking a row in the Workbench and then using the toolbar/keyboard shortcut instead of
+        // the in-Workbench button.
+        var run = CliqShellContext.Evaluate(CliqShellCommand.RunSelectedTest, context, hasSelectedTest: true);
+        var generate = CliqShellContext.Evaluate(CliqShellCommand.GenerateSelected, context, hasSelectedPage: true);
         var generateAll = CliqShellContext.Evaluate(CliqShellCommand.GenerateAll, context);
 
         Assert.Multiple(() =>
@@ -150,6 +154,44 @@ public sealed class CliqShellContextTests
             Assert.That(generate.Enabled, Is.True);
             Assert.That(generateAll.Enabled, Is.True);
         });
+    }
+
+    [Test]
+    public void RunSelectedTestAndGenerateSelectedAreDisabledWithoutAnyRealSelection()
+    {
+        // Same "ordinary file, no Cliq document, workspace bound" context as the test above, but
+        // without a Workbench selection this time - the whole point being fixed: a workspace being
+        // bound is not, by itself, enough to say there's something to run/generate. This is the
+        // exact case that used to silently trust an auto-selected-on-load Workbench item instead
+        // of showing disabled.
+        var context = Snapshot(
+            selectedItem: Path.Combine(_project, "CheckoutTests.cs"),
+            selectionKind: IdeSelectionKind.File);
+
+        var run = CliqShellContext.Evaluate(CliqShellCommand.RunSelectedTest, context);
+        var generate = CliqShellContext.Evaluate(CliqShellCommand.GenerateSelected, context);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(run.Visible, Is.True, "still visible - just nothing to act on yet");
+            Assert.That(run.Enabled, Is.False);
+            Assert.That(generate.Visible, Is.True);
+            Assert.That(generate.Enabled, Is.False);
+        });
+    }
+
+    [Test]
+    public void RunSelectedTestIgnoresAWorkbenchPageSelectionItNeedsATestSpecifically()
+    {
+        var context = Snapshot(
+            selectedItem: Path.Combine(_project, "CheckoutTests.cs"),
+            selectionKind: IdeSelectionKind.File);
+
+        // A selected page is real, but RunSelectedTestAsync only ever reads Workbench.SelectedTest -
+        // a page selection alone gives it nothing to run.
+        var run = CliqShellContext.Evaluate(CliqShellCommand.RunSelectedTest, context, hasSelectedPage: true);
+
+        Assert.That(run.Enabled, Is.False);
     }
 
     private IdeContextSnapshot Snapshot(

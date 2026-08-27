@@ -120,7 +120,7 @@ export const cliqSettingsSchema = z.object({
   schemaVersion: z.literal(1),
   elementIdentification: z.object({
     testIdAttribute: z.string().min(1),
-    strategyOrder: z.array(z.enum(['testId', 'xpath'])).min(1),
+    strategyOrder: z.array(z.enum(['testId', 'xpath', 'css'])).min(1),
     ignoreIdPatterns: z.array(regexPatternSchema),
   }),
   testExecution: z.object({

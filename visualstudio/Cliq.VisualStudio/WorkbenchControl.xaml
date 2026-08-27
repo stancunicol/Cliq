@@ -616,10 +616,11 @@
                                         Click="RemoveNotFoundElements_Click"
                                         ToolTip="Removes every element still flagged as not found on the last scan."
                                         AutomationProperties.Name="Remove not found elements" />
-                                <Button Content="Regenerate"
+                                <Button x:Name="RegeneratePageButton"
+                                        Content="Regenerate"
                                         Click="RegeneratePage_Click"
                                         ToolTip="Regenerates this page's Page Object file only. Use Generate All to also refresh tests that reference it."
-                                        AutomationProperties.Name="Regenerate this page's artifacts" />
+                                        AutomationProperties.Name="Generate or regenerate this page's artifacts" />
                                 <Button Content="Rescan"
                                         Click="RescanPage_Click"
                                         ToolTip="Re-scans this page's live URL with the installed browser and reconciles its elements."
@@ -628,6 +629,12 @@
                                         Click="OpenGeneratedFile_Click"
                                         ToolTip="Opens this page's generated Page Object .cs file, if it has been generated."
                                         AutomationProperties.Name="Open this page's generated file" />
+                                <Button x:Name="LiveHighlightButton"
+                                        Content="Start Live Highlight"
+                                        Margin="10,0,0,0"
+                                        Click="LiveHighlightButton_Click"
+                                        ToolTip="Hover an element in the already-open browser window (see Locate in Browser) to highlight the matching row here, like a DevTools inspector. Opens or reuses that window."
+                                        AutomationProperties.Name="Live highlight" />
                             </StackPanel>
                             <Border Grid.Row="3"
                                     CornerRadius="7"
@@ -643,6 +650,23 @@
                                           BorderThickness="0"
                                           MouseDoubleClick="ElementsGrid_MouseDoubleClick"
                                           AutomationProperties.Name="Page elements">
+                                    <DataGrid.RowStyle>
+                                        <Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
+                                            <Style.Triggers>
+                                                <!-- Distinct from the IsSelected trigger on the base DataGridRow style
+                                                     (still wins if both apply, since it's declared after) - a hovered
+                                                     element and a selected one are different facts and shouldn't look
+                                                     identical. #2979FF matches ScreenshotCapture.AddHighlight's own
+                                                     "Cliq" highlight color, so the same element visibly glows the same
+                                                     color in both the live browser and this grid. -->
+                                                <DataTrigger Binding="{Binding IsHoverHighlighted}" Value="True">
+                                                    <Setter Property="Background" Value="#332979FF" />
+                                                    <Setter Property="BorderBrush" Value="#2979FF" />
+                                                    <Setter Property="BorderThickness" Value="0,1,0,1" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </DataGrid.RowStyle>
                                     <DataGrid.ContextMenu>
                                         <ContextMenu>
                                             <MenuItem Header="Copy locator"
@@ -797,6 +821,10 @@
                             <TextBlock Text="Strategy order"
                                        Style="{StaticResource FieldLabel}"
                                        Margin="0,14,0,4" />
+                            <TextBlock Text="Each element is identified by trying the strategies below in order, top to bottom - the first one that produces a valid locator for that element wins."
+                                       TextWrapping="Wrap"
+                                       Margin="0,0,0,4"
+                                       Foreground="{DynamicResource Cliq.Foreground}" />
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="330" />
@@ -886,6 +914,17 @@
                                       IsChecked="{Binding CaptureScanScreenshot}"
                                       Foreground="{DynamicResource Cliq.Foreground}"
                                       Margin="0,10,0,0" />
+
+                            <TextBlock Text="Base page matching"
+                                       Style="{StaticResource SectionHeading}"
+                                       Margin="0,22,0,10" />
+                            <TextBlock Text="Path (relative to the workspace root) to an existing page object .cs file. When set, Cliq generates a shared BasePage.cs styled after it (driver/wait naming) and every generated page inherits from it."
+                                       TextWrapping="Wrap"
+                                       Margin="0,0,0,4"
+                                       Foreground="{DynamicResource Cliq.Foreground}" />
+                            <TextBox Text="{Binding ExamplePageObjectFilePath, UpdateSourceTrigger=PropertyChanged}"
+                                     AutomationProperties.Name="Example page object file path" />
+
                             <TextBlock Text="{Binding ValidationSummary}"
                                        Margin="0,12,0,0"
                                        Foreground="{DynamicResource Cliq.Error}"

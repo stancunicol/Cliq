@@ -151,7 +151,8 @@ Returns the current `CliqSettings`:
   "schemaVersion": 1,
   "elementIdentification": { "testIdAttribute": "data-testid", "strategyOrder": ["testId", "xpath", "css"], "ignoreIdPatterns": [] },
   "testExecution": { "defaultStepTimeoutMs": 5000, "pageReadyTimeoutMs": 15000, "captureScreenshotOnFailure": true, "highlightPauseMs": 400 },
-  "scanning": { "loadTimeoutMs": 30000, "networkIdleGraceMs": 2000, "captureScreenshot": false }
+  "scanning": { "loadTimeoutMs": 30000, "networkIdleGraceMs": 2000, "captureScreenshot": false },
+  "examplePageObjectFilePath": null
 }
 ```
 
@@ -484,6 +485,7 @@ Response `200` — a `GenerationResult`:
 ```json
 {
   "artifacts": [
+    { "kind": "basePage", "name": "BasePage", "path": "C:\\dev\\my-app\\Generated\\PageObjects\\BasePage.cs", "created": true },
     { "kind": "pageObject", "name": "LoginPage.cs", "path": "C:\\dev\\my-app\\Generated\\PageObjects\\LoginPage.cs", "created": true }
   ],
   "warnings": [
@@ -502,7 +504,8 @@ Response `200` — a `GenerationResult`:
 ```
 
 - `artifacts` lists every file written, with `created` distinguishing new files from
-  overwritten ones.
+  overwritten ones. A `basePage` artifact is only present when
+  `settings.examplePageObjectFilePath` is set - see below.
 - `warnings` flags Page Object files left untouched (not overwritten) because generation could
   not safely fold in the existing custom methods.
 - `pendingMerges` lists pages whose old files have custom methods needing a human decision.

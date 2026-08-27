@@ -17,6 +17,11 @@ internal interface ICliqWorkbenchCommands
 
     Task OpenGeneratedPageObjectAsync(string pageId);
 
+    /// <summary>Whether <paramref name="pageId"/> already has a generated Page Object file on
+    /// disk - drives the Page Inspector's "Generate"/"Regenerate" button label (see
+    /// WorkbenchControl.xaml.cs).</summary>
+    Task<bool> HasGeneratedPageObjectAsync(string pageId);
+
     Task RunSelectedTestAsync();
 
     WorkspaceActionsViewModel? Actions { get; }

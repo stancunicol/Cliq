@@ -1,7 +1,10 @@
 using System;
+using System.ComponentModel;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using Cliq.VisualStudio.Core.Actions;
 using Cliq.VisualStudio.Core.Authoring;
 using Microsoft.VisualStudio.PlatformUI;
 using Microsoft.VisualStudio.Shell;
@@ -22,6 +25,7 @@ public partial class WorkbenchControl : CliqThemedUserControl
     private readonly WorkbenchViewModel _viewModel;
     private readonly ICliqWorkbenchCommands? _commands;
     private bool _initialized;
+    private WorkspaceActionsViewModel? _hoverActions;
 
     internal WorkbenchControl(WorkbenchViewModel viewModel, ICliqWorkbenchCommands? commands = null)
     {
@@ -30,6 +34,7 @@ public partial class WorkbenchControl : CliqThemedUserControl
         InitializeComponent();
         DataContext = _viewModel;
         PreviewKeyDown += OnPreviewKeyDown;
+        Unloaded += WorkbenchControl_Unloaded;
     }
 
     protected override string DiagnosticTag => "Cliq/Workbench";
@@ -110,7 +115,32 @@ public partial class WorkbenchControl : CliqThemedUserControl
     {
         if (_commands != null)
         {
-            RunOperation(_commands.GenerateSelectedAsync);
+            RunOperation(async () =>
+            {
+                await _commands.GenerateSelectedAsync();
+                await RefreshGenerateButtonLabelAsync();
+            });
+        }
+    }
+
+    /// <summary>Labels the button "Generate" for a page that has never been generated and
+    /// "Regenerate" once it has an existing Page Object file on disk - refreshed whenever the
+    /// selected page changes and right after this button's own click completes.</summary>
+    private async Task RefreshGenerateButtonLabelAsync()
+    {
+        var pageId = _viewModel.SelectedPage?.Id;
+        if (pageId is null || _commands is null)
+        {
+            RegeneratePageButton.Content = "Regenerate";
+            return;
+        }
+
+        var hasGenerated = await _commands.HasGeneratedPageObjectAsync(pageId);
+        // The selection may have moved on while this was in flight - only apply a stale check's
+        // result if it's still about the page currently shown.
+        if (_viewModel.SelectedPage?.Id == pageId)
+        {
+            RegeneratePageButton.Content = hasGenerated ? "Regenerate" : "Generate";
         }
     }
 
@@ -152,10 +182,91 @@ public partial class WorkbenchControl : CliqThemedUserControl
 
     private void Pages_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        // A live-highlight stream is bound to whichever page it was started for - switching pages
+        // makes it stale (it would keep reporting hovers for a page the grid no longer shows), so
+        // it's stopped rather than silently left running for a page that's no longer visible.
+        // Stopping raises IsLiveHighlightActive's PropertyChanged, which resets the button's own
+        // label back to "Start Live Highlight" (see HoverActions_PropertyChanged).
+        if (_hoverActions?.IsLiveHighlightActive == true)
+        {
+            _hoverActions.StopLiveHighlight();
+        }
+
+        RunOperation(RefreshGenerateButtonLabelAsync);
+
         if (_viewModel.SelectedPage != null)
         {
             SelectSection(WorkbenchSection.PageInspector);
         }
+    }
+
+    private void LiveHighlightButton_Click(object sender, RoutedEventArgs e)
+    {
+        var actions = _commands?.Actions;
+        if (actions is null)
+        {
+            return;
+        }
+
+        if (actions.IsLiveHighlightActive)
+        {
+            actions.StopLiveHighlight();
+            return;
+        }
+
+        var pageId = _viewModel.SelectedPage?.Id;
+        if (pageId is null)
+        {
+            return;
+        }
+
+        SubscribeToHoverActions(actions);
+        actions.StartLiveHighlight(pageId, browser: null);
+    }
+
+    private void SubscribeToHoverActions(WorkspaceActionsViewModel actions)
+    {
+        if (ReferenceEquals(_hoverActions, actions))
+        {
+            return;
+        }
+
+        if (_hoverActions is not null)
+        {
+            _hoverActions.PropertyChanged -= HoverActions_PropertyChanged;
+        }
+
+        _hoverActions = actions;
+        actions.PropertyChanged += HoverActions_PropertyChanged;
+    }
+
+    private void HoverActions_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(WorkspaceActionsViewModel.HighlightedElementId))
+        {
+            _viewModel.SelectedPage?.SetHighlightedElement(_hoverActions?.HighlightedElementId);
+        }
+        else if (e.PropertyName == nameof(WorkspaceActionsViewModel.IsLiveHighlightActive))
+        {
+            // Covers both directions: the button's own click already flips this, but the stream
+            // can also end on its own (disconnect, error, or Pages_SelectionChanged stopping it) -
+            // this keeps the label honest either way instead of trusting only the click handler.
+            LiveHighlightButton.Content = _hoverActions?.IsLiveHighlightActive == true
+                ? "Stop Live Highlight"
+                : "Start Live Highlight";
+        }
+    }
+
+    private void WorkbenchControl_Unloaded(object sender, RoutedEventArgs e)
+    {
+        if (_hoverActions is null)
+        {
+            return;
+        }
+
+        _hoverActions.PropertyChanged -= HoverActions_PropertyChanged;
+        _hoverActions.StopLiveHighlight();
+        _hoverActions = null;
     }
 
     private void DeleteTest_Click(object sender, RoutedEventArgs e)

@@ -1,0 +1,125 @@
+\documentclass[12pt,a4paper]{report}
+
+% =============================================================================
+%  Lucrare de disertatie -- Cliq
+%  Fisier unic (conform alegerii): main.tex + capitole ar putea fi separate
+%  ulterior prin \input{...} daca lucrarea creste mult in dimensiune.
+% =============================================================================
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[romanian]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[a4paper,left=3cm,right=2.5cm,top=2.5cm,bottom=2.5cm]{geometry}
+\usepackage{setspace}
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{enumitem}
+\usepackage{csquotes}
+\usepackage[colorlinks=true,linkcolor=black,citecolor=black,urlcolor=blue,bookmarksnumbered=true]{hyperref}
+
+\onehalfspacing
+
+\newcommand{\titlullucrarii}{Cliq, Generarea automată a claselor Page Object pentru testarea automată a interfețelor web}
+
+\begin{document}
+
+% =============================================================================
+%  Pagina de titlu
+% =============================================================================
+\begin{titlepage}
+    \centering
+    \vfill
+    {\Huge\bfseries \titlullucrarii\par}
+    \vfill
+\end{titlepage}
+
+\pagenumbering{roman}
+\tableofcontents
+\newpage
+\pagenumbering{arabic}
+
+% =============================================================================
+\chapter{Introducere}
+% =============================================================================
+
+\section{Context și motivație}
+
+Testarea automată a interfețelor web se bazează, în cea mai mare parte, pe
+Selenium WebDriver și pe patternul \emph{Page Object Model} (POM), care
+izolează localizarea elementelor și interacțiunile cu acestea în clase
+dedicate, separat de logica scenariilor de test. Scrierea și mentenanța
+acestor clase rămân însă activități manuale: fiecare pagină nouă sau
+modificată impune identificarea elementelor din DOM, alegerea unor locatori
+stabili și implementarea metodelor de interacțiune, iar orice discrepanță
+între cod și structura reală a paginii produce teste \emph{flaky}, care
+eșuează intermitent din cauza unui locator devenit invalid, nu a unui defect
+real al aplicației.
+
+Cliq, aplicația care face obiectul prezentei lucrări, pornește de la
+observația că această informație, elementele interactive ale unei pagini,
+atributele lor stabile, tipul de interacțiune așteptat, poate fi extrasă
+automat prin scanarea paginii reale, în loc să fie transcrisă manual din
+inspectorul browserului.
+
+\section{Problema abordată}
+
+Instrumentele existente de generare a codului de test au, în general, patru
+limitări: regenerarea suprascrie orice personalizare adăugată manual în clasa
+generată; rescanarea unei pagini deja cunoscute aplică automat diferențele
+detectate (elemente noi sau dispărute), fără control explicit al
+dezvoltatorului; codul generat urmează convenții fixe, diferite de cele deja
+adoptate în proiectul în care este integrat; iar scanarea, generarea și
+rularea testelor rămân activități separate de mediul de dezvoltare în care
+codul este de fapt scris și revizuit.
+
+\section{Obiectivele lucrării}
+
+Pornind de la aceste limitări, lucrarea își propune proiectarea și
+implementarea unei aplicații care automatizează generarea claselor Page
+Object, tratând regenerarea codului ca pe un proces sigur și transparent
+pentru dezvoltator. Obiectivele concrete sunt:
+
+\begin{enumerate}[label=O\arabic*., noitemsep, topsep=4pt]
+    \item scanarea automată a unei pagini web și atribuirea de locatori
+    stabili elementelor identificate, în ordine de prioritate explicită;
+    \item generarea claselor Page Object în C\# și a testelor NUnit
+    corespunzătoare, executabile și independent, prin \texttt{dotnet test};
+    \item un mecanism de regenerare care păstrează metodele scrise manual și
+    cere o decizie explicită pentru fiecare, în locul suprascrierii tăcute;
+    \item un flux de tip \emph{staged review} pentru diferențele detectate la
+    rescanarea unei pagini, supuse acceptării sau respingerii explicite;
+    \item preluarea convențiilor de denumire dintr-un page object existent,
+    oferit ca exemplu, astfel încât codul generat să se integreze stilistic
+    în proiect;
+    \item integrarea instrumentului într-o extensie pentru Visual Studio, pe
+    lângă aplicația desktop de sine stătătoare construită pe Electron.
+\end{enumerate}
+
+\section{Contribuțiile lucrării}
+
+Rezultatul concret este aplicația Cliq: un motor de scanare bazat pe
+Puppeteer, capabil să reconcilieze rezultatul cu o scanare anterioară a
+aceleiași pagini; un generator de cod C\#/NUnit, care produce inclusiv o
+clasă de bază comună (\texttt{BasePage}) stilizată după un exemplu existent;
+un mecanism de fuziune a metodelor personalizate bazat pe atributul
+\texttt{[CliqCustomMethod]}, care nu permite pierderea tăcută a unei metode;
+și două găzduiri, o aplicație desktop Electron și o extensie Visual Studio,
+care expun același set de operații prin intermediul unui proces auxiliar
+(\emph{sidecar}) autentificat.
+
+% =============================================================================
+%  Capitolele urmatoare - schelet, de completat pe masura ce avansam.
+% =============================================================================
+
+% \chapter{Stadiul actual al domeniului}
+% \chapter{Arhitectura sistemului Cliq}
+% \chapter{Implementare}
+% \chapter{Testare și evaluare}
+% \chapter{Concluzii și direcții viitoare}
+
+% \bibliographystyle{plain}
+% \bibliography{bibliografie}
+
+\end{document}

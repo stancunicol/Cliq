@@ -155,4 +155,21 @@ namespace Cliq.VisualStudio.Core.Api
 
         public string RunId { get; }
     }
+
+    /// <summary>
+    /// The hover-highlight stream (see <see cref="CliqApiClient.StreamHoveredElementAsync"/>) has
+    /// no "done" event to wait for - it runs until the caller cancels it - so unlike
+    /// <see cref="RunEventStreamDisconnectedException"/> this fires whenever the connection ends
+    /// for any reason the caller didn't ask for.
+    /// </summary>
+    public sealed class HoverStreamDisconnectedException : Exception
+    {
+        public HoverStreamDisconnectedException(string pageId)
+            : base($"The hover-highlight stream for page '{pageId}' disconnected.")
+        {
+            PageId = pageId;
+        }
+
+        public string PageId { get; }
+    }
 }

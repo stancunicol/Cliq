@@ -343,7 +343,12 @@ export function App() {
             )}
           </div>
         )}
-        <GenerationWarningBanner warnings={generationWarnings} onDismiss={() => setGenerationWarnings([])} />
+        <GenerationWarningBanner
+          warnings={generationWarnings}
+          onDismiss={() => {
+            setGenerationWarnings([])
+          }}
+        />
         {active === 'tests' && (
           <TestEditor
             test={selected}

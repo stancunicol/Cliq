@@ -86,9 +86,15 @@ public sealed class WorkspaceConfigurationViewModelTests
     {
         var editor = new SettingsEditorViewModel(CreateSettings());
 
-        editor.RemoveStrategy("id");
-        editor.MoveStrategy("name", -1);
-        editor.StrategyToAdd = "id";
+        editor.MoveStrategy("xpath", -1);
+        editor.RemoveStrategy("testId");
+        editor.StrategyToAdd = "testId";
+        editor.AddSelectedStrategy();
+        // "css" is a selectable, user-orderable strategy (not just the automatic structural
+        // fallback every element already falls back to) - exercised here via the same
+        // add/remove path as testId/xpath, through the real SupportedStrategies/AvailableStrategies
+        // plumbing rather than asserting the static list directly.
+        editor.StrategyToAdd = "css";
         editor.AddSelectedStrategy();
         editor.IgnorePatternsText = "^ember\\d+$\r\n^react-";
         editor.CaptureScreenshotOnFailure = false;
@@ -99,7 +105,7 @@ public sealed class WorkspaceConfigurationViewModelTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(model.ElementIdentification.StrategyOrder, Is.EqualTo(new[] { "name", "testId", "id" }));
+            Assert.That(model.ElementIdentification.StrategyOrder, Is.EqualTo(new[] { "xpath", "testId", "css" }));
             Assert.That(model.ElementIdentification.IgnoreIdPatterns, Is.EqualTo(new[] { "^ember\\d+$", "^react-" }));
             Assert.That(model.TestExecution.CaptureScreenshotOnFailure, Is.False);
             Assert.That(model.Scanning.CaptureScreenshot, Is.True);
@@ -193,7 +199,7 @@ public sealed class WorkspaceConfigurationViewModelTests
             CliqSettings.CurrentSchemaVersion,
             new ElementIdentificationSettings(
                 "data-testid",
-                new[] { "testId", "id", "name" },
+                new[] { "testId", "xpath" },
                 new[] { "^generated-" }),
             new TestExecutionSettings(10000, 30000, true),
             new ScanningSettings(30000, 1000, false));

@@ -224,21 +224,23 @@ namespace Cliq.VisualStudio.Core.Authoring
             private set => SetProperty(ref _conflictReferences, value ?? Array.Empty<ScanReviewReference>());
         }
 
-        public void AcceptAll()
-        {
-            foreach (var item in Items)
-            {
-                item.Decision = ScanReviewDecision.Accept;
-            }
-            ClearConflicts();
-            RaiseDecisionState();
-        }
+        public void AcceptAll() => SetAll(Items, ScanReviewDecision.Accept);
 
-        public void DenyAll()
+        public void DenyAll() => SetAll(Items, ScanReviewDecision.Deny);
+
+        public void AcceptAllNew() => SetAll(NewItems, ScanReviewDecision.Accept);
+
+        public void DenyAllNew() => SetAll(NewItems, ScanReviewDecision.Deny);
+
+        public void AcceptAllMissing() => SetAll(MissingItems, ScanReviewDecision.Accept);
+
+        public void DenyAllMissing() => SetAll(MissingItems, ScanReviewDecision.Deny);
+
+        private void SetAll(IEnumerable<ScanReviewItemViewModel> items, ScanReviewDecision decision)
         {
-            foreach (var item in Items)
+            foreach (var item in items)
             {
-                item.Decision = ScanReviewDecision.Deny;
+                item.Decision = decision;
             }
             ClearConflicts();
             RaiseDecisionState();

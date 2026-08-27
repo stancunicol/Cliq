@@ -121,6 +121,31 @@ public static class ScreenshotCapture
         }
     }
 
+    /// <summary>
+    /// Removes every overlay <see cref="AddHighlight"/> has ever left in the page. Used before
+    /// re-highlighting a different element in a reused, already-open session (see
+    /// SeleniumTestRunner.Locate.cs's session reuse) so repeatedly locating different elements on
+    /// the same page doesn't leave a stack of stale highlight boxes behind - best-effort, like
+    /// every other DOM mutation this class performs, since the page may have navigated away
+    /// between calls.
+    /// </summary>
+    public static void ClearHighlights(IWebDriver driver)
+    {
+        if (driver is not IJavaScriptExecutor scriptExecutor)
+        {
+            return;
+        }
+
+        try
+        {
+            scriptExecutor.ExecuteScript("document.querySelectorAll('[data-cliq-highlight]').forEach(el => el.remove());");
+        }
+        catch
+        {
+            // Best-effort, same as every other DOM mutation in this class.
+        }
+    }
+
     private static void TryRemoveFailureHighlight(
         IWebDriver driver,
         IWebElement? highlight)

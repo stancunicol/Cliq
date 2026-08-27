@@ -580,6 +580,13 @@ public sealed class WorkbenchViewModel : BindableBase
             Tests.Add(CreateTestEditor(test));
         }
 
+        // Restores whichever page/test was selected before this (re)load - deliberately does NOT
+        // fall back to an arbitrary Tests[0]/Pages[0] default when there was nothing to restore
+        // (e.g. the very first load of a workspace). An arbitrary default here reads, to every
+        // command that trusts SelectedTest/SelectedPage as "the user's intent" (Run Selected Test,
+        // Generate Selected), as if the user had deliberately picked that item - even though they
+        // never touched it. Leaving both null instead surfaces the Workbench's own empty-state
+        // prompts ("Select a test or create a new one.") rather than guessing.
         var previousPage = Pages.FirstOrDefault(page => page.Id == selectedPageId);
         var previousTest = Tests.FirstOrDefault(test => test.Id == selectedTestId);
         if (previousPage != null)
@@ -590,14 +597,7 @@ public sealed class WorkbenchViewModel : BindableBase
         {
             SelectedTest = previousTest;
         }
-        else if (Tests.Count > 0)
-        {
-            SelectedTest = Tests[0];
-        }
-        else
-        {
-            SelectedPage = Pages.FirstOrDefault();
-        }
+
         RaiseCollectionState();
     }
 

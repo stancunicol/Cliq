@@ -140,6 +140,59 @@ namespace Cliq.VisualStudio.Core.Api
                 request,
                 cancellationToken);
 
+        /// <summary>
+        /// Shares <see cref="ReadEventStreamAsync"/> with <see cref="StreamRunEventsAsync"/>,
+        /// simplified for a stream with a single event name and no "done"/terminal event - it just
+        /// runs until <paramref name="cancellationToken"/> is canceled by the caller (turning the
+        /// Page Inspector's live-highlight toggle off) or the connection drops for any other
+        /// reason, which surfaces as <see cref="HoverStreamDisconnectedException"/> rather than a
+        /// silent return, so a caller can tell "I stopped this" apart from "this broke".
+        /// </summary>
+        public async Task StreamHoveredElementAsync(
+            string pageId,
+            BrowserKind? browser,
+            Func<string?, Task> onHoverChanged,
+            CancellationToken cancellationToken)
+        {
+            if (onHoverChanged == null)
+            {
+                throw new ArgumentNullException(nameof(onHoverChanged));
+            }
+
+            var query = browser.HasValue ? $"?browser={Uri.EscapeDataString(browser.Value.ToString())}" : string.Empty;
+            using (var request = CreateRequest(
+                HttpMethod.Get,
+                $"api/v1/pages/{Escape(pageId)}/hover-stream{query}",
+                null))
+            {
+                request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
+                using (var response = await _httpClient.SendAsync(
+                    request,
+                    HttpCompletionOption.ResponseHeadersRead,
+                    cancellationToken).ConfigureAwait(false))
+                {
+                    await EnsureSuccessAsync(response, cancellationToken).ConfigureAwait(false);
+                    await ReadEventStreamAsync(
+                        response,
+                        async (eventName, data) =>
+                        {
+                            if (eventName == "hover")
+                            {
+                                var elementId = JsonSerializer.Deserialize<string?>(data);
+                                await onHoverChanged(elementId).ConfigureAwait(false);
+                            }
+
+                            // Never terminal - this stream has no "done" event; only cancellation
+                            // or a genuine disconnect ever ends it.
+                            return false;
+                        },
+                        cancellationToken).ConfigureAwait(false);
+                }
+            }
+
+            throw new HoverStreamDisconnectedException(pageId);
+        }
+
         public Task<TestCase> GetTestAsync(string id, CancellationToken cancellationToken) =>
             SendJsonAsync<TestCase>(HttpMethod.Get, $"api/v1/tests/{Escape(id)}", null, cancellationToken);
 
@@ -240,6 +293,7 @@ namespace Cliq.VisualStudio.Core.Api
                 throw new ArgumentNullException(nameof(onEvent));
             }
 
+            bool endedOnTerminalEvent;
             using (var request = CreateRequest(
                 HttpMethod.Get,
                 $"api/v1/runs/{Escape(runId)}/events",
@@ -252,74 +306,98 @@ namespace Cliq.VisualStudio.Core.Api
                     cancellationToken).ConfigureAwait(false))
                 {
                     await EnsureSuccessAsync(response, cancellationToken).ConfigureAwait(false);
-                    using (var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false))
-                    using (var reader = new StreamReader(stream, Encoding.UTF8, true, 4096, false))
-                    {
-                        string? eventName = null;
-                        var data = new StringBuilder();
-                        while (true)
+                    endedOnTerminalEvent = await ReadEventStreamAsync(
+                        response,
+                        async (eventName, data) =>
                         {
-                            cancellationToken.ThrowIfCancellationRequested();
-                            var readTask = reader.ReadLineAsync();
-                            var cancellationTask = Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
-                            var completedTask = await Task.WhenAny(
-                                readTask,
-                                cancellationTask).ConfigureAwait(false);
-                            if (completedTask == cancellationTask)
-                            {
-                                cancellationToken.ThrowIfCancellationRequested();
-                            }
-
-                            var line = await readTask.ConfigureAwait(false);
-                            if (line == null)
-                            {
-                                break;
-                            }
-
-                            if (line.Length == 0)
-                            {
-                                if (eventName != null)
-                                {
-                                    var parsed = ParseRunEvent(eventName, data.ToString());
-                                    await onEvent(parsed).ConfigureAwait(false);
-                                    if (parsed.IsTerminal)
-                                    {
-                                        return;
-                                    }
-                                }
-
-                                eventName = null;
-                                data.Clear();
-                            }
-                            else if (line.StartsWith("event:", StringComparison.Ordinal))
-                            {
-                                eventName = line.Substring("event:".Length).Trim();
-                            }
-                            else if (line.StartsWith("data:", StringComparison.Ordinal))
-                            {
-                                if (data.Length > 0)
-                                {
-                                    data.Append('\n');
-                                }
-
-                                data.Append(line.Substring("data:".Length).TrimStart());
-                            }
-                        }
-
-                        if (eventName != null)
-                        {
-                            var parsed = ParseRunEvent(eventName, data.ToString());
+                            var parsed = ParseRunEvent(eventName, data);
                             await onEvent(parsed).ConfigureAwait(false);
-                            if (parsed.IsTerminal)
-                            {
-                                return;
-                            }
-                        }
-                    }
+                            return parsed.IsTerminal;
+                        },
+                        cancellationToken).ConfigureAwait(false);
                 }
             }
 
-            throw new RunEventStreamDisconnectedException(runId);
+            if (!endedOnTerminalEvent)
+            {
+                throw new RunEventStreamDisconnectedException(runId);
+            }
+        }
+
+        /// <summary>
+        /// Reads a <c>text/event-stream</c> response line by line, accumulating each event's
+        /// <c>event:</c>/<c>data:</c> fields and dispatching it to <paramref name="onEvent"/> at
+        /// the blank line that terminates it - the SSE framing both
+        /// <see cref="StreamRunEventsAsync"/> and <see cref="StreamHoveredElementAsync"/> read,
+        /// previously duplicated between them. <paramref name="onEvent"/> returns whether that
+        /// event ends the stream on its own (a "done" event has no real counterpart for the hover
+        /// stream, which always returns false and so only ever stops via cancellation or a
+        /// genuine disconnect); this method's own return value tells the caller which one
+        /// happened, since only a real disconnect should raise a
+        /// stream-specific "disconnected" exception - reaching a caller-declared terminal event
+        /// is a normal, successful end.
+        /// </summary>
+        private static async Task<bool> ReadEventStreamAsync(
+            HttpResponseMessage response,
+            Func<string, string, Task<bool>> onEvent,
+            CancellationToken cancellationToken)
+        {
+            using (var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false))
+            using (var reader = new StreamReader(stream, Encoding.UTF8, true, 4096, false))
+            {
+                string? eventName = null;
+                var data = new StringBuilder();
+                while (true)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var readTask = reader.ReadLineAsync();
+                    var cancellationTask = Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                    var completedTask = await Task.WhenAny(
+                        readTask,
+                        cancellationTask).ConfigureAwait(false);
+                    if (completedTask == cancellationTask)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                    }
+
+                    var line = await readTask.ConfigureAwait(false);
+                    if (line == null)
+                    {
+                        break;
+                    }
+
+                    if (line.Length == 0)
+                    {
+                        if (eventName != null && await onEvent(eventName, data.ToString()).ConfigureAwait(false))
+                        {
+                            return true;
+                        }
+
+                        eventName = null;
+                        data.Clear();
+                    }
+                    else if (line.StartsWith("event:", StringComparison.Ordinal))
+                    {
+                        eventName = line.Substring("event:".Length).Trim();
+                    }
+                    else if (line.StartsWith("data:", StringComparison.Ordinal))
+                    {
+                        if (data.Length > 0)
+                        {
+                            data.Append('\n');
+                        }
+
+                        data.Append(line.Substring("data:".Length).TrimStart());
+                    }
+                }
+
+                if (eventName != null)
+                {
+                    return await onEvent(eventName, data.ToString()).ConfigureAwait(false);
+                }
+
+                return false;
+            }
         }
 
         internal static RunStreamEvent ParseRunEvent(string eventName, string data)

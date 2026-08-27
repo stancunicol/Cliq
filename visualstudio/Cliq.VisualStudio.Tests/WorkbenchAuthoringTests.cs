@@ -47,7 +47,9 @@ public sealed class WorkbenchAuthoringTests
         var viewModel = new WorkbenchViewModel(new RecordingWorkbenchStore(CreateSnapshot()));
         await viewModel.InitializeAsync();
 
-        Assert.That(viewModel.SelectedTest, Is.Not.Null);
+        // Neither is auto-selected on a fresh load (see WorkbenchViewModel's own remarks on why) -
+        // this test's real subject, exercised below, is that picking one always clears the other.
+        Assert.That(viewModel.SelectedTest, Is.Null);
         Assert.That(viewModel.SelectedPage, Is.Null);
 
         viewModel.SelectedPage = viewModel.Pages[0];
@@ -229,7 +231,8 @@ public sealed class WorkbenchAuthoringTests
         var prompt = new RecordingPrompt { DiscardResult = false };
         var viewModel = new WorkbenchViewModel(store, prompt);
         await viewModel.InitializeAsync();
-        viewModel.SelectedTest!.Name = "Changed locally";
+        viewModel.SelectedTest = viewModel.Tests[0];
+        viewModel.SelectedTest.Name = "Changed locally";
 
         Assert.That(await viewModel.ReloadAsync(), Is.False);
         Assert.Multiple(() =>
@@ -291,6 +294,39 @@ public sealed class WorkbenchAuthoringTests
             Assert.That(inspector.Elements, Has.Count.EqualTo(1));
             Assert.That(inspector.IsDirty, Is.False);
         });
+    }
+
+    // Covers the Page Inspector side of live-highlight (see WorkspaceActionsViewModel's own
+    // StartLiveHighlight/HighlightedElementId tests for the streaming half) - the piece that was
+    // still untested after that feature landed: does the right row (and only that row) end up
+    // highlighted as the reported element id changes.
+    [Test]
+    public void SetHighlightedElement_HighlightsExactlyTheMatchingElementAndClearsOthers()
+    {
+        var page = CreateSnapshot().Pages[0];
+        var inspector = new PageEditorViewModel(page);
+        var first = inspector.Elements[0];
+        var second = inspector.Elements[1];
+
+        inspector.SetHighlightedElement(first.Model.Id);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(first.IsHoverHighlighted, Is.True);
+            Assert.That(second.IsHoverHighlighted, Is.False);
+        });
+
+        inspector.SetHighlightedElement(second.Model.Id);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(first.IsHoverHighlighted, Is.False, "highlighting a different element should clear the previous one");
+            Assert.That(second.IsHoverHighlighted, Is.True);
+        });
+
+        inspector.SetHighlightedElement(null);
+
+        Assert.That(inspector.Elements.Any(element => element.IsHoverHighlighted), Is.False);
     }
 
     [Test]

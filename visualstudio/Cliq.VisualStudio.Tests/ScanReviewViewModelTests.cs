@@ -110,6 +110,25 @@ namespace Cliq.VisualStudio.Tests
         }
 
         [Test]
+        public void AcceptAllNew_And_DenyAllMissing_OnlyAffectTheirOwnBucket()
+        {
+            var review = CreateSampleReview();
+            var store = new RecordingActionStore();
+            var viewModel = new ScanReviewViewModel(store, review);
+
+            viewModel.AcceptAllNew();
+            viewModel.DenyAllMissing();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(viewModel.NewItems.All(i => i.Decision == ScanReviewDecision.Accept), Is.True);
+                Assert.That(viewModel.MissingItems.All(i => i.Decision == ScanReviewDecision.Deny), Is.True);
+                Assert.That(viewModel.UnresolvedCount, Is.EqualTo(0));
+                Assert.That(viewModel.CanApply, Is.True);
+            });
+        }
+
+        [Test]
         public async Task ApplyAsync_WhenAllDecided_SendsUpdatesAndApplies()
         {
             var review = CreateSampleReview();

@@ -70,6 +70,13 @@ internal class FakeWorkspaceActionStore : IWorkspaceActionStore
     public virtual Task LocateElementFromSourceAsync(
         LocateFromSourceRequest request, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
+
+    public virtual Task StreamHoveredElementAsync(
+        string pageId,
+        BrowserKind? browser,
+        Func<string?, Task> onHoverChanged,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
 }
 
 /// <summary>

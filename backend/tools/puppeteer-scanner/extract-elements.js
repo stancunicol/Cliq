@@ -261,6 +261,11 @@ function extractElements(config) {
       const xp = xpathFor(el);
       return xp ? { strategy: 'xpath', value: xp } : null;
     },
+    // Structural CSS as an explicit, user-orderable strategy rather than only the unconditional
+    // fallback below - structuralSelector always succeeds, so ranking 'css' ahead of/between the
+    // others in strategyOrder means an element reaching this tier gets one immediately, without
+    // waiting to exhaust every other tier first.
+    css: (el) => ({ strategy: 'css', value: structuralSelector(el) }),
   };
 
   function locatorFor(el) {
@@ -268,6 +273,9 @@ function extractElements(config) {
       const result = strategyChecks[key]?.(el);
       if (result) return result;
     }
+    // Still needed even now that 'css' can appear in strategyOrder: a workspace whose order
+    // omits it entirely (e.g. ['testId'] alone) must still get a locator for an element that
+    // fails every strategy it did list, rather than ending up with none at all.
     return { strategy: 'css', value: structuralSelector(el) };
   }
 

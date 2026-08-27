@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using Cliq.Application;
 using Cliq.Domain;
@@ -71,6 +72,16 @@ internal sealed class ControllableTestRunner : ITestRunner
     {
         cancellationToken.ThrowIfCancellationRequested();
         return Task.CompletedTask;
+    }
+
+    public async IAsyncEnumerable<string?> StreamHoveredElementAsync(
+        PageDefinition page,
+        BrowserKind browser,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        await Task.CompletedTask;
+        yield break;
     }
 
     internal sealed record Invocation(
