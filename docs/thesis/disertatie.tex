@@ -1,125 +1,506 @@
 \documentclass[12pt,a4paper]{report}
 
-% =============================================================================
-%  Lucrare de disertatie -- Cliq
-%  Fisier unic (conform alegerii): main.tex + capitole ar putea fi separate
-%  ulterior prin \input{...} daca lucrarea creste mult in dimensiune.
-% =============================================================================
-
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage[romanian]{babel}
 \usepackage{lmodern}
 \usepackage{microtype}
-\usepackage[a4paper,left=3cm,right=2.5cm,top=2.5cm,bottom=2.5cm]{geometry}
+\usepackage[a4paper,left=2.7cm,right=2.3cm,top=2.5cm,bottom=2.5cm]{geometry}
 \usepackage{setspace}
-\usepackage{graphicx}
-\usepackage{amsmath,amssymb}
 \usepackage{enumitem}
-\usepackage{csquotes}
-\usepackage[colorlinks=true,linkcolor=black,citecolor=black,urlcolor=blue,bookmarksnumbered=true]{hyperref}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+\usepackage{listings}
+\usepackage[colorlinks=true,linkcolor=black,urlcolor=blue,bookmarksnumbered=true]{hyperref}
 
+\definecolor{cliqblue}{HTML}{2167D5}
+\definecolor{cliqlight}{HTML}{EEF4FC}
+\definecolor{codegray}{HTML}{F4F5F7}
 \onehalfspacing
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.55em}
+\setlist{itemsep=0.25em,topsep=0.35em}
+\renewcommand{\arraystretch}{1.25}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
 
-\newcommand{\titlullucrarii}{Cliq, Generarea automată a claselor Page Object pentru testarea automată a interfețelor web}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{Cliq - Manual de utilizare}
+\fancyhead[R]{\nouppercase{\leftmark}}
+\fancyfoot[C]{\thepage}
+\setlength{\headheight}{15pt}
+\setlength{\emergencystretch}{3em}
+\lstset{basicstyle=\ttfamily\small,backgroundcolor=\color{codegray},frame=single,
+  rulecolor=\color{black!15},breaklines=true,columns=fullflexible,keepspaces=true,
+  showstringspaces=false,aboveskip=0.8em,belowskip=0.8em}
+
+\newcommand{\UI}[1]{\textbf{#1}}
+\newcommand{\File}[1]{\nolinkurl{#1}}
+\newcommand{\Action}[1]{\texttt{#1}}
+\newcommand{\Cliq}{\textsc{Cliq}}
+\newcommand{\important}[1]{\begin{center}\fcolorbox{cliqblue}{cliqlight}{\parbox{0.9\textwidth}{\textbf{De reținut.} #1}}\end{center}}
+\newcommand{\warningbox}[1]{\begin{center}\fcolorbox{orange!70!black}{orange!8}{\parbox{0.9\textwidth}{\textbf{Atenție.} #1}}\end{center}}
 
 \begin{document}
-
-% =============================================================================
-%  Pagina de titlu
-% =============================================================================
+\hypersetup{pageanchor=false}
 \begin{titlepage}
-    \centering
-    \vfill
-    {\Huge\bfseries \titlullucrarii\par}
-    \vfill
+  \centering\vspace*{2.2cm}
+  {\Huge\bfseries\color{cliqblue}Cliq - Manual complet de utilizare\par}
+  \vspace{0.8cm}{\Large Aplicația Desktop și extensia pentru Visual Studio\par}
+  \vspace{1.8cm}\rule{0.72\textwidth}{0.6pt}\par\vspace{0.6cm}
+  {\large Descoperirea elementelor web, construirea fluxurilor de test, rularea Selenium și generarea codului C\#/NUnit\par}
+  \vspace{0.6cm}\rule{0.72\textwidth}{0.6pt}\par\vfill
+  \begin{tabular}{rl}Versiunea documentului: & 1.0 \\
+  Data reviziei: & 31 august 2026 \\ Proiect: & Cliq\end{tabular}
+  \vspace*{1.5cm}
 \end{titlepage}
 
-\pagenumbering{roman}
-\tableofcontents
-\newpage
-\pagenumbering{arabic}
+\hypersetup{pageanchor=true}
+\pagenumbering{roman}\tableofcontents\clearpage\pagenumbering{arabic}
 
-% =============================================================================
-\chapter{Introducere}
-% =============================================================================
+\chapter{Despre acest manual}
 
-\section{Context și motivație}
+\section{Scop}
 
-Testarea automată a interfețelor web se bazează, în cea mai mare parte, pe
-Selenium WebDriver și pe patternul \emph{Page Object Model} (POM), care
-izolează localizarea elementelor și interacțiunile cu acestea în clase
-dedicate, separat de logica scenariilor de test. Scrierea și mentenanța
-acestor clase rămân însă activități manuale: fiecare pagină nouă sau
-modificată impune identificarea elementelor din DOM, alegerea unor locatori
-stabili și implementarea metodelor de interacțiune, iar orice discrepanță
-între cod și structura reală a paginii produce teste \emph{flaky}, care
-eșuează intermitent din cauza unui locator devenit invalid, nu a unui defect
-real al aplicației.
+\Cliq{} este un instrument local pentru pregătirea testelor de interfață web. Aplicația scanează o pagină încărcată în browser, salvează elementele cu care se poate interacționa, permite alcătuirea unui scenariu pas cu pas și generează clase Page Object Selenium în C\#, împreună cu teste NUnit.
 
-Cliq, aplicația care face obiectul prezentei lucrări, pornește de la
-observația că această informație, elementele interactive ale unei pagini,
-atributele lor stabile, tipul de interacțiune așteptat, poate fi extrasă
-automat prin scanarea paginii reale, în loc să fie transcrisă manual din
-inspectorul browserului.
+Manualul urmărește utilizarea reală a produsului, de la alegerea unui workspace până la întreținerea codului generat. Sunt prezentate separat cele două interfețe:
 
-\section{Problema abordată}
+\begin{itemize}
+  \item \textbf{Cliq Desktop}, folosit pentru navigare, scanare, editarea rapidă a fluxurilor, rulare și generare;
+  \item \textbf{Cliq for Visual Studio}, extensia care adaugă editare completă, setări, secrete, review de rescanare și administrarea metodelor C\# personalizate.
+\end{itemize}
 
-Instrumentele existente de generare a codului de test au, în general, patru
-limitări: regenerarea suprascrie orice personalizare adăugată manual în clasa
-generată; rescanarea unei pagini deja cunoscute aplică automat diferențele
-detectate (elemente noi sau dispărute), fără control explicit al
-dezvoltatorului; codul generat urmează convenții fixe, diferite de cele deja
-adoptate în proiectul în care este integrat; iar scanarea, generarea și
-rularea testelor rămân activități separate de mediul de dezvoltare în care
-codul este de fapt scris și revizuit.
+Cele două interfețe folosesc același format de workspace. O pagină sau un test salvat dintr-o interfață poate fi deschis din cealaltă.
 
-\section{Obiectivele lucrării}
+\section{Principiul de funcționare}
 
-Pornind de la aceste limitări, lucrarea își propune proiectarea și
-implementarea unei aplicații care automatizează generarea claselor Page
-Object, tratând regenerarea codului ca pe un proces sigur și transparent
-pentru dezvoltator. Obiectivele concrete sunt:
+Descoperirea și generarea sunt bazate pe reguli. Cliq nu trimite pagina ori datele workspace-ului către un serviciu de inteligență artificială. Scanarea folosește Puppeteer, iar rularea testelor folosește Selenium WebDriver.
 
-\begin{enumerate}[label=O\arabic*., noitemsep, topsep=4pt]
-    \item scanarea automată a unei pagini web și atribuirea de locatori
-    stabili elementelor identificate, în ordine de prioritate explicită;
-    \item generarea claselor Page Object în C\# și a testelor NUnit
-    corespunzătoare, executabile și independent, prin \texttt{dotnet test};
-    \item un mecanism de regenerare care păstrează metodele scrise manual și
-    cere o decizie explicită pentru fiecare, în locul suprascrierii tăcute;
-    \item un flux de tip \emph{staged review} pentru diferențele detectate la
-    rescanarea unei pagini, supuse acceptării sau respingerii explicite;
-    \item preluarea convențiilor de denumire dintr-un page object existent,
-    oferit ca exemplu, astfel încât codul generat să se integreze stilistic
-    în proiect;
-    \item integrarea instrumentului într-o extensie pentru Visual Studio, pe
-    lângă aplicația desktop de sine stătătoare construită pe Electron.
+Browserul inclus în Desktop servește navigării manuale și alegerii paginii. Testul este executat într-o fereastră separată și vizibilă, cu același tip de motor folosit de testul NUnit generat.
+
+\important{Folosiți medii și conturi de test. Un scenariu poate trimite formulare sau poate modifica datele aplicației testate.}
+
+\chapter{Cerințe, instalare și pornire}
+
+\section{Cliq Desktop}
+
+Versiunea curentă se pornește din proiect și necesită Node.js 24 LTS, .NET SDK 10 și Google Chrome. Microsoft Edge este necesar doar dacă workspace-ul este configurat să ruleze cu Edge pe Windows.
+
+În directorul \File{frontend}, instalați dependențele și porniți aplicația:
+
+\begin{lstlisting}
+npm ci
+npm run dev
+\end{lstlisting}
+
+Electron pornește automat serviciul local Cliq API, alege un port liber și creează un token valabil doar pentru sesiunea curentă. Backend-ul nu se pornește separat.
+
+\section{Extensia Visual Studio}
+
+Extensia de previzualizare necesită Windows x64, Visual Studio 17.0 sau ulterior și Chrome ori Edge instalat. Pachetul VSIX conține runtime-ul .NET și Node necesar.
+
+\begin{enumerate}
+  \item Închideți toate instanțele Visual Studio.
+  \item Deschideți fișierul \File{Cliq.VisualStudio.vsix}.
+  \item Selectați instalarea Visual Studio și apăsați \UI{Install}.
+  \item Acceptați avertismentul pentru extensia nesemnată, dacă apare.
+  \item Verificați \UI{Extensions > Manage Extensions > Installed > Cliq for Visual Studio}.
 \end{enumerate}
 
-\section{Contribuțiile lucrării}
+Comenzile se găsesc în \UI{Extensions > Cliq}. Pentru dezinstalare, închideți IDE-ul și eliminați extensia din Visual Studio Installer sau programați eliminarea din Manage Extensions.
 
-Rezultatul concret este aplicația Cliq: un motor de scanare bazat pe
-Puppeteer, capabil să reconcilieze rezultatul cu o scanare anterioară a
-aceleiași pagini; un generator de cod C\#/NUnit, care produce inclusiv o
-clasă de bază comună (\texttt{BasePage}) stilizată după un exemplu existent;
-un mecanism de fuziune a metodelor personalizate bazat pe atributul
-\texttt{[CliqCustomMethod]}, care nu permite pierderea tăcută a unei metode;
-și două găzduiri, o aplicație desktop Electron și o extensie Visual Studio,
-care expun același set de operații prin intermediul unui proces auxiliar
-(\emph{sidecar}) autentificat.
+\chapter{Workspace-ul Cliq}
 
-% =============================================================================
-%  Capitolele urmatoare - schelet, de completat pe masura ce avansam.
-% =============================================================================
+\section{Deschidere și inițializare}
 
-% \chapter{Stadiul actual al domeniului}
-% \chapter{Arhitectura sistemului Cliq}
-% \chapter{Implementare}
-% \chapter{Testare și evaluare}
-% \chapter{Concluzii și direcții viitoare}
+Un workspace este directorul rădăcină al proiectului testat. În Desktop apăsați \UI{Open workspace}, alegeți directorul și confirmați. La prima deschidere, Cliq creează \File{.cliq}; la deschiderile următoare încarcă proiectul, paginile și testele existente.
 
-% \bibliographystyle{plain}
-% \bibliography{bibliografie}
+În Visual Studio, workspace-ul este dedus din soluția sau folderul deschis. Dacă trebuie ales explicit, faceți clic dreapta în Solution Explorer și folosiți \UI{Use as Cliq Workspace} sau \UI{Bind Project and Open Cliq Workbench}, apoi deschideți \UI{Extensions > Cliq > Open Workbench}.
+
+Un singur proces poate scrie workspace-ul la un moment dat. Extensia eliberează temporar această rezervare când predă sesiunea către Desktop.
+
+\section{Fișiere și controlul versiunilor}
+
+\begin{lstlisting}
+.cliq/
+  project.json
+  settings.json
+  pages/<page-id>.json
+  tests/<test-id>.json
+  runs/scan-reviews/
+  runs/diffs/
+  secrets.local.json
+  pending-custom-methods.json
+Generated/
+  PageObjects/
+  Tests/
+\end{lstlisting}
+
+Proiectul, setările, paginile și testele au \File{schemaVersion: 1} și pot fi păstrate în Git. Secretele, rulările, capturile și istoricul local sunt excluse prin \File{.gitignore}.
+
+\warningbox{Nu schimbați manual identificatorii din JSON. Pașii referă paginile și elementele prin ID-uri stabile, nu prin textul locatorului.}
+
+\section{Configurarea proiectului}
+
+În Workbench, fila \UI{Project} conține numele, URL-ul de bază, browserul implicit, directoarele și namespace-urile generate. Valorile implicite sunt \File{Generated/PageObjects}, \File{Generated/Tests}, \File{Generated.PageObjects} și \File{Generated.Tests}.
+
+Modificați câmpurile, apoi apăsați \UI{Save project}. Căile trebuie să fie relative și să rămână în workspace.
+
+\chapter{Interfața Desktop}
+
+Fereastra are trei zone. Bara laterală conține \UI{Tests}, \UI{Runs}, căutarea și crearea testelor. Zona centrală conține numele paginii, \UI{Scan}, \UI{Generate}, \UI{Run} și editorul. În dreapta se află browserul cu Back, Forward, Reload și bara de adresă.
+
+Introduceți o adresă și apăsați Enter. Dacă protocolul lipsește, aplicația adaugă \File{https://}. Sunt acceptate doar HTTP și HTTPS. Permisiunile, descărcările și ferestrele native ale paginii sunt blocate în browserul încorporat.
+
+Lista testelor poate fi filtrată după nume sau etichete. Fila Runs arată ultima rulare din sesiunea curentă. Erorile apar într-un banner care poate fi închis prin clic.
+
+\chapter{Scanarea paginilor}
+
+\section{Prima scanare în Desktop}
+
+\begin{enumerate}
+  \item Navigați la pagină și așteptați conținutul relevant.
+  \item Dacă este nevoie, autentificați-vă manual cu un cont de test.
+  \item Verificați \UI{Page object name}; Cliq propune un nume din URL.
+  \item Apăsați \UI{Scan} și așteptați mesajul cu numărul de elemente.
+\end{enumerate}
+
+Scannerul citește DOM-ul randat și poate descoperi elemente create de React, Angular sau Vue. Ordinea implicită a locatorilor este \File{data-testid}, XPath, apoi CSS dacă această strategie este activată. \File{id} este numai indiciu de denumire, nu locator direct.
+
+Pentru redenumirea unei pagini deja scanate, modificați Page object name și apăsați Enter sau mutați focusul. Noul nume de fișier C\# apare la generare.
+
+\section{Rescanarea în Desktop}
+
+La o scanare repetată, rezultatul conține:
+
+\begin{itemize}
+  \item \textbf{matched}: elementul a fost regăsit și își păstrează ID-ul;
+  \item \textbf{new}: elementul nu exista anterior;
+  \item \textbf{missing}: elementul vechi nu mai apare și rămâne marcat \UI{Not found on last scan}.
+\end{itemize}
+
+Desktop aplică reconcilierea și afișează un banner cu locatorii noi și lipsă. Extindeți-l pentru detalii. Cliq nu repară automat locatorii. Pentru aprobarea fiecărei schimbări înainte de aplicare, folosiți staged review din Visual Studio.
+
+\section{Captura și sugestiile dinamice}
+
+Dacă \UI{Capture a screenshot after scanning} este activă, apare \UI{Scan screenshot}. Apăsați pentru afișare și din nou pentru închidere.
+
+Când scannerul găsește cel puțin trei controale cu structură repetitivă, apare bannerul \UI{possible dynamic elements found}. Extindeți-l, verificați numele, acțiunea, numărul de instanțe și XPath-ul, apoi apăsați \UI{Add}. Închiderea bannerului ignoră sugestiile fără să creeze elemente.
+
+\chapter{Elemente dinamice}
+
+Un element dinamic descrie o țintă repetitivă, de exemplu butonul Edit de pe rândul 3 al unui tabel.
+
+\begin{enumerate}
+  \item În Desktop, extindeți \UI{Dynamic elements}.
+  \item Selectați pagina și apăsați \UI{Add dynamic element}.
+  \item Introduceți un nume unic.
+  \item Alegeți Click, Fill, Select sau Assert text.
+  \item Alegeți strategia locatorului.
+  \item Introduceți un șablon care conține tokenul \File{\{param\}}.
+  \item Alegeți \UI{Index (int)} ori \UI{Key (string)} și apăsați \UI{Save}.
+\end{enumerate}
+
+Exemple:
+
+\begin{lstlisting}
+//table/tbody/tr[{param}]/td[2]/button
+//tr[@data-key='{param}']//button
+\end{lstlisting}
+
+Pentru utilizare într-un pas, selectați pagina, deschideți grupul \UI{Dynamic}, alegeți elementul și completați Parameter value. Coșul din Dynamic elements șterge definiția; verificați întâi pașii care o folosesc.
+
+\chapter{Crearea și editarea testelor}
+
+\section{Test nou în Desktop}
+
+Apăsați plusul de lângă numele proiectului. Testul primește numele paginii curente sau \UI{New test}. Modificați \UI{Test name} și apăsați \UI{Add step}. Desktop salvează automat și ordonează operațiile succesive de salvare.
+
+Fiecare pas are acțiune, etichetă și \UI{Enabled}. Eticheta apare în cronologia rulării. Un pas dezactivat rămâne salvat, dar nu este executat. Puteți duplica sau șterge un pas; \UI{Add another step} adaugă un Navigate la sfârșit.
+
+\section{Acțiuni disponibile}
+
+\begin{tabularx}{\textwidth}{@{}p{3.0cm}Y@{}}
+\toprule \textbf{Acțiune} & \textbf{Comportament} \\
+\midrule
+\Action{navigate} & Deschide un URL HTTP/HTTPS și așteaptă încărcarea. \\
+\Action{click} & Așteaptă și apasă elementul; pentru checkbox setează Checked/Unchecked. \\
+\Action{fill} & Golește câmpul și introduce valoarea. \\
+\Action{select} & Alege o valoare din select sau radio; acceptă selecție multiplă. \\
+\Action{pressKey} & Trimite o tastă Selenium sau text către element. \\
+\Action{assertVisible} & Așteaptă și verifică afișarea elementului. \\
+\Action{assertText} & Compară textul cu valoarea așteptată. \\
+\Action{assertUrl} & Potrivește URL-ul curent cu o expresie regulată. \\
+\bottomrule
+\end{tabularx}
+
+Pentru Navigate introduceți URL-ul. Pentru acțiunile pe element selectați pagina, elementul și valoarea cerută. Locatorul apare sub pas. Marcajul not found cere o rescanare și o verificare înainte de rulare.
+
+Assert URL nu cere pagină ori element. Pentru potrivire exactă folosiți ancore, de exemplu:
+
+\begin{lstlisting}
+^https://example\.com/account/complete$
+\end{lstlisting}
+
+\section{Valori, checkbox, radio și multi-select}
+
+O valoare \UI{Literal} este salvată în test. O valoare \UI{Secret} salvează doar cheia. Creați cheia în fila Secrets din Visual Studio. Codul NUnit caută \File{CLIQ_<CHEIE>}; \File{login.password} devine \File{CLIQ_LOGIN_PASSWORD}.
+
+Pentru checkbox alegeți Checked sau Unchecked; Selenium apasă numai dacă starea trebuie schimbată. Pentru radio, Select folosește valoarea opțiunii. Pentru \File{select multiple}, apăsați \UI{Add value} pentru fiecare opțiune, alegeți Literal/Secret și eliminați intrările greșite cu coșul.
+
+\warningbox{Nu salvați parole ca Literal. Fișierul testului poate fi comis în Git.}
+
+\section{Editarea în Visual Studio}
+
+\begin{enumerate}
+  \item Selectați \UI{Tests} și testul dorit.
+  \item Completați numele, descrierea și etichetele separate prin virgulă.
+  \item Folosiți \UI{+ Add}, sus, jos, Duplicate și Delete pentru pași.
+  \item Selectați un rând și completați Action, Label, Timeout, URL/țintă și valoare.
+  \item Apăsați \UI{Save}; pentru mai multe elemente folosiți \UI{Save All}.
+\end{enumerate}
+
+Extensia nu salvează automat. Bara de sus indică editările. \UI{Reload} recitește discul și cere confirmare dacă există modificări nesalvate. Ștergerea testului este disponibilă aici și solicită confirmare; Desktop nu expune în prezent un buton de ștergere.
+
+\chapter{Rularea testelor}
+
+\begin{enumerate}
+  \item Selectați un test cu cel puțin un pas activ.
+  \item Apăsați \UI{Run} în Desktop sau \UI{Run test} în Workbench.
+  \item Cliq deschide o fereastră Selenium vizibilă.
+  \item Urmăriți starea, durata, timpul de localizare și timpul acțiunii.
+\end{enumerate}
+
+În Visual Studio se poate alege Chrome sau Edge în fereastra Run Results. Testul poate fi pornit și din fișierul JSON prin \UI{Run Cliq Test}. \UI{Cancel run} oprește execuția și închide browserul.
+
+Dacă screenshot-ul la eșec este activ, folosiți \UI{Screenshot} în Desktop sau \UI{View screenshot} în Visual Studio. Imaginea poate evidenția elementul localizat. Un fișier curățat între timp este raportat ca indisponibil.
+
+\chapter{Generarea codului}
+
+\section{Desktop și Visual Studio}
+
+În Desktop selectați testul și apăsați \UI{Generate}. Sunt incluse testul, paginile referite și pagina curentă chiar dacă nu este încă folosită de un pas. Fără test selectat se poate genera workspace-ul complet.
+
+În Visual Studio, \UI{Generate Selected} generează entitatea selectată, iar \UI{Generate All} regenerează tot. Dialogul rezultatului permite Open, dublu clic și Reveal. \UI{Regenerate} din Page inspector actualizează numai pagina; pentru testele dependente folosiți Generate All.
+
+Sunt create câte un \File{<PageName>Page.cs} și \File{<TestName>Tests.cs}, plus \File{ElementWrapper.cs} și \File{CliqCustomMethodAttribute.cs}. Dacă este configurat un exemplu, se creează și \File{BasePage.cs}.
+
+Fill și Select folosesc \File{ElementWrapper<TData>}. Tipul poate fi \File{string}, \File{int} sau \File{DateTime}, în funcție de input; multi-select folosește un șir de valori. Elementele dinamice devin metode parametrizate.
+
+\section{Potrivirea unui stil existent}
+
+În \UI{Cliq settings > Base page matching}, introduceți calea relativă către un Page Object \File{.cs}. Cliq citește convențiile pentru driver și wait, creează BasePage și face paginile să moștenească această clasă. Lăsați gol pentru clase autonome.
+
+Rulați codul generat cu:
+
+\begin{lstlisting}
+dotnet test
+\end{lstlisting}
+
+Pentru secrete, definiți variabilele de mediu. Exemplu PowerShell:
+
+\begin{lstlisting}
+$env:CLIQ_LOGIN_PASSWORD = "valoarea-din-mediul-de-test"
+dotnet test
+\end{lstlisting}
+
+\chapter{Metode custom și Pending Merges}
+
+O metodă manuală supraviețuiește regenerării numai cu \File{[CliqCustomMethod]}:
+
+\begin{lstlisting}[language={[Sharp]C}]
+[CliqCustomMethod]
+public void ConfirmOrder()
+{
+    _driver.FindElement(ConfirmButtonLocator).Click();
+}
+\end{lstlisting}
+
+Un conflict apare dacă extractorul recuperează mai puține metode decât indică marcajele sau dacă pagina a fost redenumită iar vechiul fișier are metode custom. Fișierul rămâne neatins.
+
+În \UI{Pending Merges > Resolve conflicts}:
+
+\begin{enumerate}
+  \item Extindeți metoda și citiți sursa.
+  \item Alegeți \UI{Carry over} pentru includere, \UI{Defer} pentru amânare ori \UI{Discard permanently} pentru eliminare.
+  \item Apăsați \UI{Resolve}.
+\end{enumerate}
+
+Metodele cu sintaxă invalidă nu pot fi incluse; corectați fișierul și regenerați. În \UI{Waiting list}, \UI{Include now} include o metodă amânată, \UI{Discard} o elimină, iar Refresh recitește lista.
+
+\warningbox{Discard permanently nu poate fi anulat din Cliq. Verificați sursa și istoricul Git înainte de alegere.}
+
+\chapter{Page inspector și întreținere}
+
+Selectați \UI{Pages}, apoi pagina și fila \UI{Page inspector}. Tabelul arată numele, tag-ul, acțiunea, locatorul și starea. Filtrarea caută după nume, tag sau locator. Meniul contextual copiază locatorul, iar dublu clic încearcă localizarea în browser.
+
+\UI{Remove not found elements} elimină toate elementele marcate după ultima scanare. Verificați întâi testele care le referă, salvați pagina și regenerați. \UI{Duplicate} creează o definiție separată. \UI{Delete} cere confirmare și afișează referințele din teste. \UI{Open generated file} deschide Page Object-ul, iar Regenerate îl creează dacă lipsește.
+
+\chapter{Staged scan review în Visual Studio}
+
+Porniți din \UI{Scan Page...}, Rescan din Page inspector sau \UI{Scan URL in Cliq...} pentru un URL selectat. Completați URL-ul, numele, browserul și opțiunea headless, apoi Scan. Operația poate fi anulată.
+
+La modificări, pagina activă nu este scrisă înainte de review. Fiecare element cere o decizie:
+
+\begin{tabularx}{\textwidth}{@{}p{3.5cm}YY@{}}
+\toprule \textbf{Schimbare} & \textbf{Accept} & \textbf{Deny} \\
+\midrule
+Element nou & Add: adaugă elementul. & Omit: nu îl adaugă. \\
+Element lipsă & Remove: elimină elementul. & Keep: păstrează definiția veche. \\
+\bottomrule
+\end{tabularx}
+
+Folosiți deciziile individuale sau Accept/Deny New, Missing ori All. Apply necesită o decizie pentru fiecare element. Eliminarea unui element referit de un test este blocată și sunt afișate testul și pasul. Un review devenit vechi cere rescanare. \UI{Discard} lasă pagina nemodificată. Istoricul este păstrat în \File{.cliq/runs/scan-reviews}.
+
+\chapter{Localizarea în browser}
+
+Pentru \UI{Locate in Browser}, deschideți Page Object-ul, poziționați cursorul pe locator sau comentariul lui și folosiți meniul contextual. Cliq deschide ori reutilizează browserul și evidențiază elementul.
+
+Pentru \UI{Start Live Highlight}, deschideți Page inspector și apăsați butonul. La trecerea mouse-ului peste un element în browser, rândul corespunzător este evidențiat în tabel. Apăsați din nou pentru oprire.
+
+\chapter{Setări}
+
+\section{Element identification}
+
+\UI{Test ID attribute} este implicit \File{data-testid}. Strategy order poate conține \File{testId}, \File{xpath} și \File{css}; prima strategie care produce un locator valid câștigă. Folosiți Move up/down, Remove și Add strategy. Lista nu poate fi goală.
+
+\UI{Ignore ID patterns} primește câte o expresie regulată pe linie. Valorile implicite ignoră forme generate de Ember, React Select, Angular și UUID. Expresiile trebuie să fie valide.
+
+\section{Execution și Scanning}
+
+\begin{itemize}
+  \item Default step timeout: 10000 ms;
+  \item Page ready timeout: 15000 ms;
+  \item Capture a screenshot when a step fails;
+  \item Highlight pause: 400 ms, iar 0 o dezactivează numai pentru rulările live;
+  \item Load timeout: 30000 ms;
+  \item Network idle grace: 3000 ms;
+  \item Capture a screenshot after scanning.
+\end{itemize}
+
+Timeout-ul unui pas are prioritate față de cel implicit. Valorile trebuie să fie pozitive, exceptând Highlight pause care poate fi zero. În Base page matching poate fi introdusă calea relativă către un Page Object existent. Apăsați \UI{Save settings}; mesajul de validare explică erorile.
+
+\chapter{Secrete}
+
+În fila \UI{Secrets}, apăsați \UI{+ Add secret}, introduceți cheia și valoarea, apoi confirmați. Cheia începe cu literă sau underscore și poate conține litere, cifre, punct, minus și underscore. Valoarea nu poate fi goală.
+
+Interfața afișează o mască, nu valoarea. \UI{Update value} înlocuiește secretul, iar Delete îl elimină. Datele sunt locale în \File{.cliq/secrets.local.json}. Testele generate folosesc separat variabilele \File{CLIQ_*}.
+
+\chapter{Comenzi Visual Studio}
+
+\begin{tabularx}{\textwidth}{@{}p{4cm}Y@{}}
+\toprule \textbf{Comandă} & \textbf{Rol} \\
+\midrule
+Open Workbench & Deschide fereastra principală. \\
+Scan Page... & Deschide scanarea. \\
+Run Selected Test & Rulează testul selectat. \\
+Generate Selected / All & Generează selecția sau tot workspace-ul. \\
+Record in Cliq Desktop & Predă temporar workspace-ul către Desktop. \\
+Refresh & Reîncarcă datele. \\
+Settings & Deschide setările. \\
+Pending Merges... & Deschide conflictele metodelor. \\
+\bottomrule
+\end{tabularx}
+
+Scurtăturile sunt Ctrl+Shift+Alt+W pentru Workbench, R pentru Run, S pentru Scan, G pentru Generate Selected, A pentru Generate All și M pentru Pending Merges. În Workbench, Ctrl+S salvează selecția și Ctrl+Shift+S salvează tot.
+
+În Solution Explorer pot apărea Use as Cliq Workspace, Open Cliq Workbench, Generate All Cliq Artifacts, Bind Project and Open, Open in Workbench, Run Cliq Test, Generate Cliq Artifact și Rescan Cliq Page. În editor apar Scan URL in Cliq și Locate in Browser când selecția este compatibilă.
+
+\chapter{Predarea către Desktop}
+
+\begin{enumerate}
+  \item Salvați modificările din Workbench.
+  \item Alegeți \UI{Record in Cliq Desktop}.
+  \item Extensia eliberează workspace-ul și pornește Desktop.
+  \item Lucrați în Desktop, apoi închideți aplicația.
+  \item Visual Studio recuperează rezervarea și reîncarcă datele.
+\end{enumerate}
+
+Dacă executabilul nu este găsit, configurați calea în \UI{Tools > Options > Cliq > General}. Nu poate fi pornită o a doua predare cât timp prima este activă.
+
+\chapter{Flux recomandat}
+
+\begin{enumerate}
+  \item Configurați workspace-ul, URL-ul, browserul și directoarele.
+  \item Stabiliți atributul de test și ordinea locatorilor.
+  \item Deschideți pagina în starea corectă și scanați.
+  \item Verificați elementele și sugestiile dinamice.
+  \item Adăugați secretele locale.
+  \item Creați testul și pașii în ordine.
+  \item Rulați interactiv și corectați primul eșec.
+  \item Generați și rulați \File{dotnet test}.
+  \item Marcați metodele manuale cu \File{[CliqCustomMethod]}.
+  \item La schimbări de UI, folosiți staged review, apoi Generate All.
+  \item Revizuiți diff-ul Git înainte de commit.
+\end{enumerate}
+
+\chapter{Depanare}
+
+\section{Workspace sau scanare}
+
+Dacă workspace-ul nu se deschide, verificați drepturile și JSON-ul din \File{.cliq}. O eroare schema version indică o versiune incompatibilă. Pentru scanare, verificați URL-ul HTTP/HTTPS și browserul instalat. Măriți Load timeout sau Network idle grace pentru pagini lente și încercați fără headless dacă site-ul se comportă diferit.
+
+\section{Element ori test eșuat}
+
+Verificați not found în Page inspector, folosiți Locate in Browser și rescanați. Cliq nu substituie locatorul automat. Testul trebuie să aibă un pas activ, ținte și valori complete. Secretul trebuie să existe local, iar pentru codul generat variabila \File{CLIQ_*} trebuie definită.
+
+\section{Captură, generare și Desktop}
+
+Activați opțiunea de captură înainte de operație; fișierele vechi pot fi curățate. Pentru avertismente de metode custom, nu ștergeți fișierul: folosiți Pending Merges. Dacă extensia nu găsește Desktop, configurați calea către \File{Cliq.exe} și verificați să nu existe alt proces care deține workspace-ul.
+
+\chapter{Limitări și bune practici}
+
+Extensia este o previzualizare nesemnată pentru Windows x64 și necesită un browser instalat. Desktop administrează elementele dinamice; extensia doar afișează sugestiile. Setările, secretele și ștergerea testelor sunt expuse complet în Visual Studio, nu în Desktop. Cliq nu înregistrează automat clicurile și textul introdus în browser: pașii se compun manual din elementele scanate. Comanda istorică \UI{Record in Cliq Desktop} face doar predarea workspace-ului către aplicația Desktop.
+
+Folosiți atribute de test stabile, conturi dedicate, Git pentru definiții și review pentru fiecare generare. Nu comiteți secrete ori capturi. Nu editați conținutul generat decât în metode marcate. Folosiți staged review înainte de eliminări și testați cu același browser și aceleași variabile ca în CI.
+
+\appendix
+\chapter{Referință rapidă}
+
+\begin{tabularx}{\textwidth}{@{}p{2.8cm}p{3.0cm}p{3.0cm}Y@{}}
+\toprule \textbf{Acțiune} & \textbf{Țintă} & \textbf{Valoare} & \textbf{Observații} \\
+\midrule
+Navigate & URL & Nu & Așteaptă page ready. \\
+Click & Element & Checkbox & Setează starea checkbox-ului. \\
+Fill & Element & Da & Golește înainte de introducere. \\
+Select & Element & Da & Radio și multi-select incluse. \\
+Press key & Element & Da & Tastă sau text. \\
+Assert visible & Element & Nu & Verifică afișarea. \\
+Assert text & Element & Da & Compară textul. \\
+Assert URL & Fără element & Da & Expresie regulată. \\
+\bottomrule
+\end{tabularx}
+
+\begin{tabularx}{\textwidth}{@{}p{5.2cm}Y@{}}
+\toprule \textbf{Fișier} & \textbf{Rol} \\
+\midrule
+\File{.cliq/project.json} & Proiect, browser și ieșiri. \\
+\File{.cliq/settings.json} & Identificare, timeout-uri și capturi. \\
+\File{.cliq/pages/*.json} & Pagini și elemente. \\
+\File{.cliq/tests/*.json} & Teste și pași. \\
+\File{.cliq/secrets.local.json} & Secrete locale. \\
+\File{.cliq/runs/} & Rulări, diff-uri și review-uri. \\
+\File{.cliq/pending-custom-methods.json} & Metode amânate. \\
+\File{Generated/} & Page Objects și teste NUnit. \\
+\bottomrule
+\end{tabularx}
+
+\chapter{Checklist final}
+
+\begin{enumerate}
+  \item Pagina a fost scanată în starea corectă de autentificare.
+  \item Numele sunt clare și nu există ținte not found folosite.
+  \item Fiecare pas are etichetă, țintă și valoare corectă.
+  \item Parolele și token-urile sunt Secret.
+  \item Testul trece într-o rulare Selenium vizibilă.
+  \item Captura și mesajul de eroare sunt utile.
+  \item Codul a fost regenerat fără conflicte nerezolvate.
+  \item Metodele manuale au \File{[CliqCustomMethod]}.
+  \item \File{dotnet test} trece cu mediul necesar.
+  \item Diff-ul Git nu conține secrete ori fișiere locale.
+\end{enumerate}
 
 \end{document}
