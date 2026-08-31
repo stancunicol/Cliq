@@ -10,6 +10,7 @@ import { useScanWorkflow } from './features/scanning/useScanWorkflow'
 import { TestEditor } from './features/tests/TestEditor'
 import { Sidebar } from './features/workspace/Sidebar'
 import { workspaceService } from './services'
+import cliqMark from './assets/cliq-mark.svg'
 import type {
   BrowserState,
   CustomMethodRecoveryWarning,
@@ -267,9 +268,10 @@ export function App() {
     return (
       <main className="welcome">
         <div className="welcome-card">
-          <div className="logo">C</div>
-          <span className="eyebrow">CLIQ WORKBENCH</span>
-          <h1>Build workflows. Generate maintainable Selenium code.</h1>
+          <img className="logo" src={cliqMark} alt="Cliq" />
+          <span className="eyebrow">LOCAL BROWSER TESTING WORKBENCH</span>
+          <h1>From page to test, in a cliq.</h1>
+          <p className="welcome-lede">Capture workflows. Generate maintainable Selenium code.</p>
           <p>Open a folder to initialize or load its versioned <code>.cliq</code> workspace.</p>
           <button onClick={() => void openWorkspace()}>Open workspace</button>
           {error && <div className="error-banner">{error}</div>}

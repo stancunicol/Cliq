@@ -425,8 +425,8 @@ public partial class WorkbenchControl : CliqThemedUserControl
         SetBrush("Cliq.MutedForeground", EnvironmentColors.ToolWindowTextColorKey, 0.72);
         SetBrush("Cliq.Border", EnvironmentColors.ToolWindowBorderColorKey);
         SetBrush("Cliq.ButtonBackground", EnvironmentColors.CommandBarGradientBeginColorKey);
-        SetBrush("Cliq.Accent", EnvironmentColors.SystemHighlightColorKey);
-        SetBrush("Cliq.SelectedForeground", EnvironmentColors.SystemHighlightTextColorKey);
+        SetBrandBrush("Cliq.Accent", 139, 92, 246);
+        SetBrandBrush("Cliq.SelectedForeground", 255, 255, 255);
         SetBrush("Cliq.Warning", EnvironmentColors.SystemInfoTextColorKey);
         SetBrush("Cliq.Error", EnvironmentColors.ToolWindowValidationErrorTextColorKey);
     }

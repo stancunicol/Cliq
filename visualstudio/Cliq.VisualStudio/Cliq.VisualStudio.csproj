@@ -45,6 +45,12 @@
     <Content Include="RELEASE-NOTES.txt">
       <IncludeInVSIX>true</IncludeInVSIX>
     </Content>
+    <Content Include="Assets\CliqIcon.png">
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
+    <Content Include="Assets\CliqPreview.png">
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
   </ItemGroup>
   <Target Name="PrepareCliqVsixPayload"
           BeforeTargets="GetVsixSourceItems"

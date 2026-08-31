@@ -194,11 +194,17 @@
                             Click="Reload_Click" />
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="CLIQ"
-                               FontWeight="Bold"
-                               FontSize="16"
-                               Foreground="{DynamicResource Cliq.Accent}"
-                               Margin="0,0,14,0" />
+                    <local:CliqBrandMark Width="28" Height="28" Margin="0,0,9,0" />
+                    <StackPanel Margin="0,0,16,0" VerticalAlignment="Center">
+                        <TextBlock Text="Cliq"
+                                   FontWeight="Bold"
+                                   FontSize="16"
+                                   Foreground="{DynamicResource Cliq.Foreground}" />
+                        <TextBlock Text="CAPTURE · CONNECT · GENERATE"
+                                   FontSize="8"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource Cliq.Accent}" />
+                    </StackPanel>
                     <TextBlock Text="{Binding DirtySummary}"
                                VerticalAlignment="Center"
                                Foreground="{DynamicResource Cliq.MutedForeground}" />

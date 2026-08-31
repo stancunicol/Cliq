@@ -86,16 +86,19 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <StackPanel>
-                    <TextBlock Text="{Binding TestName, TargetNullValue=No run selected}"
-                               FontSize="17"
-                               FontWeight="SemiBold"
-                               AutomationProperties.LiveSetting="Polite" />
-                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                        <TextBlock Text="{Binding RunStatusText}" FontWeight="SemiBold" />
-                        <TextBlock Text="  " />
-                        <TextBlock Text="{Binding StatusMessage}"
-                                   Foreground="{DynamicResource Cliq.Run.MutedForeground}" />
+                <StackPanel Orientation="Horizontal">
+                    <local:CliqBrandMark Width="32" Height="32" Margin="0,1,10,0" />
+                    <StackPanel>
+                        <TextBlock Text="{Binding TestName, TargetNullValue=No run selected}"
+                                   FontSize="17"
+                                   FontWeight="SemiBold"
+                                   AutomationProperties.LiveSetting="Polite" />
+                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                            <TextBlock Text="{Binding RunStatusText}" FontWeight="SemiBold" />
+                            <TextBlock Text="  " />
+                            <TextBlock Text="{Binding StatusMessage}"
+                                       Foreground="{DynamicResource Cliq.Run.MutedForeground}" />
+                        </StackPanel>
                     </StackPanel>
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal">

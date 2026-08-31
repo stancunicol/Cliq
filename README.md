@@ -1,7 +1,28 @@
-# Cliq
+<p align="center">
+  <img src="branding/logo/cliq-mark.svg" width="92" alt="Cliq logo" />
+</p>
 
-Cliq is a local desktop workbench for discovering web elements, composing browser workflows, and
-generating maintainable Selenium C# Page Objects and NUnit tests.
+<h1 align="center">Cliq</h1>
+
+<p align="center">
+  <strong>From page to test, in a cliq.</strong><br />
+  The local workbench for maintainable browser tests.
+</p>
+
+<p align="center">
+  <code>Desktop</code> · <code>Visual Studio</code> · <code>Selenium C#</code> · <code>NUnit</code>
+</p>
+
+---
+
+Cliq discovers rendered web elements, composes browser workflows, replays them with the same
+Selenium engine used in CI, and generates maintainable C# Page Objects and NUnit tests. Everything
+runs locally, and the generated code stays yours.
+
+> **Capture. Connect. Generate.** Open a live page, turn interactions into a readable workflow,
+> then ship code that fits an existing .NET test suite.
+
+Brand assets and usage guidance are available in the [`branding`](branding) folder.
 
 Cliq's embedded browser is for manual navigation while scanning a page. A test itself runs in a
 separate, visible Selenium-controlled browser window (`SeleniumTestRunner`) - the same engine the
@@ -23,6 +44,16 @@ Given a workspace and an HTTP or HTTPS page, Cliq can:
 5. replay the workflow in a separate, visible Selenium browser window, report each step, support
    cancellation, and capture a screenshot when a step fails; and
 6. generate C# Page Objects and NUnit workflow tests in configurable workspace directories.
+
+## Choose your workbench
+
+| Cliq Desktop | Cliq for Visual Studio |
+|---|---|
+| Inspect a page beside the workflow editor in a focused Electron application. | Scan, author, run, and generate without leaving the IDE. |
+| Best for visual browser-first workflow authoring. | Best for keeping generated code and test execution close to the solution. |
+
+Both surfaces use the same local sidecar, workspace format, deterministic discovery rules, and
+Selenium execution pipeline.
 
 Discovery and generation are rule-based. There is no AI component in the current pipeline.
 
@@ -286,12 +317,13 @@ accounts rather than production credentials.
 
 ## Current scope
 
-This repository delivers a functional local proof of concept for Windows and macOS. The current
-scope includes workspace persistence, live DOM discovery, visible Selenium-driven replay, failure
-reporting, and C#/NUnit generation.
+This repository delivers a functional local product preview for Windows and macOS. The current
+scope includes the Electron desktop workbench, a packaged Visual Studio extension preview,
+workspace persistence, live DOM discovery, visible Selenium-driven replay, failure reporting, and
+C#/NUnit generation.
 
-Installer packaging, code signing and notarization, a Visual Studio extension, AI-assisted
-generation, licensing, and cloud services are not implemented.
+Desktop installer packaging, code signing and notarization, AI-assisted generation, licensing,
+and cloud services are not implemented.
 
 ## License
 

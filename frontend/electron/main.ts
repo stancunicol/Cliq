@@ -41,7 +41,7 @@ async function createWindow() {
     minWidth: 1120,
     minHeight: 720,
     titleBarStyle: 'hidden',
-    backgroundColor: '#111211',
+    backgroundColor: '#0D0B12',
   })
   shell = new WebContentsView({
     webPreferences: {
