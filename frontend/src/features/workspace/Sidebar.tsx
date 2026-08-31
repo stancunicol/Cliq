@@ -1,5 +1,6 @@
 import { Activity, Check, CirclePlay, Plus, Search, X } from 'lucide-react'
 import type { ProjectManifest, TestCase } from '../../types'
+import cliqMark from '../../assets/cliq-mark.svg'
 
 interface SidebarProps {
   project: ProjectManifest
@@ -20,7 +21,7 @@ export function Sidebar(props: SidebarProps) {
   return (
     <aside className="sidebar">
       <div className="titlebar-drag" />
-      <div className="brand"><div className="logo">C</div><strong>Cliq</strong></div>
+      <div className="brand"><img className="logo" src={cliqMark} alt="" /><strong>Cliq</strong></div>
       <nav className="primary-nav">
         <button className={props.active === 'tests' ? 'active' : ''} onClick={() => props.onActive('tests')}>
           <Activity />Tests <span>{props.tests.length}</span>

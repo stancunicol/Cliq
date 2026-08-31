@@ -4,6 +4,7 @@ import { App } from './App'
 import './styles.css'
 import './accessibility.css'
 import './layout.css'
+import './brand.css'
 import { installMockBridge } from './mockBridge'
 
 if (import.meta.env.DEV && new URLSearchParams(window.location.search).has('mock')) {

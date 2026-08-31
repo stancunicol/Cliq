@@ -66,6 +66,14 @@ public abstract class CliqThemedUserControl : UserControl
         };
     }
 
+    protected void SetBrandBrush(string key, byte red, byte green, byte blue, double opacity = 1)
+    {
+        Resources[key] = new SolidColorBrush(Color.FromArgb(255, red, green, blue))
+        {
+            Opacity = opacity,
+        };
+    }
+
     [SuppressMessage(
         "Usage",
         "VSSDK007:Await or join tasks created from ThreadHelper.JoinableTaskFactory.RunAsync",

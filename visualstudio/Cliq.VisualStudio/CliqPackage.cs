@@ -26,7 +26,7 @@ namespace Cliq.VisualStudio;
 [PackageRegistration(UseManagedResourcesOnly = true, AllowsBackgroundLoading = true)]
 [InstalledProductRegistration(
     "Cliq for Visual Studio",
-    "Integrates Cliq UI test automation into Visual Studio.",
+    "Capture browser workflows and generate maintainable Selenium tests.",
     "0.1.15")]
 [ProvideMenuResource("Menus.ctmenu", 1)]
 [ProvideToolWindow(typeof(CliqWorkbenchToolWindow))]

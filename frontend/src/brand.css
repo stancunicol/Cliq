@@ -1,0 +1,64 @@
+:root {
+  color: #f7f3ff;
+  background: #0d0b12;
+  --line: #2e2440;
+  --muted: #a49cac;
+  --panel: #121018;
+  --raised: #1a1623;
+  --purple: #8b5cf6;
+  --purple-hover: #a78bfa;
+  --lilac: #c4a5ff;
+}
+
+body,
+.app { background: #0d0b12; }
+.sidebar { background: #120f18; border-right-color: #2e2440; }
+.brand .logo { width: 31px; height: 31px; border-radius: 0; display: block; background: none; }
+.brand strong { color: #f7f3ff; letter-spacing: -.035em; }
+.primary-nav button.active { background: #251b35; box-shadow: inset 2px 0 #8b5cf6; }
+.test.active { background: #21182e; border-left-color: #8b5cf6; }
+.step-icon { background: #281d3a; color: #b89aff; }
+.step-icon.assert { background: #302041; color: #c4a5ff; }
+.topbar { background: #100d15; }
+.editor { background: #0d0b12; }
+.browser-pane { background: #100d15; border-left-color: #2e2440; }
+.run-item.active { background: #21182e; border-left-color: #8b5cf6; }
+
+.welcome {
+  background: radial-gradient(circle at 70% 0%, #2b1550 0, #130d20 28%, #07060a 66%);
+}
+.welcome-card {
+  position: relative;
+  overflow: hidden;
+  width: min(660px, calc(100vw - 48px));
+  padding: 52px;
+  border: 1px solid #3a2855;
+  border-radius: 22px;
+  background: linear-gradient(145deg,#171120ee,#0d0b12f5);
+  box-shadow: 0 32px 110px #000b, 0 0 70px #6d28d91a;
+}
+.welcome-card::after {
+  content: '';
+  position: absolute;
+  width: 260px;
+  height: 260px;
+  right: -150px;
+  top: -150px;
+  border: 1px solid #8b5cf655;
+  border-radius: 50%;
+  box-shadow: 0 0 0 38px #8b5cf60d, 0 0 0 78px #8b5cf608;
+  pointer-events: none;
+}
+.welcome-card .logo { width: 54px; height: 54px; margin-bottom: 28px; display: block; border-radius: 0; background: none; }
+.welcome-card h1 { margin: 10px 0 12px; max-width: 540px; color: #f7f3ff; font-size: 40px; line-height: 1.08; letter-spacing: -.035em; }
+.welcome-card p { color: #a49cac; }
+.welcome-card .welcome-lede { margin: 0 0 8px; color: #d8c7f5; font-size: 17px; }
+.welcome-card button { border: 1px solid #a78bfa; border-radius: 9px; background: #8b5cf6; color: #fff; box-shadow: 0 8px 26px #6d28d955; }
+.welcome-card button:hover { background: #a78bfa; }
+.working-banner { border-color: #573c7c; background: #241733; color: #d8c7f5; }
+.step-config input:focus,
+.step-config select:focus { border-color: #8b5cf6; box-shadow: 0 0 0 2px #8b5cf633; }
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible { outline-color: #a78bfa; }

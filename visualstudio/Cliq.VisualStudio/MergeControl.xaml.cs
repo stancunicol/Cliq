@@ -85,8 +85,8 @@ public partial class MergeControl : CliqThemedUserControl
         SetBrush("Cliq.Merge.MutedForeground", EnvironmentColors.ToolWindowTextColorKey, 0.72);
         SetBrush("Cliq.Merge.Border", EnvironmentColors.ToolWindowBorderColorKey);
         SetBrush("Cliq.Merge.ButtonBackground", EnvironmentColors.CommandBarGradientMiddleColorKey);
-        SetBrush("Cliq.Merge.Accent", EnvironmentColors.SystemHighlightColorKey);
-        SetBrush("Cliq.Merge.SelectedForeground", EnvironmentColors.SystemHighlightTextColorKey);
+        SetBrandBrush("Cliq.Merge.Accent", 139, 92, 246);
+        SetBrandBrush("Cliq.Merge.SelectedForeground", 255, 255, 255);
         SetBrush("Cliq.Merge.Warning", EnvironmentColors.SystemInfoTextColorKey);
         SetBrush("Cliq.Merge.Error", EnvironmentColors.ToolWindowValidationErrorTextColorKey);
     }

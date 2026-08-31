@@ -49,8 +49,8 @@ public partial class RunResultsControl : CliqThemedUserControl
         SetBrush("Cliq.Run.MutedForeground", EnvironmentColors.ToolWindowTextColorKey, 0.72);
         SetBrush("Cliq.Run.Border", EnvironmentColors.ToolWindowBorderColorKey);
         SetBrush("Cliq.Run.ButtonBackground", EnvironmentColors.CommandBarGradientMiddleColorKey);
-        SetBrush("Cliq.Run.Accent", EnvironmentColors.SystemHighlightColorKey);
-        SetBrush("Cliq.Run.SelectedForeground", EnvironmentColors.SystemHighlightTextColorKey);
+        SetBrandBrush("Cliq.Run.Accent", 139, 92, 246);
+        SetBrandBrush("Cliq.Run.SelectedForeground", 255, 255, 255);
         SetBrush("Cliq.Run.Error", EnvironmentColors.ToolWindowValidationErrorTextColorKey);
     }
 }
