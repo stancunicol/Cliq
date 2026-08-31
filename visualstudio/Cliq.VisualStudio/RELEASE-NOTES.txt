@@ -1,11 +1,37 @@
-Cliq for Visual Studio 1.0.0 Preview
+Cliq for Visual Studio 2.0.0
 
-This preview integrates Cliq UI test authoring, scanning, generation, execution,
-results, and desktop recording handoff into Visual Studio.
+This release rounds out the workbench with the features and polish that
+have been landing since the 1.0.0 preview. It keeps the same workflow -
+scan, generate, execute, review - but makes each step more practical for
+everyday use.
+
+What's new:
+
+- Base Page generation: shared locators, helpers, and wait logic can now
+  be generated into a single base page that every generated page object
+  inherits, so repetitive code stays in one place.
+- Editable locator names in generated comments: rename a locator directly
+  in the generated source and the next generation keeps your edit, instead
+  of forcing the scanned name.
+- Full xpath in locator comments for xpath elements, so the generated
+  source shows exactly which element a locator points at.
+- Per-run browser picker, so a run can target a specific installed browser
+  instead of the default.
+- Workbench search: filter page elements by text and match test tags from
+  the search box.
+- Delete and duplicate page actions in the workbench, plus a copy-locator
+  context menu item.
+- Applied the Cliq brand across the desktop app and the extension.
+- New unit tests covering the extension's core services.
+
+Bug fixes:
+
+- Radio locator comments no longer get emitted twice, which had left the
+  generated select method misaligned with its documentation.
 
 Platform requirements:
 - Windows x64
 - Visual Studio 17.0 or later
 - Installed Microsoft Edge or Google Chrome
 
-The extension is unsigned and intended for controlled preview evaluation.
+The extension is unsigned and intended for controlled evaluation.

@@ -499,9 +499,8 @@ public static class PageObjectCodeGenerator
                 // string literal uses; both the group name (escaped here, at generation time) and
                 // the runtime value (escaped inline, below) are CSS-escaped so an apostrophe in
                 // either can't break the selector.
-                sb.AppendLine($"    // Locator ({StrategyLabel(element.Strategy)}): {SingleLine(element.LocatorValue)}");
-                AppendBasePageUsageComment(sb, basePageFieldNames, "    ", "Locate, ClickWithFallback");
                 sb.AppendLine($"    // Locator ({StrategyLabel(element.Strategy)}): {IdentifierNaming.ToPascalCase(element.SuggestedName)} = {SingleLine(element.LocatorValue)}");
+                AppendBasePageUsageComment(sb, basePageFieldNames, "    ", "Locate, ClickWithFallback");
                 var radioPrefix = ToCSharpStringLiteral($"input[name='{CssEscapeSingleQuoted(element.LocatorValue)}'][value='");
                 sb.AppendLine($"    public void Select{name}(string value)");
                 sb.AppendLine("    {");

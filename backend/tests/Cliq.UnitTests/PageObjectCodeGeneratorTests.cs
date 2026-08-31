@@ -320,9 +320,9 @@ public class PageObjectCodeGeneratorTests
         var code = PageObjectCodeGenerator.Generate("LoginPage", "Generated", elements, 10_000, [], basePageFieldNames: fieldNames);
 
         Assert.That(code, Does.Contain(
-                "    // Locator (name): plan\r\n    // BasePage generation: uses the inherited BasePage.Locate, ClickWithFallback.\r\n    public void SelectPlan(string value)")
+                "    // Locator (name): Plan = plan\r\n    // BasePage generation: uses the inherited BasePage.Locate, ClickWithFallback.\r\n    public void SelectPlan(string value)")
             .Or.Contain(
-                "    // Locator (name): plan\n    // BasePage generation: uses the inherited BasePage.Locate, ClickWithFallback.\n    public void SelectPlan(string value)"));
+                "    // Locator (name): Plan = plan\n    // BasePage generation: uses the inherited BasePage.Locate, ClickWithFallback.\n    public void SelectPlan(string value)"));
     }
 
     [Test]
