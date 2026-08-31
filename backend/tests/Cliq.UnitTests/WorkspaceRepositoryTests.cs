@@ -754,6 +754,129 @@ public sealed class WorkspaceRepositoryTests
     }
 
     [Test]
+    public async Task OpenAsync_HostKindFromEnvironment_IsSanitizedAndTruncatedBeforeFiltering()
+    {
+        // NormalizeHostKind takes the first 64 characters and only *then* drops anything that
+        // isn't a letter/digit/-/_ - so disallowed characters inside those 64 shrink the result
+        // below 64, and anything past position 64 is never considered even if it would have been
+        // valid. Picks a raw value where both effects are visible, to pin the order down rather
+        // than the equally-plausible "filter, then take 64" reading.
+        var original = Environment.GetEnvironmentVariable("CLIQ_HOST_KIND");
+        try
+        {
+            Environment.SetEnvironmentVariable("CLIQ_HOST_KIND", "ab#cd" + new string('e', 61));
+            using var owner = new WorkspaceRepository();
+            using var contender = new WorkspaceRepository();
+            await owner.OpenAsync(_root, CancellationToken.None);
+
+            var exception = Assert.ThrowsAsync<WorkspaceInUseException>(async () =>
+                await contender.OpenAsync(_root, CancellationToken.None));
+
+            Assert.That(exception!.Owner!.HostKind, Is.EqualTo("abcd" + new string('e', 59)));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("CLIQ_HOST_KIND", original);
+        }
+    }
+
+    [Test]
+    public async Task OpenAsync_HostKindMissingFromEnvironment_DefaultsToUnknown()
+    {
+        var original = Environment.GetEnvironmentVariable("CLIQ_HOST_KIND");
+        try
+        {
+            Environment.SetEnvironmentVariable("CLIQ_HOST_KIND", "   ");
+            using var owner = new WorkspaceRepository();
+            using var contender = new WorkspaceRepository();
+            await owner.OpenAsync(_root, CancellationToken.None);
+
+            var exception = Assert.ThrowsAsync<WorkspaceInUseException>(async () =>
+                await contender.OpenAsync(_root, CancellationToken.None));
+
+            Assert.That(exception!.Owner!.HostKind, Is.EqualTo("unknown"));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("CLIQ_HOST_KIND", original);
+        }
+    }
+
+    [Test]
+    public async Task OpenAsync_LockFileHeldOutsideProcessRegistry_ThrowsWithUnknownOwnerAndReleasesRegistryEntry()
+    {
+        // ProcessLeases only guards WorkspaceRepository instances within this process. A lock
+        // file held by a handle nobody registered there - a crashed host's leftover process, or,
+        // as here, a plain FileStream opened outside Cliq entirely - still has to be respected at
+        // the file-system level, and AcquireAsync has no owner metadata to report for it since it
+        // never manages to read one back.
+        var cliqDirectory = Path.Combine(_root, ".cliq");
+        Directory.CreateDirectory(cliqDirectory);
+        var lockPath = Path.Combine(cliqDirectory, "workspace.lock");
+        var externalLock = new FileStream(lockPath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
+        try
+        {
+            using var repository = new WorkspaceRepository();
+            var exception = Assert.ThrowsAsync<WorkspaceInUseException>(async () =>
+                await repository.OpenAsync(_root, CancellationToken.None));
+            Assert.That(exception!.Owner, Is.Null);
+        }
+        finally
+        {
+            externalLock.Dispose();
+        }
+
+        using var retry = new WorkspaceRepository();
+        var snapshot = await retry.OpenAsync(_root, CancellationToken.None);
+        Assert.That(snapshot.RootPath, Is.EqualTo(Path.GetFullPath(_root)), "a failed acquire must not leave a stale ProcessLeases entry behind");
+    }
+
+    [Test]
+    public async Task OpenAsync_LockFileHeldWithCorruptContent_ThrowsWithUnknownOwner()
+    {
+        // FileAccess.Write + FileShare.Read on our side blocks AcquireAsync's primary open (it
+        // wants ReadWrite access we don't share) while still letting its fallback, read-only
+        // ReadLeaseOwnerAsync open through (it only wants Read, which we do share) - so this
+        // reaches the JsonException branch specifically, rather than the "can't even read the
+        // file" branch covered above.
+        var cliqDirectory = Path.Combine(_root, ".cliq");
+        Directory.CreateDirectory(cliqDirectory);
+        var lockPath = Path.Combine(cliqDirectory, "workspace.lock");
+        await using var externalLock = new FileStream(lockPath, FileMode.Create, FileAccess.Write, FileShare.Read);
+        await externalLock.WriteAsync("{ not valid json"u8.ToArray());
+        await externalLock.FlushAsync();
+
+        using var repository = new WorkspaceRepository();
+        var exception = Assert.ThrowsAsync<WorkspaceInUseException>(async () =>
+            await repository.OpenAsync(_root, CancellationToken.None));
+        Assert.That(exception!.Owner, Is.Null);
+    }
+
+    [Test]
+    public async Task OpenAsync_LockFileHeldWithReadableOwner_ReportsSanitizedOwnerFromDisk()
+    {
+        var cliqDirectory = Path.Combine(_root, ".cliq");
+        Directory.CreateDirectory(cliqDirectory);
+        var lockPath = Path.Combine(cliqDirectory, "workspace.lock");
+        await using var externalLock = new FileStream(lockPath, FileMode.Create, FileAccess.Write, FileShare.Read);
+        await externalLock.WriteAsync(
+            """{"hostKind":"vs!! code","processId":-7,"acquiredAt":"2026-01-01T00:00:00+00:00"}"""u8.ToArray());
+        await externalLock.FlushAsync();
+
+        using var repository = new WorkspaceRepository();
+        var exception = Assert.ThrowsAsync<WorkspaceInUseException>(async () =>
+            await repository.OpenAsync(_root, CancellationToken.None));
+
+        // ReadLeaseOwnerAsync re-applies NormalizeHostKind and clamps a negative process id to 0
+        // rather than trusting whatever a foreign or hand-edited lock file happens to contain.
+        Assert.Multiple(() =>
+        {
+            Assert.That(exception!.Owner!.HostKind, Is.EqualTo("vscode"));
+            Assert.That(exception.Owner!.ProcessId, Is.EqualTo(0));
+        });
+    }
+
+    [Test]
     public async Task SavePendingCustomMethodAsync_RoundTripsAndUpsertsBySamePageAndSignature()
     {
         using var repository = new WorkspaceRepository();

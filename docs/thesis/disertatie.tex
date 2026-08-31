@@ -503,4 +503,20 @@ Assert URL & Fără element & Da & Expresie regulată. \\
   \item Diff-ul Git nu conține secrete ori fișiere locale.
 \end{enumerate}
 
+\chapter{Teste automate}
+
+\begin{tabularx}{\textwidth}{@{}p{6.5cm}Y@{}}
+\toprule \textbf{Componentă} & \textbf{Teste} \\
+\midrule
+Backend -- teste unitare & 232 \\
+Backend -- teste de integrare, inclusiv pipeline-ul cu browser real & 5 \\
+Extensia Visual Studio & 184 \\
+Interfața Desktop (frontend) & 30 \\
+\midrule
+\textbf{Total} & \textbf{451} \\
+\bottomrule
+\end{tabularx}
+
+Testele rulează la fiecare push și pull request prin integrare continuă (\File{.github/workflows/ci.yml}), cu excepția pipeline-ului cu browser real, care rulează doar la push pe \File{main}.
+
 \end{document}
