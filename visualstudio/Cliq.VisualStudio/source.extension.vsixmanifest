@@ -9,12 +9,12 @@
               Publisher="Cliq" />
     <DisplayName>Cliq for Visual Studio</DisplayName>
     <Description xml:space="preserve">From page to test, in a cliq. Capture browser workflows and generate maintainable Selenium C# Page Objects and NUnit tests without leaving Visual Studio.</Description>
+    <License>LICENSE.txt</License>
+    <ReleaseNotes>RELEASE-NOTES.txt</ReleaseNotes>
     <Icon>Assets\CliqIcon.png</Icon>
     <PreviewImage>Assets\CliqPreview.png</PreviewImage>
     <Tags>Cliq, Selenium, NUnit, testing, UI automation, browser testing, Page Objects</Tags>
     <Preview>true</Preview>
-    <License>LICENSE.txt</License>
-    <ReleaseNotes>RELEASE-NOTES.txt</ReleaseNotes>
   </Metadata>
   <Installation>
     <InstallationTarget Version="[17.0,)" Id="Microsoft.VisualStudio.Community">
