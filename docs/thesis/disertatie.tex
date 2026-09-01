@@ -10,6 +10,7 @@
 \usepackage{enumitem}
 \usepackage{booktabs}
 \usepackage{tabularx}
+\usepackage{xltabular}
 \usepackage{xcolor}
 \usepackage{fancyhdr}
 \usepackage{listings}
@@ -25,10 +26,14 @@
 \renewcommand{\arraystretch}{1.25}
 \newcolumntype{Y}{>{\raggedright\arraybackslash}X}
 
+% Drop the localized "Capitolul " word from the running header mark - keeps only "N. Title",
+% since the right header has limited width and needs the room for the title itself.
+\renewcommand{\chaptermark}[1]{\markboth{\thechapter.\ #1}{}}
+
 \pagestyle{fancy}
 \fancyhf{}
 \fancyhead[L]{Cliq - Manual de utilizare}
-\fancyhead[R]{\nouppercase{\leftmark}}
+\fancyhead[R]{\small\nouppercase{\leftmark}}
 \fancyfoot[C]{\thepage}
 \setlength{\headheight}{15pt}
 \setlength{\emergencystretch}{3em}
@@ -47,7 +52,7 @@
 \hypersetup{pageanchor=false}
 \begin{titlepage}
   \centering\vspace*{2.2cm}
-  {\Huge\bfseries\color{cliqblue}Cliq - Manual complet de utilizare\par}
+  {\Huge\bfseries\color{cliqblue}Cliq - Manual de utilizare\par}
   \vspace{0.8cm}{\Large Aplicația Desktop și extensia pentru Visual Studio\par}
   \vspace{1.8cm}\rule{0.72\textwidth}{0.6pt}\par\vspace{0.6cm}
   {\large Descoperirea elementelor web, construirea fluxurilor de test, rularea Selenium și generarea codului C\#/NUnit\par}
@@ -75,6 +80,12 @@ Manualul urmărește utilizarea reală a produsului, de la alegerea unui workspa
 
 Cele două interfețe folosesc același format de workspace. O pagină sau un test salvat dintr-o interfață poate fi deschis din cealaltă.
 
+\section{Motivație și obiective}
+
+Scrierea manuală a testelor de interfață presupune, de obicei, aceleași etape repetitive pentru fiecare pagină nouă: găsirea unor locatori stabili, scrierea clasei Page Object corespunzătoare și menținerea ei sincronizată cu orice schimbare ulterioară a paginii. \Cliq{} automatizează partea mecanică a acestui proces, descoperirea elementelor și generarea codului, dar păstrează sub controlul utilizatorului deciziile care contează: ce locator se folosește, ce se întâmplă cu o metodă scrisă manual, ce schimbare se aplică la o rescanare.
+
+Obiectivul proiectului este un flux complet, de la o pagină web până la un test NUnit funcțional, fără ca vreo etapă din mijloc să fie ghicită sau corectată tacit de aplicație.
+
 \section{Principiul de funcționare}
 
 Descoperirea și generarea sunt bazate pe reguli. Cliq nu trimite pagina ori datele workspace-ului către un serviciu de inteligență artificială. Scanarea folosește Puppeteer, iar rularea testelor folosește Selenium WebDriver.
@@ -82,6 +93,62 @@ Descoperirea și generarea sunt bazate pe reguli. Cliq nu trimite pagina ori dat
 Browserul inclus în Desktop servește navigării manuale și alegerii paginii. Testul este executat într-o fereastră separată și vizibilă, cu același tip de motor folosit de testul NUnit generat.
 
 \important{Folosiți medii și conturi de test. Un scenariu poate trimite formulare sau poate modifica datele aplicației testate.}
+
+\chapter{Arhitectura Cliq}
+
+\section{Prezentare generală}
+
+\Cliq{} este format dintr-un backend .NET comun și două interfețe independente, care îl pornesc și îl folosesc fiecare din procesul propriu: Cliq Desktop (Electron și React) și extensia pentru Visual Studio (WPF). Niciuna dintre cele două interfețe nu conține logica de scanare, generare sau rulare: ambele sunt clienți ai aceluiași backend, comunicând cu el prin HTTP local și, pentru fluxuri de lungă durată (progresul unei rulări, evidențierea live), prin Server-Sent Events.
+
+\section{Straturile backend-ului}
+
+Backend-ul este organizat pe patru proiecte, fiecare cu o singură responsabilitate:
+
+\begin{tabularx}{\textwidth}{@{}p{3.6cm}Y@{}}
+\toprule \textbf{Proiect} & \textbf{Responsabilitate} \\
+\midrule
+\File{Cliq.Domain} & Modele imutabile (\File{PageDefinition}, \File{TestCase}, \File{CliqSettings} și celelalte), fără nicio dependință externă. \\
+\File{Cliq.Application} & Interfețe și excepții de domeniu (\File{ITestRunner}, \File{WorkspaceInUseException} etc.), fără implementare. \\
+\File{Cliq.Infrastructure} & Implementările reale: scanare (Puppeteer), rulare și localizare (Selenium), generare de cod, persistența workspace-ului. \\
+\File{Cliq.Api} & Endpoint-urile HTTP și SSE, singurul punct de intrare folosit de cele două interfețe. \\
+\bottomrule
+\end{tabularx}
+
+\section{Un backend, două procese-gazdă}
+
+La fiecare pornire, atât Desktop cât și extensia Visual Studio lansează propria instanță a backend-ului ca proces copil (sidecar-ul extensiei, respectiv serviciul local pornit de Electron), pe un port liber, cu un token valabil doar pentru sesiunea curentă. Nu există un server \Cliq{} permanent, partajat între toți utilizatorii unei mașini; fiecare sesiune de lucru pornește și oprește propriul backend.
+
+Singurul lucru cu adevărat comun între cele două procese-gazdă este workspace-ul de pe disc (vezi capitolul „Workspace-ul Cliq"): același format JSON, protejat de același mecanism de exclusivitate, indiferent care dintre cele două îl deschide la un moment dat.
+
+\section{Două unelte de automatizare a browserului}
+
+Scanarea și rularea folosesc două biblioteci diferite, alese pentru ce fac mai bine fiecare. Puppeteer citește DOM-ul randat al unei pagini deja deschise, pentru descoperirea elementelor. Selenium WebDriver conduce un browser separat, vizibil, pentru rularea interactivă din \Cliq{} și pentru codul NUnit generat: același motor pe care îl va folosi și integrarea continuă, ca un test care trece în \Cliq{} să se comporte identic și în afara lui.
+
+\chapter{Catalogul de funcționalități}
+
+Tabelul de mai jos listează fiecare funcționalitate descrisă în acest manual, interfața (interfețele) care o expune și capitolul unde este documentată în detaliu.
+
+\begin{xltabular}{\textwidth}{@{}p{4.3cm}p{2.0cm}p{2.0cm}Y@{}}
+\toprule \textbf{Funcționalitate} & \textbf{Desktop} & \textbf{VS} & \textbf{Capitol} \\
+\midrule
+\endhead
+Workspace comun (exclusivitate, format, versionare) & da & da & Workspace-ul Cliq \\
+Scanarea paginilor și recunoașterea la rescanare & da & da & Scanarea paginilor \\
+Strategia de identificare a elementelor & -- & da & Strategia de identificare a elementelor \\
+Staged scan review & -- & da & Staged scan review în Visual Studio \\
+Elemente dinamice & da & da & Elemente dinamice \\
+Page inspector și întreținerea paginilor & parțial & da & Page inspector și întreținere \\
+Locate in Browser & -- & da & Localizarea în browser \\
+Evidențierea live a elementelor & -- & da & Evidențierea live a elementelor în Page inspector \\
+Crearea și editarea testelor & da & da & Crearea și editarea testelor \\
+Gestionarea secretelor & folosire & admin & Gestionarea secretelor \\
+Rularea interactivă a testelor & da & da & Rularea testelor \\
+Generarea codului & da & da & Generarea codului \\
+Generarea clasei de bază după un stil existent & -- & da & Generarea clasei de bază BasePage după un Page Object existent \\
+Metode custom și Pending Merges & parțial & complet & Metode custom și Pending Merges \\
+Predarea workspace-ului către Desktop & destinație & inițiator & Predarea către Desktop \\
+\bottomrule
+\end{xltabular}
 
 \chapter{Cerințe, instalare și pornire}
 
@@ -114,15 +181,35 @@ Comenzile se găsesc în \UI{Extensions > Cliq}. Pentru dezinstalare, închideț
 
 \chapter{Workspace-ul Cliq}
 
-\section{Deschidere și inițializare}
+\section{Obiectiv}
 
-Un workspace este directorul rădăcină al proiectului testat. În Desktop apăsați \UI{Open workspace}, alegeți directorul și confirmați. La prima deschidere, Cliq creează \File{.cliq}; la deschiderile următoare încarcă proiectul, paginile și testele existente.
+Cliq Desktop și extensia Visual Studio sunt două procese independente, care pot rula pe rând sau, teoretic, simultan pe același proiect. Amândouă trebuie să citească și să scrie aceleași fișiere (pagini, teste, setări), fără să se suprascrie una pe alta și fără ca un proces oprit brusc să lase workspace-ul într-o stare inconsistentă sau blocat permanent. Formatul comun de workspace și mecanismul de exclusivitate care îl protejează, descrise în acest capitol, rezolvă această problemă.
 
-În Visual Studio, workspace-ul este dedus din soluția sau folderul deschis. Dacă trebuie ales explicit, faceți clic dreapta în Solution Explorer și folosiți \UI{Use as Cliq Workspace} sau \UI{Bind Project and Open Cliq Workbench}, apoi deschideți \UI{Extensions > Cliq > Open Workbench}.
+\section{Decizii de proiectare}
 
-Un singur proces poate scrie workspace-ul la un moment dat. Extensia eliberează temporar această rezervare când predă sesiunea către Desktop.
+Cele două interfețe citesc și scriu exact același format JSON sub \File{.cliq/}, fără nicio conversie între ele. Această alegere este ce face posibilă predarea workspace-ului de la o interfață la alta (vezi capitolul „Predarea către Desktop") fără un pas separat de sincronizare: oricare dintre cele două deschide direct ce a lăsat cealaltă.
 
-\section{Fișiere și controlul versiunilor}
+Exclusivitatea scrierii este garantată pe două niveluri. În interiorul aceluiași proces, un registru în memorie respinge imediat o a doua deschidere a aceluiași workspace, fără a atinge sistemul de fișiere. Între procese diferite, de exemplu Desktop și extensia Visual Studio rulând simultan, garanția vine dintr-un fișier de lock (\File{workspace.lock}) deschis exclusiv pentru scriere; un al doilea proces care încearcă să-l deschidă primește o eroare de sistem, transformată într-un mesaj care indică cine deține deja workspace-ul: tipul de host, procesul, momentul deschiderii.
+
+Dacă procesul care deținea lock-ul s-a închis brusc, fără să elibereze fișierul, o deschidere ulterioară reușește automat: sistemul de fișiere nu mai are niciun handle activ asupra lui, așa că fișierul poate fi rescris cu noul proprietar, fără nicio intervenție manuală. Dacă totuși fișierul rămâne indisponibil dintr-un motiv neașteptat, iar proprietarul nu poate fi citit (lipsă sau cu conținut corupt), eroarea afișată nu inventează un proprietar; raportează explicit că nu se cunoaște cine deține workspace-ul, în loc să ghicească.
+
+Fiecare entitate persistată (proiect, setări, pagini, teste) poartă un \File{schemaVersion}, ca formatul să poată evolua fără să rupă workspace-urile existente. Fișierele sunt împărțite explicit în cele destinate Git (proiect, setări, pagini, teste) și cele locale, excluse prin \File{.gitignore} (secrete, rulări, capturi, istoric), reflectând ce poate fi partajat în echipă și ce ține strict de mediul local.
+
+\section{Impact}
+
+\begin{itemize}
+  \item Desktop și extensia Visual Studio pot alterna liber asupra aceluiași workspace, fără pas de sincronizare sau risc de suprascriere reciprocă.
+  \item Un proces căzut brusc nu lasă workspace-ul blocat permanent: o redeschidere ulterioară recuperează automat lock-ul orfan.
+  \item Un conflict de acces primește un mesaj util despre cine deține workspace-ul, nu o eroare generică de fișier ocupat.
+\end{itemize}
+
+\section{Din perspectiva utilizatorului}
+
+\begin{itemize}
+  \item Un workspace este directorul rădăcină al proiectului testat. În Desktop, \UI{Open workspace} alege directorul; la prima deschidere Cliq creează \File{.cliq}, la următoarele încarcă proiectul, paginile și testele existente.
+  \item În Visual Studio, workspace-ul este dedus din soluția sau folderul deschis. Dacă trebuie ales explicit: clic dreapta în Solution Explorer pe \UI{Use as Cliq Workspace} sau \UI{Bind Project and Open Cliq Workbench}, apoi \UI{Extensions > Cliq > Open Workbench}.
+  \item Un singur proces poate scrie workspace-ul la un moment dat; o a doua încercare de deschidere e respinsă cu un mesaj despre cine îl deține deja.
+\end{itemize}
 
 \begin{lstlisting}
 .cliq/
@@ -139,15 +226,22 @@ Generated/
   Tests/
 \end{lstlisting}
 
-Proiectul, setările, paginile și testele au \File{schemaVersion: 1} și pot fi păstrate în Git. Secretele, rulările, capturile și istoricul local sunt excluse prin \File{.gitignore}.
-
 \warningbox{Nu schimbați manual identificatorii din JSON. Pașii referă paginile și elementele prin ID-uri stabile, nu prin textul locatorului.}
 
-\section{Configurarea proiectului}
+În Workbench, fila \UI{Project} conține numele, URL-ul de bază, browserul implicit, directoarele și namespace-urile generate. Valorile implicite sunt \File{Generated/PageObjects}, \File{Generated/Tests}, \File{Generated.PageObjects} și \File{Generated.Tests}. Modificați câmpurile, apoi apăsați \UI{Save project}; căile trebuie să fie relative și să rămână în workspace.
 
-În Workbench, fila \UI{Project} conține numele, URL-ul de bază, browserul implicit, directoarele și namespace-urile generate. Valorile implicite sunt \File{Generated/PageObjects}, \File{Generated/Tests}, \File{Generated.PageObjects} și \File{Generated.Tests}.
+\section{Din perspectiva dezvoltatorului}
 
-Modificați câmpurile, apoi apăsați \UI{Save project}. Căile trebuie să fie relative și să rămână în workspace.
+\begin{tabularx}{\textwidth}{@{}p{5.3cm}Y@{}}
+\toprule \textbf{Componentă} & \textbf{Rol} \\
+\midrule
+\File{WorkspaceLeaseManager} & Cele două niveluri de exclusivitate: un registru static în memorie, pentru instanțe multiple în același proces, și fișierul \File{workspace.lock}, deschis exclusiv, pentru procese diferite. Construiește și normalizează metadatele proprietarului (tip de host, proces, moment) când raportează un conflict. \\
+\File{WorkspaceRepository} & CRUD și validare pentru entitățile workspace-ului; verifică \File{schemaVersion} la deschidere. \\
+\File{.cliq/workspace.lock} & Fișierul de lock propriu-zis, cu metadatele proprietarului curent, în format JSON. \\
+\bottomrule
+\end{tabularx}
+
+Acoperire cu teste: \File{WorkspaceRepositoryTests}, în \File{Cliq.UnitTests}, inclusiv scenariile de lock deținut de un proces extern, cu proprietar necunoscut sau cu conținut corupt.
 
 \chapter{Interfața Desktop}
 
@@ -159,22 +253,34 @@ Lista testelor poate fi filtrată după nume sau etichete. Fila Runs arată ulti
 
 \chapter{Scanarea paginilor}
 
-\section{Prima scanare în Desktop}
+\section{Obiectiv}
+
+La fiecare rescanare a unei pagini deja folosite în teste, elementele trebuie recunoscute ca fiind aceleași ca la scanarea anterioară, altfel orice pas care le referă s-ar rupe la o simplă rescanare. În plus, o pagină poate conține structuri repetitive (rânduri de tabel, carduri dintr-o listă) pe care scanarea obișnuită le tratează ca elemente separate, fără să semnaleze că ar fi mai potrivit un singur element dinamic, parametrizat. Acest capitol acoperă ambele mecanisme: recunoașterea elementelor la rescanare și sugerarea automată a elementelor dinamice.
+
+\section{Decizii de proiectare}
+
+Recunoașterea la rescanare compară elementele proaspăt scanate cu cele salvate anterior, pe niveluri ordonate de la cel mai fiabil la cel mai puțin fiabil, aceeași ordine ca la descoperire (testId, apoi xpath, apoi css). O pereche este acceptată doar dacă exact un element vechi și exact unul nou au aceeași cheie la acel nivel; o cheie ambiguă, cu mai multe elemente vechi sau noi identice, nu este ghicită, ci lăsată pentru nivelul următor. Un element care nu se potrivește la niciun nivel este raportat direct ca nou, iar vechiul lui corespondent ca lipsă; nu există niciun fallback pozițional sau aproximativ. O primă variantă a soluției folosea și \File{id}/\File{name} ca niveluri suplimentare de potrivire; au fost eliminate, pentru că aceste valori pot fi regenerate de framework fără să indice de fapt același element.
+
+Sugestiile de elemente dinamice urmează aceeași filosofie. Scanarea grupează controalele care ocupă aceeași poziție relativă într-o structură repetitivă deja detectată; un grup devine sugestie doar de la trei instanțe în sus, ca să nu fie propuse elemente dinamice pentru simple coincidențe de structură. Fiecare grup are nevoie de o ancoră stabilă (un XPath pentru containerul rândurilor) ca să construiască șablonul parametrizat; dacă nicio ancoră stabilă nu poate fi găsită, grupul este abandonat în întregime, nu i se construiește un șablon aproximativ pe bază de cale absolută.
+
+\section{Impact}
+
+\begin{itemize}
+  \item Pașii unui test rămân valabili peste rescanări repetate, cât timp elementul își păstrează un locator dintre cele urmărite, fără intervenție manuală.
+  \item O ambiguitate la recunoaștere nu produce niciodată o potrivire greșită, tăcută; în cel mai rău caz, elementul apare ca nou sau lipsă și cere o decizie a utilizatorului.
+  \item Structurile repetitive frecvente sunt semnalate proactiv ca elemente dinamice candidate, în loc să rămână elemente statice, plate, câte unul per instanță găsită la scanare.
+\end{itemize}
+
+\section{Din perspectiva utilizatorului}
 
 \begin{enumerate}
-  \item Navigați la pagină și așteptați conținutul relevant.
-  \item Dacă este nevoie, autentificați-vă manual cu un cont de test.
-  \item Verificați \UI{Page object name}; Cliq propune un nume din URL.
-  \item Apăsați \UI{Scan} și așteptați mesajul cu numărul de elemente.
+  \item Navigați la pagină și așteptați conținutul relevant; autentificați-vă manual, dacă e nevoie.
+  \item Verificați \UI{Page object name} (Cliq propune un nume din URL), apoi apăsați \UI{Scan} și așteptați mesajul cu numărul de elemente.
 \end{enumerate}
 
-Scannerul citește DOM-ul randat și poate descoperi elemente create de React, Angular sau Vue. Ordinea implicită a locatorilor este \File{data-testid}, XPath, apoi CSS dacă această strategie este activată. \File{id} este numai indiciu de denumire, nu locator direct.
+Scannerul citește DOM-ul randat și poate descoperi elemente create de React, Angular sau Vue; \File{id} este numai indiciu de denumire, niciodată locator direct. Pentru redenumirea unei pagini deja scanate, modificați \UI{Page object name} și apăsați Enter sau mutați focusul; noul nume de fișier C\# apare la generare.
 
-Pentru redenumirea unei pagini deja scanate, modificați Page object name și apăsați Enter sau mutați focusul. Noul nume de fișier C\# apare la generare.
-
-\section{Rescanarea în Desktop}
-
-La o scanare repetată, rezultatul conține:
+La o rescanare, rezultatul conține:
 
 \begin{itemize}
   \item \textbf{matched}: elementul a fost regăsit și își păstrează ID-ul;
@@ -182,38 +288,310 @@ La o scanare repetată, rezultatul conține:
   \item \textbf{missing}: elementul vechi nu mai apare și rămâne marcat \UI{Not found on last scan}.
 \end{itemize}
 
-Desktop aplică reconcilierea și afișează un banner cu locatorii noi și lipsă. Extindeți-l pentru detalii. Cliq nu repară automat locatorii. Pentru aprobarea fiecărei schimbări înainte de aplicare, folosiți staged review din Visual Studio.
+Desktop aplică reconcilierea și afișează un banner cu locatorii noi și lipsă; Cliq nu repară automat locatorii. Pentru aprobarea fiecărei schimbări înainte de aplicare, folosiți staged review din Visual Studio.
 
-\section{Captura și sugestiile dinamice}
+Dacă \UI{Capture a screenshot after scanning} este activă, apare \UI{Scan screenshot}. Când scannerul găsește cel puțin trei controale cu structură repetitivă, apare bannerul \UI{possible dynamic elements found}; extindeți-l, verificați numele, acțiunea, numărul de instanțe și XPath-ul, apoi apăsați \UI{Add}. Închiderea bannerului ignoră sugestiile fără să creeze elemente.
 
-Dacă \UI{Capture a screenshot after scanning} este activă, apare \UI{Scan screenshot}. Apăsați pentru afișare și din nou pentru închidere.
+\section{Din perspectiva dezvoltatorului}
 
-Când scannerul găsește cel puțin trei controale cu structură repetitivă, apare bannerul \UI{possible dynamic elements found}. Extindeți-l, verificați numele, acțiunea, numărul de instanțe și XPath-ul, apoi apăsați \UI{Add}. Închiderea bannerului ignoră sugestiile fără să creeze elemente.
+\begin{tabularx}{\textwidth}{@{}p{5.3cm}Y@{}}
+\toprule \textbf{Componentă} & \textbf{Rol} \\
+\midrule
+\File{ElementReconciler} & Potrivește elementele proaspăt scanate cu cele salvate, pe niveluri (testId/xpath/css), acceptate doar 1-la-1; fără fallback aproximativ. \\
+\File{extract-elements.js} (scanner Puppeteer) & Grupează candidații după poziția relativă în structura repetitivă și propune un șablon parametrizat de la trei instanțe în sus, cu ancoră XPath obligatorie. \\
+\File{PuppeteerPageDiscovery} & Orchestrează scanarea și transformă rezultatul brut în \File{PageScanResult}, respectiv în lista de \File{DynamicElementSuggestion}. \\
+\bottomrule
+\end{tabularx}
+
+Acoperire cu teste: \File{ElementReconcilerTests} și \File{PuppeteerPageDiscoveryTests}, în \File{Cliq.UnitTests}.
+
+\chapter[Strategia de identificare]{Strategia de identificare a elementelor}
+
+\section{Obiectiv}
+
+La scanare, fiecare element trebuie asociat cu un locator stabil. Diferite atribute sunt disponibile în funcție de pagină (un atribut de test dedicat, un XPath structural sau un selector CSS structural), iar preferința pentru unul sau altul diferă de la proiect la proiect. Funcționalitatea descrisă în acest capitol lasă utilizatorul să configureze ce strategii sunt încercate și în ce ordine, în loc să impună una fixă.
+
+\section{Decizii de proiectare}
+
+Trei strategii sunt disponibile: \File{testId} (citește atributul configurat, implicit \File{data-testid}), \File{xpath} (construiește o cale structurală în DOM) și \File{css} (construiește un selector CSS structural). Prima strategie din ordinea configurată care produce un locator valid pentru element este cea folosită.
+
+Selectorul CSS structural reușește pentru aproape orice element, fiind construit direct din poziția lui în DOM, nu dintr-un atribut care poate lipsi. Din acest motiv, inițial nu figura ca strategie propriu-zisă în listă, ci doar ca fallback necondiționat, aplicat tacit după ce toate celelalte strategii eșuau; utilizatorul nu îl putea nici plasa mai sus în ordine, dacă îl considera mai stabil decât un XPath lung, nici exclude complet.
+
+Soluția adoptată promovează css la rangul celorlalte două strategii, ordonabilă explicit în \File{strategyOrder}. Fallback-ul necondiționat rămâne neschimbat pentru workspace-urile a căror ordine nu include css deloc: un element care epuizează toate strategiile listate primește oricum un locator, în loc să rămână fără niciunul.
+
+\section{Impact}
+
+\begin{itemize}
+  \item css poate fi plasat oriunde în ordinea de căutare, inclusiv înaintea xpath sau testId, nu doar folosit tacit ca ultimă soluție.
+  \item Comportamentul unui workspace existent, a cărui ordine nu menționează css, rămâne neschimbat: fallback-ul necondiționat continuă să garanteze un locator pentru orice element.
+\end{itemize}
+
+\section{Din perspectiva utilizatorului}
+
+\begin{itemize}
+  \item \UI{Test ID attribute}: atributul citit de strategia \File{testId}; implicit \File{data-testid}.
+  \item \UI{Strategy order}: poate conține \File{testId}, \File{xpath} și \File{css}, în orice ordine; prima care produce un locator valid câștigă. Se editează cu \UI{Move up}/\UI{Move down}, \UI{Remove} și \UI{Add strategy}; lista nu poate fi goală.
+  \item \UI{Ignore ID patterns}: câte o expresie regulată pe linie, pentru identificatori generați automat (de framework-uri precum Ember, React Select, Angular, sau UUID-uri) care nu ar trebui folosiți ca nume sugerate. Valorile implicite acoperă aceste cazuri; expresiile introduse trebuie să fie valide.
+\end{itemize}
+
+Setările se salvează cu \UI{Save settings}; mesajul de validare explică orice eroare.
+
+\section{Din perspectiva dezvoltatorului}
+
+\begin{tabularx}{\textwidth}{@{}p{5.3cm}Y@{}}
+\toprule \textbf{Componentă} & \textbf{Rol} \\
+\midrule
+\File{WorkspaceRepository.Settings} & Validează \File{strategyOrder} împotriva mulțimii de strategii cunoscute (\File{testId}, \File{xpath}, \File{css}) și respinge o listă goală sau o valoare necunoscută. \\
+\File{extract-elements.js} (scanner Puppeteer) & Înregistrează \File{css} ca strategie explicită, alături de \File{testId} și \File{xpath}; păstrează fallback-ul necondiționat la finalul lanțului, pentru cazul în care \File{strategyOrder} nu îl include. \\
+Tipurile din frontend (\File{types.ts}, \File{ipc-schemas.ts}) & Extind uniunea \File{IdentificationStrategy} și schema Zod corespunzătoare cu valoarea \File{css}, pentru validare consistentă la editarea setărilor. \\
+\bottomrule
+\end{tabularx}
+
+Acoperire cu teste: \File{WorkspaceRepositoryTests}, în \File{Cliq.UnitTests}.
+
+\chapter[Staged scan review]{Staged scan review în Visual Studio}
+
+\section{Obiectiv}
+
+O rescanare poate schimba structura unei pagini deja folosite în teste: apar elemente noi, altele dispar. Scrierea directă a acestor schimbări peste pagina existentă ar putea rupe teste care depind de un element eliminat, fără ca utilizatorul să observe la momentul scanării. Staged Scan Review introduce un pas de validare între scanare și scriere: rezultatul este comparat cu pagina activă, iar fiecare schimbare așteaptă o decizie explicită înainte de a fi aplicată.
+
+\section{Decizii de proiectare}
+
+Fiecare element modificat primește exact două acțiuni posibile, simetrice cu tipul schimbării: pentru un element nou, \UI{Add} sau \UI{Omit}; pentru un element lipsă, \UI{Remove} sau \UI{Keep}. Deciziile pot fi date individual, per element, sau în lot, pe trei niveluri de scop: pe categorie (toate elementele noi, respectiv toate cele lipsă) sau pe întregul review. Cele trei niveluri coexistă, fără ca vreunul să le înlocuiască pe celelalte: un review poate conține sute de elemente, iar utilizatorul are frecvent încredere doar într-o categorie de schimbări (de exemplu acceptă toate elementele noi, dar vrea să decidă individual asupra celor lipsă, care pot fi încă referite de teste existente).
+
+În fereastră, acțiunile în lot sunt grupate într-un singur rând, ordonate de la cel mai restrâns scop la cel mai larg (categorie, apoi tot review-ul), deasupra listei derulabile de elemente. Nu sunt plasate lângă titlul fiecărei categorii din interiorul listei, unde ar ieși din câmpul vizual imediat ce utilizatorul derulează mai departe.
+
+Aplicarea deciziilor este ținută separat de eliminarea elementelor referite de teste existente: o astfel de eliminare este blocată explicit, cu testul și pasul afișate, în loc să fie permisă tăcut și să lase un test cu o referință invalidă.
+
+\section{Impact}
+
+\begin{itemize}
+  \item O schimbare de structură a paginii nu se propagă niciodată direct peste elementele existente; trece întotdeauna printr-o decizie vizibilă.
+  \item Utilizatorul poate acționa la nivelul potrivit (un element, o categorie sau tot review-ul), fără să piardă controlul individual acolo unde are nevoie de el.
+  \item Un test care ar rămâne fără elementul pe care îl referă este protejat: eliminarea acelui element este blocată, nu doar semnalată după fapt.
+\end{itemize}
+
+\section{Din perspectiva utilizatorului}
+
+\begin{enumerate}
+  \item Se pornește din \UI{Scan Page...}, din \UI{Rescan} în Page inspector, sau din \UI{Scan URL in Cliq...} pentru un URL selectat; se completează URL-ul, numele, browserul și opțiunea headless, apoi \UI{Scan}. Operația poate fi anulată în timp ce rulează.
+  \item Pagina activă nu este scrisă înainte de review. Fiecare element modificat cere o decizie:
+  \begin{tabularx}{\textwidth}{@{}p{3.5cm}YY@{}}
+  \toprule \textbf{Schimbare} & \textbf{Accept} & \textbf{Deny} \\
+  \midrule
+  Element nou & \UI{Add}: adaugă elementul. & \UI{Omit}: nu îl adaugă. \\
+  Element lipsă & \UI{Remove}: elimină elementul. & \UI{Keep}: păstrează definiția veche. \\
+  \bottomrule
+  \end{tabularx}
+  \item Deciziile se dau individual, sau în lot cu \UI{Accept New}/\UI{Deny New}, \UI{Accept Missing}/\UI{Deny Missing} ori \UI{Accept All}/\UI{Deny All}. O acțiune în lot suprascrie doar deciziile din categoria vizată.
+  \item \UI{Apply} necesită o decizie pentru fiecare element din review. Eliminarea unui element referit de un test este blocată, iar testul și pasul care îl folosesc sunt afișate.
+  \item Un review devenit vechi, cu pagina schimbată între timp, cere o rescanare. \UI{Discard} lasă pagina nemodificată.
+\end{enumerate}
+
+Istoricul review-urilor este păstrat în \File{.cliq/runs/scan-reviews}.
+
+\section{Din perspectiva dezvoltatorului}
+
+\begin{tabularx}{\textwidth}{@{}p{5.3cm}Y@{}}
+\toprule \textbf{Componentă} & \textbf{Rol} \\
+\midrule
+\File{ScanReviewViewModel} & Ține deciziile per element și le aplică în lot: \File{AcceptAll}/\File{DenyAll} pe tot review-ul, \File{AcceptAllNew}/\File{DenyAllNew} și \File{AcceptAllMissing}/\File{DenyAllMissing} pe subseturile \File{NewItems}/\File{MissingItems}, toate prin aceeași metodă privată, parametrizată cu colecția țintă și decizia de aplicat. \\
+\File{ScanReviewDialog} & Construiește rândul de acțiuni în lot, cu perechile scopate afișate condiționat, doar când categoria respectivă conține elemente, înaintea perechii globale. \\
+\bottomrule
+\end{tabularx}
+
+Acoperire cu teste: \File{ScanReviewViewModelTests}, în \File{Cliq.VisualStudio.Tests}.
 
 \chapter{Elemente dinamice}
 
-Un element dinamic descrie o țintă repetitivă, de exemplu butonul Edit de pe rândul 3 al unui tabel.
+\section{Obiectiv}
+
+O scanare descoperă elemente fixe: fiecare este o instanță unică, prezentă o singură dată pe pagină la momentul scanării. Un tabel cu rânduri generate din date, unde utilizatorul vrea să acționeze pe rândul N sau pe rândul cu o anumită cheie, nu are o instanță fixă de descoperit: numărul și conținutul rândurilor depind de date, nu de structura paginii. Elementele dinamice acoperă acest caz: un locator definit manual, parametrizat, în loc de unul descoperit automat.
+
+\section{Decizii de proiectare}
+
+Un element dinamic este definit printr-un șablon de locator (XPath sau CSS) care conține tokenul literal \File{\{param\}}, plus tipul parametrului: \File{Index (int)} pentru poziție numerică, \File{Key (string)} pentru o cheie stabilă din date. La generare, șablonul devine o metodă parametrizată în loc de un câmp fix; apelantul furnizează valoarea la fiecare utilizare, nu la scanare.
+
+Elementele dinamice devin membri ai aceleiași clase generate ca elementele statice ale paginii, așa că numele lor sunt validate împreună, nu separat: două elemente, dinamic și dinamic sau dinamic și static, care ar genera același nume de membru sunt respinse la salvare, nu lăsate să intre în coliziune tăcut, abia la compilarea codului generat. Din același motiv, șablonul este validat să conțină efectiv tokenul \File{\{param\}}, iar strategia locatorului este limitată la cele deja acceptate de generator; nu orice text arbitrar poate deveni șablon.
+
+\section{Impact}
+
+\begin{itemize}
+  \item Elemente cu instanțe multiple, dependente de date (rânduri de tabel, liste generate), pot fi testate fără să fie descoperite individual la scanare.
+  \item O coliziune de nume între un element dinamic și orice alt element al paginii este respinsă la salvare, nu descoperită abia la compilarea codului generat.
+\end{itemize}
+
+\section{Din perspectiva utilizatorului}
 
 \begin{enumerate}
-  \item În Desktop, extindeți \UI{Dynamic elements}.
-  \item Selectați pagina și apăsați \UI{Add dynamic element}.
-  \item Introduceți un nume unic.
-  \item Alegeți Click, Fill, Select sau Assert text.
-  \item Alegeți strategia locatorului.
-  \item Introduceți un șablon care conține tokenul \File{\{param\}}.
-  \item Alegeți \UI{Index (int)} ori \UI{Key (string)} și apăsați \UI{Save}.
-\end{enumerate}
-
-Exemple:
-
+  \item În Desktop, extindeți \UI{Dynamic elements}, selectați pagina și apăsați \UI{Add dynamic element}.
+  \item Introduceți un nume unic și alegeți acțiunea: \UI{Click}, \UI{Fill}, \UI{Select} sau \UI{Assert text}.
+  \item Alegeți strategia locatorului și introduceți un șablon care conține tokenul \File{\{param\}}, de exemplu:
 \begin{lstlisting}
 //table/tbody/tr[{param}]/td[2]/button
 //tr[@data-key='{param}']//button
 \end{lstlisting}
+  \item Alegeți \UI{Index (int)} ori \UI{Key (string)} și apăsați \UI{Save}.
+\end{enumerate}
 
-Pentru utilizare într-un pas, selectați pagina, deschideți grupul \UI{Dynamic}, alegeți elementul și completați Parameter value. Coșul din Dynamic elements șterge definiția; verificați întâi pașii care o folosesc.
+Pentru utilizare într-un pas, selectați pagina, deschideți grupul \UI{Dynamic}, alegeți elementul și completați \UI{Parameter value}. Coșul din \UI{Dynamic elements} șterge definiția; verificați întâi pașii care o folosesc.
+
+\section{Din perspectiva dezvoltatorului}
+
+\begin{tabularx}{\textwidth}{@{}p{5.3cm}Y@{}}
+\toprule \textbf{Componentă} & \textbf{Rol} \\
+\midrule
+\File{DynamicElement} & Modelul de domeniu: numele, acțiunea, strategia, șablonul de locator și tipul parametrului. \\
+\File{WorkspaceRepository.ValidateDynamicElements} & Verifică la salvare tokenul \File{\{param\}}, strategia acceptată și absența coliziunilor de nume, față de elementele statice și dinamice deopotrivă. \\
+\File{PageObjectCodeGenerator.AppendDynamicFactory} & Emite metoda parametrizată: reutilizează \File{ElementWrapper<TData>} pentru Fill/Select, ca la elementele statice, respectiv o metodă simplă cu parametrul \File{param} adăugat pentru Click/Assert. \\
+\bottomrule
+\end{tabularx}
+
+Acoperire cu teste: \File{WorkspaceRepositoryTests} și \File{PageObjectCodeGeneratorTests}, în \File{Cliq.UnitTests}.
+
+\chapter{Page inspector și întreținere}
+
+\section{Obiectiv}
+
+Pe măsură ce o pagină evoluează, elementele ei se pot demoda (marcate not found după o rescanare), iar pagina însăși poate avea nevoie să fie curățată, duplicată ca punct de plecare pentru una asemănătoare, sau ștearsă. Aceste operații de întreținere ating adesea teste existente, care referă pagina sau elementele ei; capitolul descrie cum sunt tratate consecințele fiecăreia.
+
+\section{Decizii de proiectare}
+
+Curățarea elementelor marcate not found (\UI{Remove not found elements}) este o operație în lot, fără verificare automată a referințelor din teste: responsabilitatea rămâne a utilizatorului, avertizat explicit să verifice întâi pașii care le folosesc. Alegerea contrastează deliberat cu Staged Scan Review, unde eliminarea unui element referit e blocată complet: aici utilizatorul lucrează direct pe pagina deja deschisă, cu control fin asupra fiecărui element, nu printr-un flux automat de reconciliere; avertismentul, nu blocarea, e tratamentul potrivit pentru o acțiune pe care oricum o inițiază manual.
+
+Ștergerea unei pagini urmează un tratament diferit, dar tot fără blocare necondiționată: referințele din teste sunt calculate și afișate înainte de confirmare, ca utilizatorul să decidă în cunoștință de cauză, nu să fie oprit categoric. O pagină poate fi ștearsă intenționat chiar dacă un test încă o referă, dacă acel test urmează oricum să fie actualizat sau eliminat separat. Duplicarea unei pagini copiază integral definiția, toate elementele și elementele dinamice, sub un id nou, ca punct de plecare independent, fără nicio legătură ulterioară cu originalul.
+
+\section{Impact}
+
+\begin{itemize}
+  \item Curățarea elementelor învechite nu cere o rescanare completă: se face direct în tabel, pe cele deja marcate not found.
+  \item Ștergerea unei pagini nu e niciodată o surpriză: utilizatorul vede exact ce teste ar rămâne cu o referință ruptă, înainte să confirme.
+  \item O pagină asemănătoare cu una existentă poate porni dintr-o copie completă, nu de la zero.
+\end{itemize}
+
+\section{Din perspectiva utilizatorului}
+
+Selectați \UI{Pages}, apoi pagina și fila \UI{Page inspector}. Tabelul arată numele, tag-ul, acțiunea, locatorul și starea. Filtrarea caută după nume, tag sau locator. Meniul contextual copiază locatorul, iar dublu clic încearcă localizarea în browser.
+
+\UI{Remove not found elements} elimină toate elementele marcate după ultima scanare; verificați întâi testele care le referă, apoi salvați pagina și regenerați. \UI{Duplicate} creează o definiție separată, cu un id nou. \UI{Delete} cere confirmare și afișează referințele din teste. \UI{Open generated file} deschide Page Object-ul, iar Regenerate îl creează dacă lipsește.
+
+\section{Din perspectiva dezvoltatorului}
+
+\begin{tabularx}{\textwidth}{@{}p{5.3cm}Y@{}}
+\toprule \textbf{Componentă} & \textbf{Rol} \\
+\midrule
+\File{PageEditorViewModel.RemoveNotFoundElements} & Șterge din tabel, în lot, toate elementele marcate not found; nu verifică referințele din teste. \\
+\File{WorkbenchViewModel.DeleteSelectedPageAsync} / \File{FindPageReferences} & Calculează testele și pașii care referă pagina și le afișează în dialogul de confirmare; ștergerea rămâne posibilă chiar dacă referințe există. \\
+\File{WorkbenchViewModel.DuplicateSelectedPageAsync} & Copiază integral modelul paginii, sub un id nou și un nume cu sufixul „copy". \\
+\bottomrule
+\end{tabularx}
+
+Acoperire cu teste: \File{WorkbenchAuthoringTests}, în \File{Cliq.VisualStudio.Tests}.
+
+\chapter{Localizarea în browser}
+
+\section{Obiectiv}
+
+Verificarea manuală a unui locator generat (mai există elementul pe pagină, exact acolo unde spune comentariul care îl documentează?) ar necesita altfel fie rularea unui test întreg, fie căutarea manuală a elementului în browser. Funcționalitatea descrisă în acest capitol localizează un singur element direct din codul generat, cu un comportament de tip inspector DevTools: se selectează comentariul locatorului, iar Cliq deschide sau reutilizează un browser și evidențiază elementul.
+
+\section{Decizii de proiectare}
+
+Fereastra de browser este ținută deschisă și reutilizată între apeluri succesive, o singură instanță per pagină, nu una nouă la fiecare localizare. Alegerea altui locator din același fișier reevidențiază în aceeași fereastră, nu deschide una nouă; sesiunea nu este niciodată închisă proactiv de Cliq, ci rămâne sub controlul utilizatorului cât timp acesta continuă să inspecteze pagina respectivă.
+
+Un eșec la localizarea unui anumit element, atunci când locatorul nu se mai potrivește, nu invalidează sesiunea: fereastra rămâne deschisă, gata pentru o încercare cu alt locator. Doar un eșec la crearea sau navigarea sesiunii propriu-zise, când fereastra nu poate fi deschisă deloc, o închide și o elimină din pool, ca următoarea încercare să pornească de la zero.
+
+Legătura dintre poziția din codul generat și elementul din pagină nu este memorată separat, ca o corespondență stocată: ar putea rămâne desincronizată de fișierul real la orice regenerare ulterioară. În schimb, textul comentariului selectat este comparat cu ce ar genera, chiar acum, fiecare element al paginii; elementul al cărui comentariu recalculat se potrivește exact este cel căutat. Un comentariu de element dinamic (șablon, fără o valoare de parametru) este respins explicit; nu are o singură instanță de localizat.
+
+\section{Impact}
+
+\begin{itemize}
+  \item Verificarea unui locator nu cere pornirea unui test întreg, nici căutarea manuală a elementului în browser.
+  \item Localizări repetate pe aceeași pagină rămân rapide: o singură fereastră de browser, nu una nouă de fiecare dată.
+  \item Legătura comentariu-element rămâne mereu corectă față de fișierul curent, pentru că se recalculează la fiecare cerere, nu se citește dintr-un index care ar putea fi desincronizat.
+\end{itemize}
+
+\section{Din perspectiva utilizatorului}
+
+Pentru \UI{Locate in Browser}, deschideți Page Object-ul, poziționați cursorul pe locator sau pe comentariul lui și folosiți meniul contextual. Cliq deschide ori reutilizează browserul și evidențiază elementul. Comentariile elementelor dinamice (șabloane) nu pot fi localizate direct din sursă; le lipsește o valoare de parametru.
+
+\section{Din perspectiva dezvoltatorului}
+
+\begin{tabularx}{\textwidth}{@{}p{5.3cm}Y@{}}
+\toprule \textbf{Componentă} & \textbf{Rol} \\
+\midrule
+\File{SeleniumTestRunner.LocateElementAsync} & Reutilizează sau creează sesiunea de browser a paginii, apoi localizează și evidențiază elementul; distinge un eșec de localizare (sesiunea rămâne) de un eșec de sesiune (sesiunea e închisă). \\
+\File{SeleniumTestRunner.ResolveElementFromComment} & Re-derivă textul de comentariu pe care fiecare element l-ar genera acum și îl compară cu textul selectat, în loc de o legătură stocată; respinge comentariile de elemente dinamice. \\
+\bottomrule
+\end{tabularx}
+
+Sesiunea de browser reutilizată (\File{KeptAliveDriversByPageId}) și evidențierea (\File{ScreenshotCapture}) sunt aceleași folosite de evidențierea live din Page inspector, vezi capitolul „Evidențierea live a elementelor în Page inspector".
+
+Acoperire cu teste: \File{SeleniumTestRunnerLocateFromSourceTests} și \File{SeleniumTestRunnerTests}, în \File{Cliq.UnitTests}.
+
+\chapter[Evidențierea live a elementelor]{Evidențierea live a elementelor în Page inspector}
+
+\section{Obiectiv}
+
+Localizarea unui element cunoscut de \Cliq{} în Page inspector se făcea, până la această funcționalitate, printr-o acțiune punctuală: utilizatorul alegea un element din tabel, iar \Cliq{} îl evidenția o singură dată în browser. Nu exista și sensul invers, de la un element vizibil în browser către rândul lui din tabel, util mai ales pe pagini cu multe elemente asemănătoare, greu de distins doar după nume. Funcționalitatea descrisă în acest capitol adaugă acest sens invers, sub forma unei evidențieri live a elementului aflat sub cursor.
+
+\section{Decizii de proiectare}
+
+Fluxul de rulare a testelor expune deja un canal de tip Server-Sent Events pentru progresul unei rulări. Evidențierea live reutilizează același mecanism de transport, în loc să introducă unul nou (interogare periodică sau WebSocket): browserul rămâne cel deschis de Selenium, iar backend-ul instalează un tracker de hover în pagină care urmărește continuu poziția cursorului. Un eveniment este trimis doar în momentul în care elementul cunoscut aflat sub cursor se schimbă (de la un element la altul, sau de la un element la niciunul), nu la fiecare mișcare a mouse-ului cât timp cursorul rămâne pe același element.
+
+Spre deosebire de fluxul de rulare, acest stream nu are un eveniment final de tip „done": rulează până când utilizatorul dezactivează evidențierea live sau conexiunea se întrerupe dintr-un alt motiv. Cele două cazuri sunt distinse explicit (oprire cerută de utilizator, față de o deconectare neașteptată), astfel încât apelantul poate reacționa diferit la fiecare.
+
+Pe partea de extensie, starea evidențierii live este urmărită separat de restul acțiunilor (scanare, generare, rulare), care ocupă pe rând un singur loc de operație activă. Motivul: o evidențiere live rulează pe o durată nedeterminată, iar o scanare sau o generare pornită cât timp evidențierea e activă trebuie să funcționeze neschimbat, nu blocată de un stream care oricum nu s-a încheiat.
+
+\section{Impact}
+
+\begin{itemize}
+  \item Page inspector capătă un sens de căutare invers: de la elementul vizibil în browser către rândul lui din tabel, util pe pagini cu multe elemente similare.
+  \item Mecanismul de transport (parsarea liniilor stream-ului) este partajat cu fluxul de progres al rulărilor, în loc să fie duplicat: o singură implementare de întreținut pentru protocolul de stream.
+  \item Evidențierea live nu blochează celelalte acțiuni ale workspace-ului: o scanare sau o generare pot porni normal cât timp evidențierea rulează.
+\end{itemize}
+
+\section{Din perspectiva utilizatorului}
+
+\begin{enumerate}
+  \item În Visual Studio, se deschide \UI{Page inspector} pentru pagina dorită.
+  \item Se apasă butonul \UI{Start Live Highlight}.
+  \item Cât timp evidențierea este activă, mutarea cursorului peste un element cunoscut în browserul de test evidențiază automat rândul corespunzător din tabel.
+  \item Se apasă din nou butonul pentru oprire.
+\end{enumerate}
+
+\section{Din perspectiva dezvoltatorului}
+
+\begin{tabularx}{\textwidth}{@{}p{5.3cm}Y@{}}
+\toprule \textbf{Componentă} & \textbf{Rol} \\
+\midrule
+Endpoint \File{hover-stream} & Expune progresul evidențierii ca Server-Sent Events; deschide sau reutilizează sesiunea de browser și redă evenimentele primite de la stratul de rulare a testelor. \\
+\File{ITestRunner.StreamHoveredElementAsync} & Instalează un tracker de hover în pagină și emite id-ul elementului cunoscut aflat sub cursor, sau nimic când cursorul iese de pe orice element cunoscut; emite din nou doar la schimbarea id-ului, nu la fiecare poziție a mouse-ului. \\
+\File{ScreenshotCapture.ClearHighlights} & Șterge orice evidențiere rămasă în pagină înainte de a marca un alt element, în aceeași sesiune de browser reutilizată. \\
+\File{CliqApiClient.StreamHoveredElementAsync} & Consumă stream-ul pe partea de extensie, prin același cod de citire folosit și de fluxul de progres al rulărilor. \\
+\File{WorkspaceActionsViewModel} & Expune starea curentă a evidențierii (elementul evidențiat, activ/inactiv); urmărită separat de starea celorlalte acțiuni, ca să nu le blocheze. \\
+\bottomrule
+\end{tabularx}
+
+Acoperire cu teste: partea de extensie este acoperită în \File{Cliq.VisualStudio.Tests}. Partea de backend care conduce browserul nu are teste unitare dedicate, vezi capitolul „Teste automate".
 
 \chapter{Crearea și editarea testelor}
+
+\section{Obiectiv}
+
+Un pas de test descrie o intenție funcțională (completează acest câmp, apasă acest buton, bifează această opțiune) fără ca autorul să scrie cod. Editorul de pași, comun ambelor interfețe, transformă această intenție într-o listă ordonată de acțiuni, fiecare legată de o pagină și un element deja scanate.
+
+\section{Decizii de proiectare}
+
+Setarea unui checkbox nu apasă necondiționat elementul, ci compară starea curentă cu starea cerută și apasă doar dacă diferă. Alegerea contează pentru că un checkbox HTML nu are o operație de „setare" nativă, doar comută la fiecare click, așa că o apăsare necondiționată ar putea inversa exact starea dorită, dacă elementul se întâmplă să fie deja corect (de exemplu la o rulare repetată, pe o pagină a cărei stare nu se resetează de la o sesiune la alta). Aceeași verificare este emisă identic, indiferent dacă pagina generată e autonomă sau moștenește dintr-un \File{BasePage} comun.
+
+Assert URL este singura acțiune care nu cere nici pagină, nici element: compară direct URL-ul curent cu o expresie regulată, ceea ce îi permite să verifice o navigare produsă de altă acțiune (de exemplu un submit de formular), fără să depindă de un element anume de pe pagina de destinație.
+
+\section{Impact}
+
+\begin{itemize}
+  \item Un test poate rula repetat, pe o pagină a cărei stare de checkbox nu e resetată de fiecare dată, fără riscul de a inversa accidental o stare deja corectă.
+  \item Verificarea unei navigări nu necesită un element ancoră pe pagina de destinație, doar tiparul URL-ului.
+\end{itemize}
 
 \section{Test nou în Desktop}
 
@@ -247,11 +625,9 @@ Assert URL nu cere pagină ori element. Pentru potrivire exactă folosiți ancor
 
 \section{Valori, checkbox, radio și multi-select}
 
-O valoare \UI{Literal} este salvată în test. O valoare \UI{Secret} salvează doar cheia. Creați cheia în fila Secrets din Visual Studio. Codul NUnit caută \File{CLIQ_<CHEIE>}; \File{login.password} devine \File{CLIQ_LOGIN_PASSWORD}.
+O valoare de pas este \UI{Literal} (salvată direct în test) sau \UI{Secret} (referă doar o cheie, vezi capitolul „Gestionarea secretelor").
 
 Pentru checkbox alegeți Checked sau Unchecked; Selenium apasă numai dacă starea trebuie schimbată. Pentru radio, Select folosește valoarea opțiunii. Pentru \File{select multiple}, apăsați \UI{Add value} pentru fiecare opțiune, alegeți Literal/Secret și eliminați intrările greșite cu coșul.
-
-\warningbox{Nu salvați parole ca Literal. Fișierul testului poate fi comis în Git.}
 
 \section{Editarea în Visual Studio}
 
@@ -265,7 +641,88 @@ Pentru checkbox alegeți Checked sau Unchecked; Selenium apasă numai dacă star
 
 Extensia nu salvează automat. Bara de sus indică editările. \UI{Reload} recitește discul și cere confirmare dacă există modificări nesalvate. Ștergerea testului este disponibilă aici și solicită confirmare; Desktop nu expune în prezent un buton de ștergere.
 
+\section{Din perspectiva dezvoltatorului}
+
+\begin{tabularx}{\textwidth}{@{}p{5.3cm}Y@{}}
+\toprule \textbf{Componentă} & \textbf{Rol} \\
+\midrule
+\File{PageObjectCodeGenerator.AppendMethod} (cazul Click pentru checkbox) & Emite verificarea de stare înainte de apăsare, identică în varianta autonomă și în cea cu \File{BasePage}. \\
+\File{BasePage.SetChecked} & Aceeași verificare, partajată, când pagina moștenește dintr-un \File{BasePage} comun. \\
+\bottomrule
+\end{tabularx}
+
+Acoperire cu teste: \File{PageObjectCodeGeneratorTests}, în \File{Cliq.UnitTests}.
+
+\chapter{Gestionarea secretelor}
+
+\section{Obiectiv}
+
+Un test conține adesea date sensibile (o parolă, un token) necesare pentru a completa un formular sau a autentifica un utilizator de test. Salvarea directă a acestor valori în fișierul testului le-ar expune oriunde ajunge fișierul, inclusiv într-un istoric Git. Mecanismul descris în acest capitol separă cheia, care poate fi văzută și versionată, de valoare, care nu părăsește niciodată mediul local sau de execuție.
+
+\section{Decizii de proiectare}
+
+O valoare de pas poate fi \UI{Literal} (salvată direct în testul JSON) sau \UI{Secret} (salvează doar o cheie simbolică, de exemplu \File{login.password}). Valoarea propriu-zisă a unui secret există doar în două locuri, niciodată amândouă în același fișier versionat: local, în \File{.cliq/secrets.local.json} (exclus explicit prin \File{.gitignore}), folosit când testul rulează interactiv din Cliq; și în mediul de execuție, ca variabilă de sistem, când testul generat rulează independent, prin \File{dotnet test}.
+
+Codul NUnit generat citește secretul direct din variabila de mediu la momentul rulării, cu numele derivat mecanic din cheie (\File{login.password} devine \File{CLIQ\_LOGIN\_PASSWORD}), și eșuează explicit, cu un mesaj clar, dacă variabila lipsește, în loc să continue cu o valoare goală. Nicio etapă a fluxului, nici fișierul testului, nici codul generat, nu conține vreodată valoarea propriu-zisă; doar cheia și, separat, mecanismul de citire.
+
+\section{Impact}
+
+\begin{itemize}
+  \item Fișierul unui test poate fi comis în Git în siguranță, indiferent câte valori Secret conține: doar cheile sunt persistate acolo.
+  \item Rularea codului generat în afara Cliq (integrare continuă, linia de comandă) necesită doar setarea variabilelor de mediu corespunzătoare cheilor folosite.
+  \item O cheie fără valoare configurată local nu trece neobservată: rularea interactivă din Cliq și \File{dotnet test} eșuează amândouă explicit, nu cu o valoare goală.
+\end{itemize}
+
+\section{Din perspectiva utilizatorului}
+
+\begin{itemize}
+  \item În fila \UI{Secrets} din Visual Studio, \UI{+ Add secret} introduce cheia și valoarea. Cheia începe cu literă sau underscore și poate conține litere, cifre, punct, minus și underscore; valoarea nu poate fi goală. Interfața afișează o mască, nu valoarea; \UI{Update value} o înlocuiește, \UI{Delete} o elimină.
+  \item La un pas, o valoare \UI{Secret} referă cheia definită în Secrets, nu introduce direct o valoare.
+\end{itemize}
+
+\warningbox{Nu salvați parole ca Literal. Fișierul testului poate fi comis în Git.}
+
+Pentru rularea codului generat în afara Cliq, definiți variabilele de mediu corespunzătoare. Exemplu PowerShell:
+
+\begin{lstlisting}
+$env:CLIQ_LOGIN_PASSWORD = "valoarea-din-mediul-de-test"
+dotnet test
+\end{lstlisting}
+
+\section{Din perspectiva dezvoltatorului}
+
+\begin{tabularx}{\textwidth}{@{}p{5.3cm}Y@{}}
+\toprule \textbf{Componentă} & \textbf{Rol} \\
+\midrule
+\File{StepValue} & Discriminează Literal de Secret; pentru Secret, câmpul de valoare reține cheia, niciodată valoarea propriu-zisă. \\
+\File{WorkspaceSecretStore} & Persistă local perechile cheie/valoare, în \File{secrets.local.json}, folosite la rularea interactivă din Cliq. \\
+\File{WorkspaceCodeGeneration} (\File{RequiredSecret}) & În codul generat, citește \File{CLIQ\_<CHEIE>} din mediu la runtime; aruncă explicit dacă variabila lipsește. \\
+\bottomrule
+\end{tabularx}
+
+Acoperire cu teste: \File{WorkspaceSecretStoreTests}, în \File{Cliq.UnitTests}.
+
 \chapter{Rularea testelor}
+
+\section{Obiectiv}
+
+Un test trebuie să poată fi urmărit vizual în timp ce rulează, ca să se vadă exact ce element e vizat înainte de fiecare acțiune, iar un eșec să poată fi diagnosticat imediat, nu doar dedus dintr-un mesaj de eroare. Rularea interactivă din Cliq oferă exact asta, folosind același motor Selenium ca testul NUnit generat, astfel încât un test care trece în Cliq să se comporte identic și în afara lui.
+
+\section{Decizii de proiectare}
+
+Fereastra de browser este întotdeauna vizibilă, niciodată headless: o alegere fixă, nu o opțiune de configurare, pentru că întregul scop al rulării interactive este observarea ei. Înainte de fiecare acțiune, elementul țintă este localizat, evidențiat, urmează o pauză configurabilă, apoi este relocalizat și abia atunci acționat; relocalizarea de după pauză există ca acțiunea să opereze pe o referință proaspătă, nu pe una posibil învechită de orice ar fi putut mișca pagina în timpul pauzei vizuale.
+
+Durata fiecărui pas este împărțită explicit în timp de localizare și timp de acțiune, nu raportată ca un singur total: distincția arată dacă un pas lent așteaptă apariția elementului sau dacă acțiunea propriu-zisă durează, două cauze diferite de diagnosticat. La eșec, dacă opțiunea e activă, este capturat un screenshot cu elementul localizat evidențiat, aceeași infrastructură de evidențiere folosită de localizarea din browser și de evidențierea live.
+
+\section{Impact}
+
+\begin{itemize}
+  \item Un eșec poate fi diagnosticat vizual, imediat, fără o rulare separată doar pentru depanare.
+  \item Un test care trece în Cliq folosește exact motorul pe care îl va folosi și codul NUnit generat: nicio diferență de comportament între cele două.
+  \item Timpul de localizare separat de timpul de acțiune indică direct unde se duce timpul unui pas lent.
+\end{itemize}
+
+\section{Din perspectiva utilizatorului}
 
 \begin{enumerate}
   \item Selectați un test cu cel puțin un pas activ.
@@ -278,21 +735,45 @@ Extensia nu salvează automat. Bara de sus indică editările. \UI{Reload} recit
 
 Dacă screenshot-ul la eșec este activ, folosiți \UI{Screenshot} în Desktop sau \UI{View screenshot} în Visual Studio. Imaginea poate evidenția elementul localizat. Un fișier curățat între timp este raportat ca indisponibil.
 
+\section{Din perspectiva dezvoltatorului}
+
+\begin{tabularx}{\textwidth}{@{}p{5.3cm}Y@{}}
+\toprule \textbf{Componentă} & \textbf{Rol} \\
+\midrule
+\File{SeleniumTestRunner.Run} / \File{ExecuteStep} & Rulează pașii activi într-o fereastră vizibilă; pentru fiecare, aplică secvența localizează-evidențiază-pauză-relocalizează-acționează și înregistrează separat \File{LocateMs}/\File{ActionMs}. \\
+\File{SeleniumTestRunner.CaptureFailure} & La eșec, capturează un screenshot cu elementul (re)localizat evidențiat, dacă opțiunea e activă. \\
+\bottomrule
+\end{tabularx}
+
+Acoperire cu teste: \File{SeleniumTestRunnerTests}, în \File{Cliq.UnitTests}.
+
 \chapter{Generarea codului}
 
-\section{Desktop și Visual Studio}
+\section{Obiectiv}
 
-În Desktop selectați testul și apăsați \UI{Generate}. Sunt incluse testul, paginile referite și pagina curentă chiar dacă nu este încă folosită de un pas. Fără test selectat se poate genera workspace-ul complet.
+Un pas de test descrie o acțiune la nivel funcțional (completează, selectează, verifică) fără cod. Generarea de cod transformă paginile și testele definite în Cliq într-o clasă Page Object per pagină și o clasă de test NUnit per test, astfel încât fluxul de autor din Cliq să se încheie cu cod C\# obișnuit, care poate fi citit, rulat și versionat independent de Cliq.
+
+\section{Decizii de proiectare}
+
+Fiecare element cu locator fix, toate mai puțin Radio, a cărui țintă depinde de opțiunea aleasă la runtime, devine un câmp static, calculat o singură dată la nivel de clasă, nu reconstruit de fiecare dată când o metodă îl folosește.
+
+Elementele Fill și Select au, spre deosebire de Click sau Assert, atât o acțiune de scriere cât și una de citire a valorii curente. În loc de două metode separate per element, fiecare astfel de element devine o proprietate de tip \File{ElementWrapper<TData>}: o singură clasă generată o dată per namespace, nu per pagină, care perechează un locator cu acces tipizat de citire și scriere. Tipul concret variază după natura datelor (\File{string}, \File{int} sau \File{DateTime} pentru Fill, în funcție de input; un șir de valori pentru multi-select), dar forma API-ului, \File{Upload}/\File{Read}, rămâne aceeași pentru orice element de acest fel.
+
+\section{Impact}
+
+\begin{itemize}
+  \item Un locator fix este calculat o singură dată per clasă, nu reconstruit la fiecare apel al metodei care îl folosește.
+  \item Elementele cu scriere și citire au un API uniform, tipizat, indiferent de tipul datelor pe care îl poartă.
+  \item Fluxul se încheie cu cod C\# obișnuit: citit, rulat și versionat ca orice alt fișier din proiect, fără dependență de Cliq la execuție.
+\end{itemize}
+
+\section{Din perspectiva utilizatorului}
+
+În Desktop, selectați testul și apăsați \UI{Generate}. Sunt incluse testul, paginile referite și pagina curentă, chiar dacă nu este încă folosită de un pas. Fără test selectat se poate genera workspace-ul complet.
 
 În Visual Studio, \UI{Generate Selected} generează entitatea selectată, iar \UI{Generate All} regenerează tot. Dialogul rezultatului permite Open, dublu clic și Reveal. \UI{Regenerate} din Page inspector actualizează numai pagina; pentru testele dependente folosiți Generate All.
 
-Sunt create câte un \File{<PageName>Page.cs} și \File{<TestName>Tests.cs}, plus \File{ElementWrapper.cs} și \File{CliqCustomMethodAttribute.cs}. Dacă este configurat un exemplu, se creează și \File{BasePage.cs}.
-
-Fill și Select folosesc \File{ElementWrapper<TData>}. Tipul poate fi \File{string}, \File{int} sau \File{DateTime}, în funcție de input; multi-select folosește un șir de valori. Elementele dinamice devin metode parametrizate.
-
-\section{Potrivirea unui stil existent}
-
-În \UI{Cliq settings > Base page matching}, introduceți calea relativă către un Page Object \File{.cs}. Cliq citește convențiile pentru driver și wait, creează BasePage și face paginile să moștenească această clasă. Lăsați gol pentru clase autonome.
+Sunt create câte un \File{<PageName>Page.cs} și \File{<TestName>Tests.cs}, plus \File{ElementWrapper.cs} și \File{CliqCustomMethodAttribute.cs}. Dacă este configurat un exemplu de stil, se creează și \File{BasePage.cs}. Elementele dinamice devin metode parametrizate.
 
 Rulați codul generat cu:
 
@@ -300,16 +781,98 @@ Rulați codul generat cu:
 dotnet test
 \end{lstlisting}
 
-Pentru secrete, definiți variabilele de mediu. Exemplu PowerShell:
+Pentru secrete, vezi capitolul „Gestionarea secretelor".
 
-\begin{lstlisting}
-$env:CLIQ_LOGIN_PASSWORD = "valoarea-din-mediul-de-test"
-dotnet test
-\end{lstlisting}
+\section{Din perspectiva dezvoltatorului}
+
+\begin{tabularx}{\textwidth}{@{}p{5.3cm}Y@{}}
+\toprule \textbf{Componentă} & \textbf{Rol} \\
+\midrule
+\File{PageObjectCodeGenerator.Generate} & Emite clasa Page Object: câmpuri statice pentru locatorii ficși, proprietăți \File{ElementWrapper<TData>} pentru elementele Fill/Select, metode simple pentru rest. \\
+\File{PageObjectCodeGenerator.GenerateElementWrapperFile} & Emite \File{ElementWrapper<TData>}, o singură dată per namespace: perechea locator plus acces tipizat citire/scriere, comună tuturor paginilor generate. \\
+\File{WorkspaceCodeGeneration} & Orchestrează generarea per test/pagină/workspace și scrierea fișierelor însoțitoare (\File{CliqCustomMethodAttribute.cs}, opțional \File{BasePage.cs}). \\
+\bottomrule
+\end{tabularx}
+
+Acoperire cu teste: \File{PageObjectCodeGeneratorTests} și \File{WorkspaceCodeGenerationTests}, în \File{Cliq.UnitTests}.
+
+\chapter[Generarea clasei de bază BasePage]{Generarea clasei de bază (\File{BasePage}) după stilul unui Page Object existent}
+
+\section{Obiectiv}
+
+Un proiect care folosește deja Selenium poate avea o convenție proprie pentru clasa de bază a Page Object-urilor: numele câmpului pentru driver, numele câmpului de tip \File{WebDriverWait} sau alte convenții de denumire. Fără o modalitate de a prelua această convenție, codul generat de \Cliq{} ar introduce un al doilea stil, paralel cu cel existent, în același proiect. Funcționalitatea descrisă în acest capitol generează o clasă de bază comună, \File{BasePage.cs}, ai cărei membri sunt derivați parțial dintr-un Page Object exemplu indicat de utilizator; paginile generate ulterior moștenesc din ea.
+
+\section{Decizii de proiectare}
+
+O primă variantă a soluției presupunea moștenirea directă din clasa de bază deja existentă în proiect. Abordarea a fost abandonată: comportamentul acelei clase nu este controlat de \Cliq{}, iar orice modificare structurală a ei (semnătura constructorului, redenumirea unui membru) putea rupe compilarea codului generat, fără ca eroarea să provină din \Cliq{} însuși.
+
+Soluția adoptată inversează relația: \Cliq{} generează propria clasă \File{BasePage}, iar din exemplul indicat preia \emph{doar convenția de denumire}: numele parametrului și al câmpului pentru driver, respectiv numele câmpului \File{WebDriverWait}, dacă acesta există. Alegerile structurale, ce metode conține \File{BasePage}, cum este tratat un click interceptat de un element tranzitoriu, nu sunt preluate din exemplu, ci aparțin exclusiv logicii de generare a \Cliq{}.
+
+Extragerea stilului din exemplu este realizată prin analiză sintactică Roslyn, fără compilare, aceeași abordare folosită și la verificarea metodelor personalizate. Alegerea elimină dependența de compilarea proiectului sursă al exemplului; este suficient ca fișierul să fie sintactic valid.
+
+\section{Impact}
+
+\begin{itemize}
+  \item Codul generat nu mai depinde, la compilare sau la execuție, de o clasă externă neîntreținută de \Cliq{}.
+  \item Logica de interacțiune tolerantă la suprapuneri tranzitorii (un tooltip sau un banner care blochează temporar un click) este centralizată o singură dată în \File{BasePage}, în loc să fie duplicată în fiecare pagină generată.
+  \item Un proiect cu o convenție de denumire deja stabilită poate adopta codul generat de \Cliq{} fără o rescriere a claselor existente.
+  \item Membrii din \File{BasePage} sunt declarați \File{virtual}; o pagină individuală îi poate suprascrie printr-o metodă marcată \File{[CliqCustomMethod]}, păstrată la regenerare.
+\end{itemize}
+
+\section{Din perspectiva utilizatorului}
+
+\begin{enumerate}
+  \item În \UI{Cliq settings > Base page matching} se introduce calea relativă către un Page Object \File{.cs} existent în workspace.
+  \item La generare, \Cliq{} citește convențiile de denumire din fișierul indicat și creează \File{BasePage.cs} în directorul de ieșire configurat.
+  \item Paginile generate ulterior moștenesc din \File{BasePage} și folosesc câmpurile acesteia în locul propriilor câmpuri de driver și wait.
+  \item Câmpul rămâne gol pentru generarea unor clase autonome, fără clasă de bază comună; comportamentul implicit, nemodificat.
+\end{enumerate}
+
+\section{Din perspectiva dezvoltatorului}
+
+\begin{tabularx}{\textwidth}{@{}p{5.2cm}Y@{}}
+\toprule \textbf{Componentă} & \textbf{Rol} \\
+\midrule
+\File{ExamplePageStyleReader} & Extrage numele parametrului/câmpului driver și, opțional, câmpul \File{WebDriverWait} din sursa exemplu, prin analiză sintactică Roslyn. \\
+\File{PageObjectCodeGenerator}. \File{GenerateBasePageFile} & Generează \File{BasePage.cs}: câmpurile de driver și wait, metodele \File{Locate}, \File{TryLocate}, \File{Hover}, \File{SetChecked} și \File{ClickWithFallback} (retrimite click-ul prin JavaScript dacă Selenium raportează \File{ElementClickInterceptedException}). \\
+\File{WorkspaceCodeGeneration} & Orchestrează scrierea \File{BasePage.cs} alături de restul artefactelor și trece fișierul prin același flux de recuperare a metodelor personalizate ca orice altă clasă generată. \\
+\bottomrule
+\end{tabularx}
+
+Când nicio cale de exemplu nu este configurată, paginile generate rămân autonome, fiecare cu propriile câmpuri de driver și wait; comportamentul dinaintea acestei funcționalități.
+
+Acoperire cu teste: \File{ExamplePageStyleReaderTests}, \File{PageObjectCodeGeneratorTests} și \File{WorkspaceCodeGenerationTests}, în \File{Cliq.UnitTests}.
 
 \chapter{Metode custom și Pending Merges}
 
-O metodă manuală supraviețuiește regenerării numai cu \File{[CliqCustomMethod]}:
+\section{Obiectiv}
+
+O clasă Page Object este regenerată integral de fiecare dată, pornind din elementele scanate. O metodă scrisă manual în același fișier, de exemplu una care combină mai mulți pași într-o singură acțiune, ar fi ștearsă la următoarea generare, fără o cale explicită de a o păstra. Funcționalitatea descrisă în acest capitol permite unei metode marcate să supraviețuiască regenerării, iar orice ambiguitate despre ce se întâmplă cu ea este tratată printr-o decizie a utilizatorului, nu printr-o presupunere automată.
+
+\section{Decizii de proiectare}
+
+O metodă supraviețuiește doar dacă poartă atributul \File{[CliqCustomMethod]}; orice altceva din fișier este înlocuit necondiționat la regenerare. Extragerea metodelor marcate folosește analiză sintactică Roslyn, nu doar numărarea acoladelor, ca să fie detectate și metodele cu erori reale de sintaxă, nu doar cele nepotrivite ca formă.
+
+Prima variantă a soluției recupera automat metodele marcate și afișa doar un avertisment pasiv când extragerea eșua parțial. Abordarea a fost înlocuită cu o alegere activă: fiecare metodă marcată este prezentată individual, iar utilizatorul decide explicit ce se întâmplă cu ea: \UI{Carry over} pentru păstrare, \UI{Defer} pentru amânare într-o listă de așteptare, sau \UI{Discard permanently} pentru eliminare definitivă. Nu există o decizie implicită aplicată tacit.
+
+O rafinare ulterioară a extins regula la orice pagină cu cel puțin o metodă custom, nu doar la cele cu o recuperare eșuată: chiar și metodele care s-ar recupera perfect cer, la fiecare regenerare, o confirmare explicită. Motivul este consecvent cu restul aplicației: nicio corecție silențioasă, nicio presupunere aplicată tacit, extins acum și la codul scris manual; chiar dacă recuperarea automată ar reuși de fiecare dată, lipsa unei confirmări explicite ar însemna, în fond, o presupunere tacită.
+
+Regula are un cost asumat: regenerarea întregii pagini este blocată cât timp există o metodă custom nerezolvată, nu doar partea care o privește. Un element nou-scanat pe acea pagină nu ajunge în fișierul generat până la rezolvare. Fișierul rămâne complet neatins până la decizie, în ambele situații care o cer: o redenumire de pagină cu metode custom în fișierul vechi, sau o regenerare cu același nume.
+
+Interfața Electron (Cliq Desktop) nu a fost extinsă cu acest flux: vede în continuare doar avertismentul pasiv original, fără fereastra de merge. O pagină cu metode custom nu mai produce niciun artefact nici pentru Desktop, fără nicio explicație vizibilă acolo; rămâne un decalaj cunoscut, neînchis încă.
+
+\section{Impact}
+
+\begin{itemize}
+  \item Nicio metodă scrisă manual nu poate fi pierdută sau suprascrisă fără o decizie explicită a utilizatorului.
+  \item Regenerarea unei pagini cu metode custom nerezolvate este blocată integral, nu parțial; cost asumat pentru garanția de mai sus.
+  \item Lista de așteptare este unică pe tot workspace-ul, nu per pagină, dar fiecare intrare rămâne asociată paginii de origine.
+  \item Interfața Desktop rămâne, deocamdată, fără acces la acest flux: o pagină cu metode custom e stabilă acolo doar dacă rămâne nemodificată.
+\end{itemize}
+
+\section{Din perspectiva utilizatorului}
+
+O metodă manuală supraviețuiește regenerării numai marcată cu \File{[CliqCustomMethod]}:
 
 \begin{lstlisting}[language={[Sharp]C}]
 [CliqCustomMethod]
@@ -319,7 +882,7 @@ public void ConfirmOrder()
 }
 \end{lstlisting}
 
-Un conflict apare dacă extractorul recuperează mai puține metode decât indică marcajele sau dacă pagina a fost redenumită iar vechiul fișier are metode custom. Fișierul rămâne neatins.
+Fereastra \UI{Pending Merges} se deschide automat la orice regenerare a unei pagini cu cel puțin o metodă custom, indiferent dacă recuperarea ar reuși curat sau nu, sau manual, din comanda \UI{Pending Merges}.
 
 În \UI{Pending Merges > Resolve conflicts}:
 
@@ -333,41 +896,21 @@ Metodele cu sintaxă invalidă nu pot fi incluse; corectați fișierul și regen
 
 \warningbox{Discard permanently nu poate fi anulat din Cliq. Verificați sursa și istoricul Git înainte de alegere.}
 
-\chapter{Page inspector și întreținere}
+\section{Din perspectiva dezvoltatorului}
 
-Selectați \UI{Pages}, apoi pagina și fila \UI{Page inspector}. Tabelul arată numele, tag-ul, acțiunea, locatorul și starea. Filtrarea caută după nume, tag sau locator. Meniul contextual copiază locatorul, iar dublu clic încearcă localizarea în browser.
-
-\UI{Remove not found elements} elimină toate elementele marcate după ultima scanare. Verificați întâi testele care le referă, salvați pagina și regenerați. \UI{Duplicate} creează o definiție separată. \UI{Delete} cere confirmare și afișează referințele din teste. \UI{Open generated file} deschide Page Object-ul, iar Regenerate îl creează dacă lipsește.
-
-\chapter{Staged scan review în Visual Studio}
-
-Porniți din \UI{Scan Page...}, Rescan din Page inspector sau \UI{Scan URL in Cliq...} pentru un URL selectat. Completați URL-ul, numele, browserul și opțiunea headless, apoi Scan. Operația poate fi anulată.
-
-La modificări, pagina activă nu este scrisă înainte de review. Fiecare element cere o decizie:
-
-\begin{tabularx}{\textwidth}{@{}p{3.5cm}YY@{}}
-\toprule \textbf{Schimbare} & \textbf{Accept} & \textbf{Deny} \\
+\begin{tabularx}{\textwidth}{@{}p{5.3cm}Y@{}}
+\toprule \textbf{Componentă} & \textbf{Rol} \\
 \midrule
-Element nou & Add: adaugă elementul. & Omit: nu îl adaugă. \\
-Element lipsă & Remove: elimină elementul. & Keep: păstrează definiția veche. \\
+\File{CustomMethodExtractor} / \File{CustomMethodSyntaxChecker} & Extrag metodele marcate din fișierul existent și le validează sintactic prin Roslyn, semnalând orice marcaj care nu se închide curat sau conține erori reale. \\
+\File{WorkspaceCodeGeneration.GenerateAsync} & Distinge, pentru fiecare pagină, recuperarea eșuată propriu-zis (\File{isConflicted}) de nevoia unei decizii (\File{needsDecision}, adevărat pentru orice pagină cu cel puțin o metodă custom); fișierul nu este scris cât timp o decizie lipsește. \\
+\File{PendingCustomMethodMerge} / \File{PendingCustomMethodEntry} & Modelează metodele care așteaptă o decizie și, respectiv, o intrare persistată în lista de așteptare globală (\File{.cliq/pending-custom-methods.json}). \\
+\File{MergeViewModel} / \File{MergeControl.xaml} & Fereastra Pending Merges din Visual Studio, cu cele trei opțiuni per metodă (\File{Carry over}/\File{Defer}/\File{Discard}) și lista de așteptare. \\
 \bottomrule
 \end{tabularx}
 
-Folosiți deciziile individuale sau Accept/Deny New, Missing ori All. Apply necesită o decizie pentru fiecare element. Eliminarea unui element referit de un test este blocată și sunt afișate testul și pasul. Un review devenit vechi cere rescanare. \UI{Discard} lasă pagina nemodificată. Istoricul este păstrat în \File{.cliq/runs/scan-reviews}.
-
-\chapter{Localizarea în browser}
-
-Pentru \UI{Locate in Browser}, deschideți Page Object-ul, poziționați cursorul pe locator sau comentariul lui și folosiți meniul contextual. Cliq deschide ori reutilizează browserul și evidențiază elementul.
-
-Pentru \UI{Start Live Highlight}, deschideți Page inspector și apăsați butonul. La trecerea mouse-ului peste un element în browser, rândul corespunzător este evidențiat în tabel. Apăsați din nou pentru oprire.
+Acoperire cu teste: \File{CustomMethodExtractorTests}, \File{CustomMethodSyntaxCheckerTests} și \File{WorkspaceCodeGenerationTests}, în \File{Cliq.UnitTests}; \File{MergeViewModelTests}, în \File{Cliq.VisualStudio.Tests}.
 
 \chapter{Setări}
-
-\section{Element identification}
-
-\UI{Test ID attribute} este implicit \File{data-testid}. Strategy order poate conține \File{testId}, \File{xpath} și \File{css}; prima strategie care produce un locator valid câștigă. Folosiți Move up/down, Remove și Add strategy. Lista nu poate fi goală.
-
-\UI{Ignore ID patterns} primește câte o expresie regulată pe linie. Valorile implicite ignoră forme generate de Ember, React Select, Angular și UUID. Expresiile trebuie să fie valide.
 
 \section{Execution și Scanning}
 
@@ -381,13 +924,7 @@ Pentru \UI{Start Live Highlight}, deschideți Page inspector și apăsați buton
   \item Capture a screenshot after scanning.
 \end{itemize}
 
-Timeout-ul unui pas are prioritate față de cel implicit. Valorile trebuie să fie pozitive, exceptând Highlight pause care poate fi zero. În Base page matching poate fi introdusă calea relativă către un Page Object existent. Apăsați \UI{Save settings}; mesajul de validare explică erorile.
-
-\chapter{Secrete}
-
-În fila \UI{Secrets}, apăsați \UI{+ Add secret}, introduceți cheia și valoarea, apoi confirmați. Cheia începe cu literă sau underscore și poate conține litere, cifre, punct, minus și underscore. Valoarea nu poate fi goală.
-
-Interfața afișează o mască, nu valoarea. \UI{Update value} înlocuiește secretul, iar Delete îl elimină. Datele sunt locale în \File{.cliq/secrets.local.json}. Testele generate folosesc separat variabilele \File{CLIQ_*}.
+Timeout-ul unui pas are prioritate față de cel implicit. Valorile trebuie să fie pozitive, exceptând Highlight pause care poate fi zero. Apăsați \UI{Save settings}; mesajul de validare explică erorile.
 
 \chapter{Comenzi Visual Studio}
 
@@ -411,6 +948,28 @@ Scurtăturile sunt Ctrl+Shift+Alt+W pentru Workbench, R pentru Run, S pentru Sca
 
 \chapter{Predarea către Desktop}
 
+\section{Obiectiv}
+
+Desktop și extensia Visual Studio nu pot deține simultan rezervarea de scriere a aceluiași workspace (vezi capitolul „Workspace-ul Cliq"), dar utilizatorul are nevoie să treacă de la una la alta fără pași manuali, fără să elibereze și să redeschidă workspace-ul singur. Predarea automatizează exact această tranziție: extensia își eliberează propria rezervare, pornește Desktop și așteaptă, apoi recuperează rezervarea când Desktop se închide.
+
+\section{Decizii de proiectare}
+
+Cele două procese nu comunică direct între ele: nu există niciun canal prin care Desktop să anunțe extensia că a pornit sau că s-a închis. Extensia detectează indirect prezența lui Desktop prin comportamentul rezervării: după ce își eliberează propria rezervare și pornește Desktop, încearcă periodic să o recupereze. Cât timp încercarea eșuează, Desktop o deține încă; când reușește pentru prima dată, poate însemna fie că Desktop nu a apucat încă să o preia, fie că a preluat-o și a eliberat-o deja.
+
+Pentru a distinge cele două cazuri, extensia ține minte dacă a observat vreodată rezervarea deținută de Desktop. Dacă da, o recuperare reușită ulterioară înseamnă că Desktop a terminat: predarea se încheie. Dacă nu, recuperarea reușită e doar o fereastră de timp în care Desktop încă nu a pornit sau nu a apucat să acționeze; extensia eliberează din nou rezervarea și continuă să aștepte, până la un timeout, dincolo de care presupune că Desktop nu a pornit corect și raportează eroarea, în loc să aștepte indefinit.
+
+Dacă pornirea propriu-zisă a lui Desktop eșuează (executabilul lipsește, procesul nu poate fi lansat), extensia recuperează imediat propria rezervare: workspace-ul nu rămâne niciun moment fără proprietar din cauza unei predări eșuate. O a doua predare nu poate fi pornită cât timp una este activă, ca să nu existe două încercări concurente de aceeași parte.
+
+\section{Impact}
+
+\begin{itemize}
+  \item Tranziția între cele două interfețe nu cere niciun pas manual de eliberare sau recuperare a workspace-ului.
+  \item O predare eșuată (Desktop nu pornește) nu lasă workspace-ul blocat: extensia recuperează imediat rezervarea.
+  \item O predare care depășește timpul de așteptare este raportată explicit, nu lăsată să aștepte la nesfârșit.
+\end{itemize}
+
+\section{Din perspectiva utilizatorului}
+
 \begin{enumerate}
   \item Salvați modificările din Workbench.
   \item Alegeți \UI{Record in Cliq Desktop}.
@@ -420,6 +979,18 @@ Scurtăturile sunt Ctrl+Shift+Alt+W pentru Workbench, R pentru Run, S pentru Sca
 \end{enumerate}
 
 Dacă executabilul nu este găsit, configurați calea în \UI{Tools > Options > Cliq > General}. Nu poate fi pornită o a doua predare cât timp prima este activă.
+
+\section{Din perspectiva dezvoltatorului}
+
+\begin{tabularx}{\textwidth}{@{}p{5.3cm}Y@{}}
+\toprule \textbf{Componentă} & \textbf{Rol} \\
+\midrule
+\File{DesktopHandoffCoordinator.HandoffAsync} & Eliberează rezervarea, lansează Desktop, apoi rulează bucla de recuperare periodică ce distinge „Desktop o deține", „Desktop a eliberat-o" și „timeout, Desktop nu a pornit". \\
+\File{CliqPackage.RecordInDesktopAsync} & Descoperă executabilul Desktop, garantează o singură predare activă la un moment dat și reîncarcă Workbench-ul după ce predarea se încheie. \\
+\bottomrule
+\end{tabularx}
+
+Acoperire cu teste: \File{DesktopHandoffCoordinatorTests}, în \File{Cliq.VisualStudio.Tests}.
 
 \chapter{Flux recomandat}
 
@@ -508,8 +1079,8 @@ Assert URL & Fără element & Da & Expresie regulată. \\
 \begin{tabularx}{\textwidth}{@{}p{6.5cm}Y@{}}
 \toprule \textbf{Componentă} & \textbf{Teste} \\
 \midrule
-Backend -- teste unitare & 232 \\
-Backend -- teste de integrare, inclusiv pipeline-ul cu browser real & 5 \\
+Backend (teste unitare) & 232 \\
+Backend (teste de integrare, inclusiv pipeline-ul cu browser real) & 5 \\
 Extensia Visual Studio & 184 \\
 Interfața Desktop (frontend) & 30 \\
 \midrule
